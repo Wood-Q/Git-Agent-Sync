@@ -398,7 +398,7 @@ npm run test
 
 - `npm run check`：JavaScript 语法检查和 `git diff --check`
 - `npm run smoke`：CLI 入口帮助输出
-- `npm run test:bindings`：`bindings.jsonl` 兼容旧字段和坏行容错
+- `npm run test:bindings`：v2 `bindings.jsonl` 校验和坏行容错
 - `npm run test:codex-session`：Windows / macOS / Linux 风格 Codex 路径适配
 - `npm run test:claude-session`：Claude Code 元数据提取、归属判断和恢复路径映射
 - `npm run test:scan-cache`：验证未变化 Codex / Claude session 文件会复用本地扫描缓存

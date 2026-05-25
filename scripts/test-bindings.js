@@ -18,7 +18,20 @@ writeFileSync(join(projectDir, "bindings.jsonl"), [
     agent: "codex",
     storeRelativePath: "projects/project/codex/codex-1.jsonl",
     projectCommit: "abc123",
-    projectBranch: "main"
+    projectBaseCommit: "abc123",
+    projectBranch: "main",
+    projectDirty: false
+  }),
+  JSON.stringify({
+    version: 1,
+    boundAt: "2026-05-23T00:00:00.000Z",
+    bundleId: "legacy-codex",
+    agent: "codex",
+    storeRelativePath: "projects/project/codex/legacy-codex.jsonl",
+    branch: "main",
+    headCommit: "legacy123",
+    baseCommit: "legacy123",
+    dirty: false
   }),
   "{not-json",
   JSON.stringify({ bundleId: "missing-required-fields" })
@@ -27,9 +40,10 @@ writeFileSync(join(projectDir, "bindings.jsonl"), [
 const summary = inspectBindings(config);
 assert.equal(summary.exists, true);
 assert.equal(summary.valid, 1);
-assert.equal(summary.invalid, 2);
+assert.equal(summary.invalid, 3);
 assert.equal(summary.bindings[0].projectCommit, "abc123");
 assert.equal(summary.bindings[0].projectBaseCommit, "abc123");
+assert.equal(summary.bindings[0].projectDirty, false);
 
 const matches = queryBindings(config, { type: "commit", value: "abc" }, process.cwd());
 assert.equal(matches.length, 1);

@@ -265,21 +265,24 @@ function normalizeBinding(binding) {
   if (!binding || typeof binding !== "object") {
     return null;
   }
+  if (binding.version !== 2 || !binding.syncRunId || !binding.syncedAt) {
+    return null;
+  }
   const projectCommit = binding.projectCommit || null;
   const projectBaseCommit = binding.projectBaseCommit || projectCommit;
   const projectBranch = binding.projectBranch ?? null;
   const normalized = {
-    version: binding.version || 2,
-    syncRunId: binding.syncRunId || null,
-    syncedAt: binding.syncedAt || binding.boundAt || null,
-    boundAt: binding.boundAt || binding.syncedAt || null,
+    version: binding.version,
+    syncRunId: binding.syncRunId,
+    syncedAt: binding.syncedAt,
+    boundAt: binding.boundAt || binding.syncedAt,
     projectId: binding.projectId || null,
     projectIdentity: binding.projectIdentity || null,
     projectRemote: binding.projectRemote || null,
     projectBranch,
     projectCommit,
     projectBaseCommit,
-    projectDirty: Boolean(binding.projectDirty ?? binding.dirty),
+    projectDirty: Boolean(binding.projectDirty),
     bundleId: binding.bundleId || null,
     agent: binding.agent || null,
     sessionId: binding.sessionId || null,

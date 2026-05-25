@@ -375,7 +375,7 @@ The suite includes:
 
 - `npm run check`: JavaScript syntax checks and `git diff --check`.
 - `npm run smoke`: CLI entrypoint help output.
-- `npm run test:bindings`: `bindings.jsonl` compatibility and invalid-line handling.
+- `npm run test:bindings`: v2 `bindings.jsonl` validation and invalid-line handling.
 - `npm run test:codex-session`: Windows / macOS / Linux style Codex path adaptation.
 - `npm run test:claude-session`: Claude Code metadata extraction, ownership checks, and restore path mapping.
 - `npm run test:scan-cache`: unchanged Codex and Claude session files are reused from the local scan cache.
