@@ -1,6 +1,6 @@
 # 工具执行链路
 
-Agent-Sync 的核心链路可以理解为：业务仓库只负责代码，sidecar 仓库只负责 Codex 会话。两者通过项目 identity、业务项目 commit 和 session 元数据关联，但不会把会话文件写进业务仓库历史。
+Agent-Sync 的核心链路可以理解为：业务仓库只负责代码，sidecar 仓库只负责 Codex / Claude Code 项目会话。两者通过项目 identity、业务项目 commit 和 session 元数据关联，但不会把会话文件写进业务仓库历史。
 
 ```text
 业务仓库
@@ -11,7 +11,7 @@ Agent-Sync 的核心链路可以理解为：业务仓库只负责代码，sideca
   |
   | 2. scan/status
   v
-本机 Codex session
+本机 agent session
   |
   | 3. push
   v
@@ -20,6 +20,7 @@ Agent-Sync 的核心链路可以理解为：业务仓库只负责代码，sideca
     manifest.json
     bindings.jsonl
     codex/*.jsonl
+    claude/*.jsonl
   |
   | 4. sidecar git push/pull
   v
@@ -27,7 +28,7 @@ Agent-Sync 的核心链路可以理解为：业务仓库只负责代码，sideca
   |
   | 5. pull + log/restore
   v
-另一台机器的 Codex session 目录
+另一台机器的 agent session 目录
 ```
 
 ## 1. 初始化：建立项目身份和 sidecar store
@@ -65,6 +66,7 @@ git agent-sync scan
 工具当前优先扫描：
 
 - Codex：`~/.codex/sessions/**/*.jsonl`
+- Claude Code：`~/.claude/projects/**/*.jsonl`
 
 扫描分两层：
 
@@ -110,7 +112,15 @@ Codex session 会优先读取 `state_5.sqlite` 里的线程字段，例如：
 - 如果 session 已经明确记录了其他 Git remote、其他项目路径，或者同时跨多个项目 workdir，即使正文里提到当前项目名，也不会被当作当前项目 session。
 - 如果 session 完全缺少结构化项目身份，也不会只因为正文里出现项目名而被同步。这样会牺牲少量老格式兼容性，但可以保证不同项目的 session 不互相污染。
 
-Claude Code 不参与当前 Git-aligned `log/show/restore` 主流程。
+Claude Code 只扫描 `~/.claude/projects` 下的项目会话 JSONL。只读调研到的本机结构是：
+
+- `~/.claude/projects/<encoded-project-path>/**/*.jsonl`：项目会话文件，包含顶层 `sessionId`、`cwd`、`gitBranch`、timestamp、sidechain 标记、`message` 对象，以及 tool-use input 中的命令工作目录。
+- `~/.claude/history.jsonl`：按项目和 session id 记录的历史/索引，不是同步正文来源。
+- `~/.claude/sessions/*.json`：运行中进程/session 状态。
+- 本机布局中没有发现类似 Codex `state_5.sqlite` 的 Claude 专用归档索引；resume / discovery 相关证据来自项目 JSONL、history 索引和运行态文件，其中只有项目 JSONL 会被同步。
+- `~/.claude.json`、`settings.json`、`backups/`、`cache/`、`telemetry/`、`ide/`、`plugins/`、`skills/`：全局账号、设置、缓存、遥测、插件或技能状态，不能同步。
+
+Claude 项目归属只使用结构化元数据：顶层 `cwd`、Git remote/branch/commit 字段、tool-use input 里的 `cwd` / `workdir` 等。目录 slug 或正文里出现当前项目名都不能单独证明归属。已经明确属于其他 Git remote、其他项目路径、混合多个项目 workdir，或缺少结构化项目身份的 Claude JSONL 会被跳过。
 
 扫描结果会写入：
 
@@ -154,6 +164,7 @@ git agent-sync push
 - dirty 状态
 
 主要锚点始终是执行 `git agent-sync push` 时的业务项目 commit。Codex session JSONL 自己记录的 git 元数据只用于判断项目归属，不作为恢复查询的主 commit。
+主要锚点始终是执行 `git agent-sync push` 时的业务项目 commit。agent session JSONL 自己记录的 Git 元数据只用于判断项目归属，不作为恢复查询的主 commit。
 
 最后，工具只会在 `.agent-sync-store/` 这个独立 Git 仓库里提交并推送：
 
@@ -178,7 +189,7 @@ git agent-sync pull
 - 从私有 session store 远程仓库拉取 sidecar 数据。
 - 对 sidecar store 启用 sparse checkout，只完整展开当前项目目录，同时保留其他项目的 `manifest.json` 作为轻量索引。
 - 根据当前项目 identity、legacy id、项目名等信息找到兼容的 project bundle。
-- 清理该 bundle 中已经明确属于其他 Codex 项目的历史残留，避免旧版本误同步的数据继续被恢复。
+- 清理该 bundle 中已经明确属于其他 Codex / Claude 项目的历史残留，避免旧版本误同步的数据继续被恢复。
 
 `pull` 只同步 sidecar store，不会立刻写入 `~/.codex` 或 `~/.claude`。
 
@@ -204,7 +215,7 @@ git agent-sync log --commit 4f7c2a1
 - `--branch <name>` 匹配同步时记录的业务项目 branch 标签，不解析当前分支指针。
 - `--current` 先匹配当前业务项目 `HEAD` commit；如果没有结果，再回退到当前 branch。
 - 不带 selector 的 `log` 会按对话时间由近及远列出全部对话。
-- 普通输出类似 `git log`，显示 `Index`、`Title`、`Author`、`Date` 和同步说明；`Date` 优先使用 Codex 对话时间。
+- 普通输出类似 `git log`，显示 `Index`、`Title`、`Author`、`Date` 和同步说明；`Date` 优先使用 agent 对话时间。
 - `--oneline` 每条对话只输出一行；`-n <count>`、`--max-count <count>` 或 `-<count>` 会限制最近 N 条。
 - human 输出超过终端高度时会使用 pager；在 `less` 中 Space 向下翻页，`b` 向上翻页，`q` 退出。
 - 默认 `log` 输出中的 `Index` 可以直接用 `git agent-sync restore --index <n>` 或 `git agent-sync restore --i <n>` 恢复。
@@ -234,6 +245,7 @@ git agent-sync restore --all
 工具会从 sidecar store 读取 session 文件，并恢复到当前机器对应目录：
 
 - Codex：`~/.codex/sessions/...`
+- Claude Code：`~/.claude/projects/<current-project-slug>/...`
 
 不带 selector 时，`--index` / `--i` 使用默认 `git agent-sync log` 的编号。带 selector 时，编号只在该 selector 的输出范围内生效。
 
@@ -245,6 +257,13 @@ Codex session 默认会在恢复时做轻量跨平台适配：
 - 写入本机 `state_5.sqlite` 和 `session_index.jsonl`，让 Codex 插件 / App 能显示恢复后的会话。
 - 不修改 sidecar store 中的原始 session 文件。
 - 不翻译 PowerShell / bash / zsh 命令语法。
+
+Claude session 恢复时会：
+
+- 根据当前机器的 `getAgentRoot("claude")` 和当前业务项目路径重建目标目录，不使用源机器绝对路径。
+- 把 JSONL 中结构化字段和 tool-use input 里的源项目路径映射到当前业务仓库根目录。
+- 写入 `agentSyncAdapted` 标记。
+- 恢复前再次校验 sidecar 文件仍然属于当前项目；foreign/mixed Claude 会话会被跳过。
 
 如果需要完全原样恢复，可以使用：
 

@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { BINDINGS_FILE, BINDINGS_INDEX_FILE } from "./constants.js";
+import { BINDINGS_FILE, BINDINGS_INDEX_FILE, SUPPORTED_AGENTS } from "./constants.js";
 import { getGitContext } from "./git.js";
 import { readJson, writeJson } from "./utils.js";
 
@@ -9,8 +9,8 @@ const DEFAULT_AUTHOR_NAME = "agent-sync";
 const DEFAULT_AUTHOR_EMAIL = "agent-sync@example.invalid";
 
 export function writeBindings(config, matches, gitContext, syncRunId = createSyncRunId(gitContext), commitInfo = {}) {
-  const codexMatches = matches.filter((match) => match.agent === "codex");
-  if (!codexMatches.length) {
+  const agentMatches = matches.filter((match) => isSupportedAgent(match.agent));
+  if (!agentMatches.length) {
     return 0;
   }
 
@@ -19,7 +19,7 @@ export function writeBindings(config, matches, gitContext, syncRunId = createSyn
   const additions = [];
   const syncedAt = new Date().toISOString();
 
-  for (const match of codexMatches) {
+  for (const match of agentMatches) {
     const binding = {
       version: 2,
       syncRunId,
@@ -33,7 +33,7 @@ export function writeBindings(config, matches, gitContext, syncRunId = createSyn
       projectBaseCommit: gitContext.baseCommit,
       projectDirty: gitContext.dirty,
       bundleId: match.bundleId,
-      agent: "codex",
+      agent: match.agent,
       sessionId: match.metadata?.sessionId || null,
       title: match.metadata?.title || null,
       conversationAt: match.metadata?.conversationAt || match.modifiedAt || syncedAt,
@@ -117,11 +117,11 @@ function readBindings(config) {
 }
 
 export function readAllBindings(config) {
-  return dedupeBindings(readBindings(config).filter((binding) => binding.agent === "codex"), "all");
+  return dedupeBindings(readBindings(config).filter((binding) => isSupportedAgent(binding.agent)), "all");
 }
 
 export function queryBindings(config, selector, gitRoot) {
-  const bindings = readBindings(config).filter((binding) => binding.agent === "codex");
+  const bindings = readBindings(config).filter((binding) => isSupportedAgent(binding.agent));
   if (selector.type === "latest") {
     return dedupeBindings(filterBindingsByLatestSync(bindings), "latest");
   }
@@ -173,8 +173,8 @@ function dedupeBindings(bindings, mode) {
   const sortedBindings = [...bindings].sort(compareBindingsByConversationTime);
   for (const binding of sortedBindings) {
     const key = mode === "commit"
-      ? `${binding.sessionId || binding.bundleId}:${binding.projectCommit}:${binding.bundleId}`
-      : `${binding.sessionId || binding.bundleId}:${binding.bundleId}`;
+      ? `${binding.agent}:${binding.sessionId || binding.bundleId}:${binding.projectCommit}:${binding.bundleId}`
+      : `${binding.agent}:${binding.sessionId || binding.bundleId}:${binding.bundleId}`;
     if (!seen.has(key)) {
       seen.add(key);
       result.push(binding);
@@ -296,7 +296,7 @@ function normalizeBinding(binding) {
   if (!normalized.bundleId || !normalized.agent || !normalized.storeRelativePath) {
     return null;
   }
-  if (normalized.agent !== "codex") {
+  if (!isSupportedAgent(normalized.agent)) {
     return null;
   }
   if (!normalized.projectCommit && !normalized.projectBaseCommit && !normalized.projectBranch) {
@@ -312,5 +312,9 @@ function createSyncRunId(gitContext) {
 function defaultCommitMessage(config, gitContext) {
   const shortCommit = gitContext.headCommit ? gitContext.headCommit.slice(0, 12) : "no-head";
   const branch = gitContext.branch || "detached";
-  return `sync ${config.projectName || "project"} Codex sessions at ${shortCommit} (${branch})`;
+  return `sync ${config.projectName || "project"} agent sessions at ${shortCommit} (${branch})`;
+}
+
+function isSupportedAgent(agent) {
+  return SUPPORTED_AGENTS.includes(agent);
 }

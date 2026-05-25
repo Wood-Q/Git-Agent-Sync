@@ -4,6 +4,7 @@ import { DEFAULT_STORE_BRANCH, DEFAULT_STORE_GITIGNORE, TOOL_VERSION } from "./c
 import { getProjectRemote, runGit } from "./git.js";
 import { isArchivedCodexSessionPath } from "./codex-archive.js";
 import { isCodexSessionContentForProject } from "./codex-session.js";
+import { isClaudeSessionContentForProject } from "./claude-session.js";
 import { scoreProjectManifest } from "./config.js";
 import { expandHome, normalizePath, readJson, toSlash, unique, writeFileAtomic, writeJson } from "./utils.js";
 
@@ -228,7 +229,7 @@ export function pruneForeignProjectSidecarEntries(config) {
       const manifest = readJson(manifestPath);
       const keptMatches = [];
       for (const match of manifest.matches || []) {
-        if (isForeignCodexStoreMatch(config, match)) {
+        if (isForeignStoreMatch(config, match)) {
           removedManifestEntries += 1;
           foreignBundleIds.add(match.bundleId);
           if (match.storeRelativePath) {
@@ -263,8 +264,8 @@ export function pruneForeignProjectSidecarEntries(config) {
         keptLines.push(line);
         continue;
       }
-      const shouldRemove = binding?.agent === "codex" && (
-        foreignBundleIds.has(binding.bundleId) || isForeignCodexStoreMatch(config, binding)
+      const shouldRemove = isSupportedStoreAgent(binding?.agent) && (
+        foreignBundleIds.has(binding.bundleId) || isForeignStoreMatch(config, binding)
       );
       if (shouldRemove) {
         removedBindings += 1;
@@ -409,8 +410,8 @@ export function findProjectBundle(config) {
   return candidates[0]?.score > 0 ? candidates[0] : null;
 }
 
-function isForeignCodexStoreMatch(config, match) {
-  if (!match || match.agent !== "codex" || !match.storeRelativePath) {
+function isForeignStoreMatch(config, match) {
+  if (!match || !isSupportedStoreAgent(match.agent) || !match.storeRelativePath) {
     return false;
   }
   const source = join(config.storePath, match.storeRelativePath);
@@ -419,10 +420,20 @@ function isForeignCodexStoreMatch(config, match) {
   }
   try {
     const content = readFileSync(source, "utf8");
-    return !isCodexSessionContentForProject(content, config);
+    if (match.agent === "codex") {
+      return !isCodexSessionContentForProject(content, config);
+    }
+    if (match.agent === "claude") {
+      return !isClaudeSessionContentForProject(content, config);
+    }
+    return false;
   } catch {
     return false;
   }
+}
+
+function isSupportedStoreAgent(agent) {
+  return agent === "codex" || agent === "claude";
 }
 
 export function getProjectBundleDir(config) {

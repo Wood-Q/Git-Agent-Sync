@@ -14,6 +14,7 @@ import { parseArgs, parseSelector, formatSelector } from "./args.js";
 import { getAgentRoot, scanSessions } from "./agents.js";
 import { getBindingsPath, inspectBindings, queryBindings, readAllBindings, writeBindings } from "./bindings.js";
 import { cleanCodexTitle, extractCodexSessionMetadata, loadCodexSessionTitles } from "./codex-session.js";
+import { cleanClaudeTitle, extractClaudeSessionMetadata } from "./claude-session.js";
 import {
   legacyProjectIdForPath,
   readConfig,
@@ -103,7 +104,7 @@ Usage:
   git agent-sync doctor
 
 Git-style behavior:
-  - log browses Codex conversations, like git log
+  - log browses synced agent conversations, like git log
   - show prints one snapshot detail, like git show <object>
   - restore writes selected snapshots back into your local agent directory
   - latest means the most recent sidecar sync batch
@@ -113,6 +114,7 @@ Git-style behavior:
 
 MVP behavior:
   - Detects Codex sessions in ~/.codex/sessions/**/*.jsonl
+  - Detects Claude Code sessions in ~/.claude/projects/**/*.jsonl
   - Stores matched session files in a sidecar Git repo
   - Does not add agent sessions to your project Git history
 `);
@@ -128,11 +130,11 @@ Aligns with: git init plus git remote add for the sidecar store.`,
     status: `Usage:
   git agent-sync status [--json]
 
-Scans local Codex sessions and reports which files match this Git project.`,
+Scans local agent sessions and reports which files match this Git project.`,
     scan: `Usage:
   git agent-sync scan [--json]
 
-Alias of status. Scans local Codex sessions without pushing.`,
+Alias of status. Scans local agent sessions without pushing.`,
     log: `Usage:
   git agent-sync log [--oneline] [-n <count>|-<count>] [--json]
   git agent-sync log --latest [--oneline] [-n <count>|-<count>] [--json]
@@ -140,7 +142,7 @@ Alias of status. Scans local Codex sessions without pushing.`,
   git agent-sync log --branch <name> [--oneline] [-n <count>|-<count>] [--json]
   git agent-sync log --commit <sha> [--oneline] [-n <count>|-<count>] [--json]
 
-Browses recoverable Codex conversations.
+Browses recoverable agent conversations.
 Aligns with: git log.
 Default Index values can be restored with git agent-sync restore --index <n>.
 Uses a pager for long human-readable output when run in an interactive terminal.
@@ -160,12 +162,12 @@ Formats:
   git agent-sync show --branch <name> <index> [--json]
   git agent-sync show --commit <sha> <index> [--json]
 
-Prints one Codex session snapshot detail without restoring it.
+Prints one agent session snapshot detail without restoring it.
 Aligns with: git show <object>.`,
     push: `Usage:
   git agent-sync push [--m <message>]
 
-Copies matching Codex session snapshots into the sidecar repo and commits them.
+Copies matching agent session snapshots into the sidecar repo and commits them.
 Use --m to set the sidecar commit message for this sync.
 Aligns with: git push. The sidecar commit records the current project HEAD commit.`,
     pull: `Usage:
@@ -183,9 +185,9 @@ Run log or restore after pull to inspect or recover sessions.`,
   git agent-sync restore --branch <name> [index|--index <n>|--i <n>] [--no-adapt] [--no-register]
   git agent-sync restore --commit <sha> [index|--index <n>|--i <n>] [--no-adapt] [--no-register]
 
-Restores selected Codex snapshots into the local Codex sessions directory.
+Restores selected snapshots into the local agent sessions directory.
 Use --index/--i with the Index shown by the default log output.
-By default Codex restores are registered in state_5.sqlite/session_index.jsonl.
+By default Codex restores are registered in state_5.sqlite/session_index.jsonl; Claude restores are written under ~/.claude/projects for the current project.
 Aligns with: git restore/checkout for local working context.`,
     "install-hooks": `Usage:
   git agent-sync install-hooks
@@ -320,7 +322,7 @@ function pushCommand(gitRoot, options = {}) {
   stageProjectBundle(config);
   const diff = runGit(["diff", "--cached", "--quiet"], config.storePath, { allowFail: true });
   if (diff.status === 0) {
-    console.log(`agent-sync: no sidecar changes (${copied.length} matched sessions, ${pruned.removedFiles} archived removed, ${foreignPruned.removedFiles} foreign removed).`);
+    console.log(`agent-sync: no sidecar changes (${copied.length} matched session(s), ${pruned.removedFiles} archived removed, ${foreignPruned.removedFiles} foreign removed).`);
   } else {
     runGit(["-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "-m", commitMessage], config.storePath);
     console.log(`agent-sync: committed ${copied.length} matched session file(s), ${bindingsAdded} new binding(s), ${pruned.removedFiles} archived removed, ${foreignPruned.removedFiles} foreign removed.`);
@@ -458,7 +460,7 @@ function getPushCommitMessage(config, gitContext, options) {
   }
   const shortCommit = gitContext.headCommit.slice(0, 12);
   const branch = gitContext.branch || "detached";
-  return `sync ${config.projectName} Codex sessions at ${shortCommit} (${branch})`;
+  return `sync ${config.projectName} agent sessions at ${shortCommit} (${branch})`;
 }
 
 function getProjectGitAuthor(gitRoot) {
@@ -639,7 +641,7 @@ function printScan(scan, config) {
     console.log(`cache:   ${scan.cache.cached} reused, ${scan.cache.refreshed} refreshed`);
   }
   if (!scan.matches.length) {
-    console.log("hint: sessions are matched when their file content mentions this repo path or repo name.");
+    console.log("hint: sessions are matched only through structured project metadata such as cwd, workdir, Git remote, branch, or commit.");
     return;
   }
   for (const match of scan.matches) {
@@ -789,7 +791,9 @@ function findBindingByBundleId(config, bundleId) {
 }
 
 function getBindingTitle(config, binding, titles) {
-  const bindingTitle = binding.agent === "codex" ? cleanCodexTitle(binding.title) : binding.title;
+  const bindingTitle = binding.agent === "codex"
+    ? cleanCodexTitle(binding.title)
+    : cleanClaudeTitle(binding.title);
   if (bindingTitle) {
     return compactTitle(bindingTitle);
   }
@@ -826,42 +830,12 @@ function getStoredSessionTitle(config, binding) {
       return extractCodexSessionMetadata(content).title || null;
     }
     if (binding.agent === "claude") {
-      return getClaudeSessionTitle(content);
+      return extractClaudeSessionMetadata(content).title || null;
     }
   } catch {
     return null;
   }
   return null;
-}
-
-function getClaudeSessionTitle(content) {
-  for (const line of content.split(/\r?\n/)) {
-    if (!line.trim()) {
-      continue;
-    }
-    try {
-      const item = JSON.parse(line);
-      const title = getClaudeItemTitle(item);
-      if (title) {
-        return title;
-      }
-    } catch {
-      // Ignore partial JSONL lines.
-    }
-  }
-  return null;
-}
-
-function getClaudeItemTitle(item) {
-  const text = item?.message?.content
-    ?.map((entry) => typeof entry?.text === "string" ? entry.text : "")
-    .find((value) => value && !isLowSignalTitle(value));
-  return text ? compactTitle(text) : null;
-}
-
-function isLowSignalTitle(value) {
-  const text = value.trim();
-  return text.startsWith("<ide_") || text.startsWith("Base directory for this skill:");
 }
 
 function compactTitle(value) {
@@ -871,7 +845,7 @@ function compactTitle(value) {
 function fallbackBindingCommitMessage(config, binding) {
   const shortCommit = binding.projectCommit ? binding.projectCommit.slice(0, 12) : "no-head";
   const branch = binding.projectBranch || "detached";
-  return `sync ${config.projectName || "project"} Codex sessions at ${shortCommit} (${branch})`;
+  return `sync ${config.projectName || "project"} agent sessions at ${shortCommit} (${branch})`;
 }
 
 function formatGitDate(value) {

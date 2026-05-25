@@ -18,9 +18,10 @@
   "scripts": {
     "check": "node ./scripts/check.js",
     "smoke": "node ./bin/git-agent-sync.js --help",
-    "test": "npm run check && npm run smoke && npm run test:bindings && npm run test:codex-session && npm run test:scan-cache && npm run test:archive-cache && npm run test:hooks && npm run test:e2e",
+    "test": "npm run check && npm run smoke && npm run test:bindings && npm run test:codex-session && npm run test:claude-session && npm run test:scan-cache && npm run test:archive-cache && npm run test:hooks && npm run test:e2e",
     "test:bindings": "node ./scripts/test-bindings.js",
     "test:codex-session": "node ./scripts/test-codex-session.js",
+    "test:claude-session": "node ./scripts/test-claude-session.js",
     "test:scan-cache": "node ./scripts/test-scan-cache.js",
     "test:archive-cache": "node ./scripts/test-archive-cache.js",
     "test:hooks": "node ./scripts/test-hooks.js",

@@ -5,7 +5,13 @@ import { queryBindings, readAllBindings } from "./bindings.js";
 import { parseSelector, formatSelector } from "./args.js";
 import { findProjectBundle } from "./store.js";
 import { adaptCodexSessionContent, getCodexContentProjectMatch, registerRestoredCodexSession } from "./codex-session.js";
-import { expandHome, readJson, writeFileAtomic } from "./utils.js";
+import {
+  adaptClaudeSessionContent,
+  getClaudeContentProjectMatch,
+  getClaudeRestoreRelativePath,
+  registerRestoredClaudeSession
+} from "./claude-session.js";
+import { expandHome, normalizePath, readJson, toSlash, writeFileAtomic } from "./utils.js";
 
 export function restoreCommand(gitRoot, args, options, config) {
   const bundleId = args[0];
@@ -84,22 +90,58 @@ function restoreMatches(config, matches, options = {}) {
       console.log(`skipped ${match.agent}: ${source} (${projectMatch.reason})`);
       continue;
     }
-    const target = getRestoreTarget(match);
+    const target = getRestoreTarget(config, match);
     mkdirSync(dirname(target), { recursive: true });
     const result = restoreSessionFile(config, match, source, target, options);
-    const suffix = result.adapted
-      ? ` (adapted ${result.fromPlatform} -> ${result.toPlatform}, shell ${result.shell})`
-      : "";
+    const suffix = formatRestoreSuffix(result);
     console.log(`restored ${match.agent}: ${target}${suffix}`);
     registerRestoredSession(config, match, target, result.content, options);
   }
 }
 
-function getRestoreTarget(match) {
-  if (match.agentRelativePath) {
-    return join(getAgentRoot(match.agent), match.agentRelativePath);
+function getRestoreTarget(config, match) {
+  const agentRelativePath = match.agentRelativePath || inferLegacyAgentRelativePath(match);
+  if (!agentRelativePath) {
+    throw new Error(`cannot restore ${match.bundleId}: missing agentRelativePath`);
   }
-  return expandHome(match.originalPath);
+  const relativePath = match.agent === "claude"
+    ? getClaudeRestoreRelativePath(agentRelativePath, config)
+    : agentRelativePath;
+  const target = join(getAgentRoot(match.agent), relativePath);
+  assertTargetInsideAgentRoot(match.agent, target);
+  return target;
+}
+
+function assertTargetInsideAgentRoot(agent, target) {
+  const root = normalizePath(getAgentRoot(agent));
+  const normalizedTarget = normalizePath(target);
+  if (normalizedTarget !== root && !normalizedTarget.startsWith(`${root}/`)) {
+    throw new Error(`refusing to restore outside ${agent} root: ${target}`);
+  }
+}
+
+function inferLegacyAgentRelativePath(match) {
+  const originalPath = toSlash(expandHome(match.originalPath || ""));
+  if (!originalPath) {
+    return null;
+  }
+  if (match.agent === "codex") {
+    return inferRelativeAfterMarker(originalPath, "/.codex/sessions/") ||
+      inferRelativeAfterMarker(originalPath, "/sessions/");
+  }
+  if (match.agent === "claude") {
+    return inferRelativeAfterMarker(originalPath, "/.claude/projects/") ||
+      inferRelativeAfterMarker(originalPath, "/projects/");
+  }
+  return null;
+}
+
+function inferRelativeAfterMarker(path, marker) {
+  const index = path.indexOf(marker);
+  if (index < 0) {
+    return null;
+  }
+  return path.slice(index + marker.length) || null;
 }
 
 function restoreSessionFile(config, match, source, target, options) {
@@ -109,7 +151,9 @@ function restoreSessionFile(config, match, source, target, options) {
     return { adapted: false, content: originalContent };
   }
 
-  const result = adaptCodexSessionContent(originalContent, config);
+  const result = match.agent === "claude"
+    ? adaptClaudeSessionContent(originalContent, config)
+    : adaptCodexSessionContent(originalContent, config);
   if (!result.adapted) {
     copyFileSync(source, target);
     return { adapted: false, content: originalContent };
@@ -119,24 +163,47 @@ function restoreSessionFile(config, match, source, target, options) {
   return result;
 }
 
+function formatRestoreSuffix(result) {
+  if (!result.adapted) {
+    return "";
+  }
+  if (result.fromPlatform || result.toPlatform || result.shell) {
+    return ` (adapted ${result.fromPlatform || "unknown"} -> ${result.toPlatform || "unknown"}, shell ${result.shell || "unknown"})`;
+  }
+  return " (adapted project paths)";
+}
+
 function shouldAdaptSessionFile(match, source) {
-  return match.agent === "codex" && (source.endsWith(".jsonl") || source.endsWith(".json"));
+  return (match.agent === "codex" || match.agent === "claude") && (source.endsWith(".jsonl") || source.endsWith(".json"));
 }
 
 function getRestoreProjectMatch(config, match, source) {
-  if (match.agent !== "codex") {
-    return { matched: true };
-  }
   try {
     const content = readFileSync(source, "utf8");
-    return getCodexContentProjectMatch(content, config);
+    if (match.agent === "codex") {
+      return getCodexContentProjectMatch(content, config);
+    }
+    if (match.agent === "claude") {
+      return getClaudeContentProjectMatch(content, config);
+    }
+    return { matched: false, reason: `unsupported agent ${match.agent}` };
   } catch (error) {
     return { matched: false, reason: `unreadable session (${error.message})` };
   }
 }
 
 function registerRestoredSession(config, match, target, content, options) {
-  if (options.noRegister || match.agent !== "codex" || !content) {
+  if (options.noRegister || !content) {
+    return;
+  }
+  if (match.agent === "claude") {
+    const result = registerRestoredClaudeSession(content, target, config, match, getAgentRoot("claude"));
+    if (result.registered) {
+      console.log(`registered claude session: ${result.sessionId || match.bundleId}`);
+    }
+    return;
+  }
+  if (match.agent !== "codex") {
     return;
   }
   const result = registerRestoredCodexSession(content, target, config, match, getAgentRoot("codex"));

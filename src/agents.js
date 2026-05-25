@@ -13,6 +13,11 @@ import {
   resolveCodexHome
 } from "./codex-session.js";
 import {
+  extractClaudeSessionMetadata,
+  findClaudeSessionCandidates,
+  getClaudeProjectMatch
+} from "./claude-session.js";
+import {
   buildMatchBase,
   createScanCacheEntry,
   getCandidateStat,
@@ -30,11 +35,13 @@ export function scanSessions(gitRoot, config, archiveInfo = null) {
   const codexThreadIndex = loadCodexThreadIndex(codexRoot);
   const codexTitles = getCodexTitleMap(codexRoot, codexThreadIndex);
   const codexTitleSignature = getCodexTitleSourceSignature(codexRoot);
+  const claudeRoot = getAgentRoot("claude");
 
   const codexCandidates = findCodexCandidates(codexRoot, codexThreadIndex, codexArchiveInfo, config, projectRemote);
-  const candidates = codexCandidates;
+  const claudeCandidates = findClaudeSessionCandidates(claudeRoot);
+  const candidates = [...codexCandidates, ...claudeCandidates];
 
-  const cache = prepareScanCache(gitRoot, config, projectRemote, candidates, codexTitleSignature);
+  const cache = prepareScanCache(gitRoot, config, projectRemote, candidates, codexTitleSignature, claudeRoot);
   const stats = {
     cached: 0,
     refreshed: 0,
@@ -54,21 +61,27 @@ export function scanSessions(gitRoot, config, archiveInfo = null) {
     projectName: config.projectName,
     projectRoot: gitRoot,
     candidates: candidates.length,
+    agents: {
+      codex: { candidates: codexCandidates.length },
+      claude: { candidates: claudeCandidates.length }
+    },
     cache: stats,
     matches,
     archive: summarizeCodexArchiveInfo(codexArchiveInfo)
   };
 }
 
-function prepareScanCache(gitRoot, config, projectRemote, candidates, codexTitleSignature) {
+function prepareScanCache(gitRoot, config, projectRemote, candidates, codexTitleSignature, claudeRoot) {
   const cache = loadScanCache(gitRoot);
   const contextKey = JSON.stringify({
+    providerVersion: 2,
     projectId: config.projectId,
     projectIdentity: config.projectIdentity,
     projectRoot: normalizePath(gitRoot),
     projectName: config.projectName,
     projectRemote,
-    codexTitleSignature
+    codexTitleSignature,
+    claudeRoot: normalizePath(claudeRoot)
   });
   if (cache.contextKey !== contextKey) {
     cache.files = {};
@@ -172,13 +185,11 @@ function scanCandidate(candidate, cache, stats, config, projectRemote, codexTitl
 
   stats.refreshed += 1;
   const content = safeRead(candidate.path);
-  const metadata = candidate.agent === "codex" ? getCodexCandidateMetadata(candidate, content, codexTitles, codexThreadIndex) : null;
+  const metadata = getCandidateMetadata(candidate, content, codexTitles, codexThreadIndex);
   if (metadata && !metadata.title && metadata.sessionId && codexTitles.has(metadata.sessionId)) {
     metadata.title = codexTitles.get(metadata.sessionId);
   }
-  const matchedBy = candidate.agent === "codex"
-    ? matchCodexSession(metadata, candidate.matchedBy, config, projectRemote)
-    : [];
+  const matchedBy = matchAgentSession(candidate, metadata, config, projectRemote);
   const hash = sha256(content);
   const match = matchedBy.length
     ? {
@@ -196,6 +207,16 @@ function scanCandidate(candidate, cache, stats, config, projectRemote, codexTitl
   return match;
 }
 
+function getCandidateMetadata(candidate, content, codexTitles, codexThreadIndex) {
+  if (candidate.agent === "codex") {
+    return getCodexCandidateMetadata(candidate, content, codexTitles, codexThreadIndex);
+  }
+  if (candidate.agent === "claude") {
+    return extractClaudeSessionMetadata(content, candidate);
+  }
+  return null;
+}
+
 function getCodexCandidateMetadata(candidate, content, codexTitles, codexThreadIndex) {
   if (!candidate.thread) {
     const metadata = extractCodexSessionMetadata(content);
@@ -207,6 +228,17 @@ function getCodexCandidateMetadata(candidate, content, codexTitles, codexThreadI
     metadata.title = codexTitles.get(metadata.sessionId) || extractCodexSessionMetadata(content).title || null;
   }
   return metadata;
+}
+
+function matchAgentSession(candidate, metadata, config, projectRemote) {
+  if (candidate.agent === "codex") {
+    return matchCodexSession(metadata, candidate.matchedBy, config, projectRemote);
+  }
+  if (candidate.agent === "claude") {
+    const projectMatch = getClaudeProjectMatch(metadata, config, projectRemote);
+    return projectMatch.matched ? projectMatch.matchedBy : [];
+  }
+  return [];
 }
 
 function matchCodexSession(metadata, preMatchedBy, config, projectRemote) {

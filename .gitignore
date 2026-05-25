@@ -1,3 +1,5 @@
 node_modules/
 .agent-sync/
 .agent-sync-store/
+AGENTS.md
+/tmp
