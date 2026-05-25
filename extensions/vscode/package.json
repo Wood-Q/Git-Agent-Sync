@@ -1,0 +1,90 @@
+{
+  "name": "agent-sync-vscode",
+  "displayName": "Agent Sync",
+  "description": "Browse and restore Agent-Sync sessions from the VS Code SCM view.",
+  "version": "0.1.0",
+  "publisher": "agent-sync",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourname/git-agent-sync.git",
+    "directory": "extensions/vscode"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:agentSync.history",
+    "onCommand:agentSync.restore",
+    "onCommand:agentSync.refreshHistory"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "agentSync.history",
+        "title": "Agent Sync: History",
+        "icon": {
+          "light": "resources/icons/agent-sync-light.svg",
+          "dark": "resources/icons/agent-sync-dark.svg"
+        }
+      },
+      {
+        "command": "agentSync.restore",
+        "title": "Agent Sync: Restore",
+        "icon": "$(repo-pull)"
+      },
+      {
+        "command": "agentSync.refreshHistory",
+        "title": "Agent Sync: Refresh History",
+        "icon": "$(refresh)"
+      }
+    ],
+    "configuration": {
+      "title": "Agent Sync",
+      "properties": {
+        "agentSync.cliPath": {
+          "type": "string",
+          "default": "agent-sync",
+          "description": "Path or command name used to run the Agent-Sync CLI."
+        }
+      }
+    },
+    "menus": {
+      "scm/title": [
+        {
+          "command": "agentSync.history",
+          "group": "navigation",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "agentSync.restore",
+          "group": "navigation",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "agentSync.refreshHistory",
+          "when": "webviewId == 'agentSyncHistory'"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "npm run compile && node ./out/test/run-tests.js",
+    "package": "npm run compile && vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.32.0",
+    "typescript": "^5.4.5"
+  }
+}

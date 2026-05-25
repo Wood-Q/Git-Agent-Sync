@@ -10,9 +10,16 @@ import {
   SUPPORTED_AGENTS,
   TOOL_VERSION
 } from "./constants.js";
-import { parseArgs, parseSelector, formatSelector } from "./args.js";
+import {
+  formatBindingFiltersForCommand,
+  hasActiveBindingFilters,
+  parseArgs,
+  parseBindingFilters,
+  parseSelector,
+  formatSelector
+} from "./args.js";
 import { getAgentRoot, scanSessions } from "./agents.js";
-import { getBindingsPath, inspectBindings, queryBindings, readAllBindings, writeBindings } from "./bindings.js";
+import { filterBindings, getBindingsPath, inspectBindings, queryBindings, readAllBindings, writeBindings } from "./bindings.js";
 import { cleanCodexTitle, extractCodexSessionMetadata, loadCodexSessionTitles } from "./codex-session.js";
 import { cleanClaudeTitle, extractClaudeSessionMetadata } from "./claude-session.js";
 import {
@@ -93,12 +100,12 @@ function printHelp(command = null) {
 Usage:
   git agent-sync init [--remote <url>|<url>] [--store <path>]
   git agent-sync status [--json]
-  git agent-sync log [--latest|--current|--branch <name>|--commit <sha>] [--oneline] [-n <count>|-<count>] [--json]
-  git agent-sync show <bundle-id>|--latest <index>|--current <index>|--branch <name> <index>|--commit <sha> <index> [--json]
+  git agent-sync log [--latest|--current|--branch <name>|--commit <sha>] [--agent <name>] [--author <text>] [--bundle <prefix>] [--date <YYYY-MM-DD>] [--title <text>] [--oneline] [-n <count>|-<count>] [--json]
+  git agent-sync show <bundle-id>|[filters] <index> [--json]
   git agent-sync push [--m <message>]
   git agent-sync pull
   git agent-sync scan [--json]
-  git agent-sync restore <bundle-id>|--index <n>|--i <n>|--all|--latest|--current|--branch <name>|--commit <sha> [index] [--no-adapt] [--no-register]
+  git agent-sync restore <bundle-id>|--index <n>|--i <n>|--all|[filters] [index] [--no-adapt] [--no-register]
   git agent-sync install-hooks
   git agent-sync uninstall-hooks
   git agent-sync doctor
@@ -136,11 +143,8 @@ Scans local agent sessions and reports which files match this Git project.`,
 
 Alias of status. Scans local agent sessions without pushing.`,
     log: `Usage:
-  git agent-sync log [--oneline] [-n <count>|-<count>] [--json]
-  git agent-sync log --latest [--oneline] [-n <count>|-<count>] [--json]
-  git agent-sync log --current [--oneline] [-n <count>|-<count>] [--json]
-  git agent-sync log --branch <name> [--oneline] [-n <count>|-<count>] [--json]
-  git agent-sync log --commit <sha> [--oneline] [-n <count>|-<count>] [--json]
+  git agent-sync log [--latest|--current] [filters] [--oneline] [-n <count>|-<count>] [--json]
+  git agent-sync log [--branch <name>|--commit <sha>] [filters] [--oneline] [-n <count>|-<count>] [--json]
 
 Browses recoverable agent conversations.
 Aligns with: git log.
@@ -149,18 +153,21 @@ Uses a pager for long human-readable output when run in an interactive terminal.
 Selectors:
   --latest       most recent sidecar sync batch
   --current      current project HEAD commit
-  --branch name  branch label recorded during sync
-  --commit sha   project commit recorded during sync
+  --branch name  branch label recorded during sync; may combine with other filters
+  --commit sha   project commit recorded during sync; may combine with other filters
+Filters:
+  --agent name       codex or claude
+  --author text      author name or email contains text
+  --bundle prefix    bundle id prefix
+  --date yyyy-mm-dd  conversation date in local time
+  --title text       title contains text
 Formats:
   --oneline      print one conversation per line
   -n count       limit output to count conversations
   -count         shorthand for -n count`,
     show: `Usage:
   git agent-sync show <bundle-id> [--json]
-  git agent-sync show --latest <index> [--json]
-  git agent-sync show --current <index> [--json]
-  git agent-sync show --branch <name> <index> [--json]
-  git agent-sync show --commit <sha> <index> [--json]
+  git agent-sync show [--latest|--current|filters] <index> [--json]
 
 Prints one agent session snapshot detail without restoring it.
 Aligns with: git show <object>.`,
@@ -180,10 +187,7 @@ Run log or restore after pull to inspect or recover sessions.`,
   git agent-sync restore --index <n> [--no-adapt] [--no-register]
   git agent-sync restore --i <n> [--no-adapt] [--no-register]
   git agent-sync restore --all [--no-adapt] [--no-register]
-  git agent-sync restore --latest [index|--index <n>|--i <n>] [--no-adapt] [--no-register]
-  git agent-sync restore --current [index|--index <n>|--i <n>] [--no-adapt] [--no-register]
-  git agent-sync restore --branch <name> [index|--index <n>|--i <n>] [--no-adapt] [--no-register]
-  git agent-sync restore --commit <sha> [index|--index <n>|--i <n>] [--no-adapt] [--no-register]
+  git agent-sync restore [--latest|--current|filters] [index|--index <n>|--i <n>] [--no-adapt] [--no-register]
 
 Restores selected snapshots into the local agent sessions directory.
 Use --index/--i with the Index shown by the default log output.
@@ -268,24 +272,27 @@ function scanCommand(gitRoot, options) {
 function logCommand(gitRoot, options) {
   const config = readConfigWithBundle(gitRoot);
   const selector = parseSelector(options, { requireSelector: false });
-  const bindings = limitBindings(selector ? queryBindings(config, selector, gitRoot) : readAllBindings(config), options);
+  const filters = parseBindingFilters(options, selector);
+  const bindings = limitBindings(getFilteredBindings(config, selector, filters, gitRoot), options);
 
   if (options.json) {
     console.log(JSON.stringify(bindings, null, 2));
     return;
   }
 
-  pageOrPrint(renderBindings(config, bindings, selector, options));
+  pageOrPrint(renderBindings(config, bindings, selector, filters, options));
 }
 
 function showCommand(gitRoot, args, options) {
   const config = readConfigWithBundle(gitRoot);
   const selector = parseSelector(options, { requireSelector: false });
-  const match = selector
-    ? selectBindingByIndex(queryBindings(config, selector, gitRoot), parseRequiredIndex(args, options, selector), selector)
+  const filters = parseBindingFilters(options, selector);
+  const scoped = selector || hasActiveBindingFilters(filters);
+  const match = scoped
+    ? selectBindingByIndex(getFilteredBindings(config, selector, filters, gitRoot), parseRequiredIndex(args, options, selector, filters), selector, filters)
     : findBindingByBundleId(config, args[0]);
   if (!match) {
-    throw new Error(selector ? `no bindings found for ${formatSelector(selector)}` : `no bundle found for "${args[0] || ""}"`);
+    throw new Error(scoped ? `no bindings found for ${formatQueryScope(selector, filters)}` : `no bundle found for "${args[0] || ""}"`);
   }
 
   if (options.json) {
@@ -665,10 +672,21 @@ function parseMaxCount(options) {
   return Number(value);
 }
 
-function renderBindings(config, bindings, selector, options = {}) {
+function getFilteredBindings(config, selector, filters, gitRoot) {
+  const bindings = selector ? queryBindings(config, selector, gitRoot) : readAllBindings(config);
+  if (!hasActiveBindingFilters(filters)) {
+    return bindings;
+  }
+  const titles = loadCodexSessionTitles();
+  return filterBindings(bindings, filters, {
+    getTitle: (binding) => getBindingTitle(config, binding, titles)
+  });
+}
+
+function renderBindings(config, bindings, selector, filters, options = {}) {
   return options.oneline
     ? renderBindingsOneline(config, bindings)
-    : renderBindingsFull(config, bindings, selector);
+    : renderBindingsFull(config, bindings, selector, filters);
 }
 
 function renderBindingsOneline(config, bindings) {
@@ -680,14 +698,16 @@ function renderBindingsOneline(config, bindings) {
   }).join("\n");
 }
 
-function renderBindingsFull(config, bindings, selector) {
+function renderBindingsFull(config, bindings, selector, filters = {}) {
   const titles = loadCodexSessionTitles();
   const lines = [];
-  if (selector) {
-    lines.push(`selector: ${formatSelector(selector)}`);
+  const scoped = selector || hasActiveBindingFilters(filters);
+  const commandScope = formatQueryScopeForCommand(selector, filters);
+  if (scoped) {
+    lines.push(`${selector ? "selector" : "filters"}: ${formatQueryScope(selector, filters)}`);
     lines.push(`bindings: ${bindings.length}`);
-    lines.push(`restore:  git agent-sync restore ${formatSelectorForCommand(selector)} <index>`);
-    lines.push(`show:     git agent-sync show ${formatSelectorForCommand(selector)} <index>`);
+    lines.push(`restore:  git agent-sync restore ${commandScope} <index>`);
+    lines.push(`show:     git agent-sync show ${commandScope} <index>`);
     lines.push("");
   } else {
     lines.push(`bindings: ${bindings.length}`);
@@ -708,7 +728,7 @@ function renderBindingsFull(config, bindings, selector) {
     lines.push(`    ${binding.commitMessage || fallbackBindingCommitMessage(config, binding)}`);
     lines.push("");
     lines.push(`    Bundle: ${binding.bundleId}`);
-    if (!selector) {
+    if (!scoped) {
       lines.push(`    Restore: git agent-sync restore --index ${index + 1}`);
       lines.push(`    Show:    git agent-sync show ${binding.bundleId}`);
     }
@@ -761,20 +781,20 @@ function printBindingDetail(config, binding) {
   console.log(`restore:        git agent-sync restore ${binding.bundleId}`);
 }
 
-function selectBindingByIndex(bindings, index, selector) {
+function selectBindingByIndex(bindings, index, selector, filters = {}) {
   if (!bindings.length) {
     return null;
   }
   if (index > bindings.length) {
-    throw new Error(`show index ${index} is out of range for ${formatSelector(selector)} (${bindings.length} binding(s))`);
+    throw new Error(`show index ${index} is out of range for ${formatQueryScope(selector, filters)} (${bindings.length} binding(s))`);
   }
   return bindings[index - 1] || null;
 }
 
-function parseRequiredIndex(args, options, selector) {
+function parseRequiredIndex(args, options, selector, filters = {}) {
   const value = options.index ?? args[0];
   if (value === null || value === undefined) {
-    throw new Error(`show ${formatSelector(selector)} requires an index`);
+    throw new Error(`show ${formatQueryScope(selector, filters)} requires an index`);
   }
   if (!/^\d+$/.test(String(value)) || Number(value) < 1) {
     throw new Error("show index must be a positive number");
@@ -818,6 +838,30 @@ function formatSelectorForCommand(selector) {
     return "--current";
   }
   return `--${selector.type} ${selector.value}`;
+}
+
+function formatQueryScope(selector, filters = {}) {
+  const parts = [];
+  if (selector) {
+    parts.push(formatSelector(selector));
+  }
+  const filterEntries = Object.entries(filters || {});
+  if (filterEntries.length) {
+    parts.push(filterEntries.map(([name, value]) => `${name} ${value}`).join(", "));
+  }
+  return parts.length ? parts.join(", ") : "log";
+}
+
+function formatQueryScopeForCommand(selector, filters = {}) {
+  const parts = [];
+  if (selector) {
+    parts.push(formatSelectorForCommand(selector));
+  }
+  const filterCommand = formatBindingFiltersForCommand(filters);
+  if (filterCommand) {
+    parts.push(filterCommand);
+  }
+  return parts.join(" ");
 }
 
 function getStoredSessionTitle(config, binding) {

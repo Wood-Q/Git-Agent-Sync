@@ -1,8 +1,8 @@
 import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getAgentRoot } from "./agents.js";
-import { queryBindings, readAllBindings } from "./bindings.js";
-import { parseSelector, formatSelector } from "./args.js";
+import { filterBindings, queryBindings, readAllBindings } from "./bindings.js";
+import { hasActiveBindingFilters, parseBindingFilters, parseSelector, formatSelector } from "./args.js";
 import { findProjectBundle } from "./store.js";
 import { adaptCodexSessionContent, getCodexContentProjectMatch, registerRestoredCodexSession } from "./codex-session.js";
 import {
@@ -16,20 +16,22 @@ import { expandHome, normalizePath, readJson, toSlash, writeFileAtomic } from ".
 export function restoreCommand(gitRoot, args, options, config) {
   const bundleId = args[0];
   const selector = parseSelector(options, { requireSelector: false });
-  const selectorIndex = parseRestoreIndex(args, options, Boolean(selector));
+  const filters = parseBindingFilters(options, selector);
+  const scoped = Boolean(selector) || hasActiveBindingFilters(filters);
+  const selectorIndex = parseRestoreIndex(args, options, scoped);
   const logIndex = parseRestoreIndex([], options, false);
-  const restoreModes = [Boolean(bundleId && !selector), Boolean(options.all), Boolean(selector), Boolean(logIndex && !selector)].filter(Boolean).length;
+  const restoreModes = [Boolean(bundleId && !scoped), Boolean(options.all), scoped, Boolean(logIndex && !scoped)].filter(Boolean).length;
   if (restoreModes !== 1) {
-    throw new Error("restore requires exactly one of a bundle id, --all, --index, --latest, --current, --branch, or --commit");
+    throw new Error("restore requires exactly one of a bundle id, --all, --index, --latest, --current, --branch, --commit, or filters");
   }
 
-  if (selector) {
-    const allMatches = queryBindings(config, selector, gitRoot);
-    const matches = selectRestoreMatches(allMatches, selectorIndex, selector);
+  if (scoped) {
+    const allMatches = getFilteredBindings(config, selector, filters, gitRoot);
+    const matches = selectRestoreMatches(allMatches, selectorIndex, selector, filters);
     if (!matches.length) {
-      throw new Error(`no bindings found for ${formatSelector(selector)}`);
+      throw new Error(`no bindings found for ${formatQueryScope(selector, filters)}`);
     }
-    restoreMatches(config, matches, options);
+    printJsonResult(options, restoreMatches(config, matches, options));
     return;
   }
 
@@ -38,7 +40,7 @@ export function restoreCommand(gitRoot, args, options, config) {
     if (!matches.length) {
       throw new Error("no bindings found for log");
     }
-    restoreMatches(config, matches, options);
+    printJsonResult(options, restoreMatches(config, matches, options));
     return;
   }
 
@@ -53,7 +55,7 @@ export function restoreCommand(gitRoot, args, options, config) {
     throw new Error(`no bundle found for "${bundleId}"`);
   }
 
-  restoreMatches(config, matches, options);
+  printJsonResult(options, restoreMatches(config, matches, options));
 }
 
 function parseRestoreIndex(args, options, hasSelector) {
@@ -71,31 +73,83 @@ function parseRestoreIndex(args, options, hasSelector) {
   return index;
 }
 
-function selectRestoreMatches(matches, index, selector) {
+function selectRestoreMatches(matches, index, selector, filters = {}) {
   if (!index) {
     return matches;
   }
   if (index > matches.length) {
-    const scope = selector ? formatSelector(selector) : "log";
+    const scope = formatQueryScope(selector, filters);
     throw new Error(`restore index ${index} is out of range for ${scope} (${matches.length} binding(s))`);
   }
   return matches[index - 1] ? [matches[index - 1]] : [];
 }
 
+function getFilteredBindings(config, selector, filters, gitRoot) {
+  const bindings = selector ? queryBindings(config, selector, gitRoot) : readAllBindings(config);
+  return hasActiveBindingFilters(filters) ? filterBindings(bindings, filters) : bindings;
+}
+
+function formatQueryScope(selector, filters = {}) {
+  const parts = [];
+  if (selector) {
+    parts.push(formatSelector(selector));
+  }
+  const filterEntries = Object.entries(filters || {});
+  if (filterEntries.length) {
+    parts.push(filterEntries.map(([name, value]) => `${name} ${value}`).join(", "));
+  }
+  return parts.length ? parts.join(", ") : "log";
+}
+
 function restoreMatches(config, matches, options = {}) {
+  const results = [];
   for (const match of matches) {
     const source = join(config.storePath, match.storeRelativePath);
     const projectMatch = getRestoreProjectMatch(config, match, source);
     if (!projectMatch.matched) {
-      console.log(`skipped ${match.agent}: ${source} (${projectMatch.reason})`);
+      const skipped = {
+        status: "skipped",
+        agent: match.agent,
+        bundleId: match.bundleId,
+        source,
+        reason: projectMatch.reason
+      };
+      results.push(skipped);
+      printRestoreLine(options, `skipped ${match.agent}: ${source} (${projectMatch.reason})`);
       continue;
     }
     const target = getRestoreTarget(config, match);
     mkdirSync(dirname(target), { recursive: true });
     const result = restoreSessionFile(config, match, source, target, options);
     const suffix = formatRestoreSuffix(result);
-    console.log(`restored ${match.agent}: ${target}${suffix}`);
-    registerRestoredSession(config, match, target, result.content, options);
+    printRestoreLine(options, `restored ${match.agent}: ${target}${suffix}`);
+    const registered = registerRestoredSession(config, match, target, result.content, options);
+    results.push({
+      status: "restored",
+      agent: match.agent,
+      bundleId: match.bundleId,
+      source,
+      target,
+      adapted: Boolean(result.adapted),
+      fromPlatform: result.fromPlatform || null,
+      toPlatform: result.toPlatform || null,
+      shell: result.shell || null,
+      registered
+    });
+  }
+  return results;
+}
+
+function printJsonResult(options, results) {
+  if (!options.json) {
+    return;
+  }
+  console.log(JSON.stringify({ ok: true, results }, null, 2));
+}
+
+function printRestoreLine(options, line) {
+  if (!options.json) {
+    console.log(line);
   }
 }
 
@@ -194,22 +248,47 @@ function getRestoreProjectMatch(config, match, source) {
 
 function registerRestoredSession(config, match, target, content, options) {
   if (options.noRegister || !content) {
-    return;
+    return {
+      ok: false,
+      skipped: true,
+      reason: options.noRegister ? "registration disabled" : "missing restored content"
+    };
   }
   if (match.agent === "claude") {
     const result = registerRestoredClaudeSession(content, target, config, match, getAgentRoot("claude"));
     if (result.registered) {
-      console.log(`registered claude session: ${result.sessionId || match.bundleId}`);
+      printRestoreLine(options, `registered claude session: ${result.sessionId || match.bundleId}`);
+      return {
+        ok: true,
+        kind: "claude",
+        sessionId: result.sessionId || match.bundleId
+      };
     }
-    return;
+    return {
+      ok: false,
+      kind: "claude",
+      reason: result.reason || "not registered"
+    };
   }
   if (match.agent !== "codex") {
-    return;
+    return {
+      ok: false,
+      reason: `unsupported agent ${match.agent}`
+    };
   }
   const result = registerRestoredCodexSession(content, target, config, match, getAgentRoot("codex"));
   if (result.registered) {
-    console.log(`registered codex thread: ${result.sessionId}`);
-    return;
+    printRestoreLine(options, `registered codex thread: ${result.sessionId}`);
+    return {
+      ok: true,
+      kind: "codex",
+      sessionId: result.sessionId
+    };
   }
-  console.log(`warn: restored file but failed to register Codex thread (${result.reason})`);
+  printRestoreLine(options, `warn: restored file but failed to register Codex thread (${result.reason})`);
+  return {
+    ok: false,
+    kind: "codex",
+    reason: result.reason || "not registered"
+  };
 }

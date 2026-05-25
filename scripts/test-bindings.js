@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { inspectBindings, queryBindings, writeBindings } from "../src/bindings.js";
+import { filterBindings, inspectBindings, queryBindings, writeBindings } from "../src/bindings.js";
 
 const dir = mkdtempSync(join(tmpdir(), "agent-sync-bindings-"));
 const config = { storePath: dir, projectId: "project" };
@@ -109,4 +109,46 @@ const indexedCommit = queryBindings(config, { type: "commit", value: "def" }, pr
 assert.equal(indexedCommit.length, 2);
 assert.equal(indexedCommit.some((item) => item.agent === "claude" && item.bundleId === "claude-1"), true);
 
+const filterFixtures = [{
+  agent: "codex",
+  bundleId: "codex-alpha",
+  title: "Build login flow",
+  authorName: "Agent Sync Test",
+  authorEmail: "test@example.invalid",
+  projectBranch: "main",
+  projectCommit: "abcdef123456",
+  projectBaseCommit: "abc000",
+  conversationAt: "2026-05-25T12:00:00.000Z"
+}, {
+  agent: "claude",
+  bundleId: "claude-beta",
+  title: "Review billing bug",
+  authorName: "Claude User",
+  authorEmail: "claude@example.invalid",
+  projectBranch: null,
+  projectCommit: "fedcba654321",
+  projectBaseCommit: "fed000",
+  conversationAt: "2026-05-26T12:00:00.000Z"
+}];
+assert.deepEqual(filterBindings(filterFixtures, { agent: "codex" }).map((item) => item.bundleId), ["codex-alpha"]);
+assert.deepEqual(filterBindings(filterFixtures, { author: "example.invalid" }).map((item) => item.bundleId), ["codex-alpha", "claude-beta"]);
+assert.deepEqual(filterBindings(filterFixtures, { author: "claude user" }).map((item) => item.bundleId), ["claude-beta"]);
+assert.deepEqual(filterBindings(filterFixtures, { branch: "main" }).map((item) => item.bundleId), ["codex-alpha"]);
+assert.deepEqual(filterBindings(filterFixtures, { branch: "detached" }).map((item) => item.bundleId), ["claude-beta"]);
+assert.deepEqual(filterBindings(filterFixtures, { commit: "abc" }).map((item) => item.bundleId), ["codex-alpha"]);
+assert.deepEqual(filterBindings(filterFixtures, { bundle: "claude-" }).map((item) => item.bundleId), ["claude-beta"]);
+assert.deepEqual(filterBindings(filterFixtures, { date: localDate(filterFixtures[0].conversationAt) }).map((item) => item.bundleId), ["codex-alpha"]);
+assert.deepEqual(filterBindings(filterFixtures, { title: "LOGIN" }).map((item) => item.bundleId), ["codex-alpha"]);
+assert.deepEqual(filterBindings(filterFixtures, { agent: "codex", branch: "main", title: "login" }).map((item) => item.bundleId), ["codex-alpha"]);
+assert.deepEqual(filterBindings(filterFixtures, { agent: "codex", branch: "detached" }).map((item) => item.bundleId), []);
+
 console.log("bindings v2 test passed");
+
+function localDate(value) {
+  const date = new Date(value);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}

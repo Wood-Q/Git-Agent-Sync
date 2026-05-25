@@ -142,6 +142,19 @@ export function queryBindings(config, selector, gitRoot) {
   throw new Error(`unsupported selector "${selector.type}"`);
 }
 
+export function filterBindings(bindings, filters = {}, options = {}) {
+  const getTitle = options.getTitle || ((binding) => binding.title || binding.bundleId || "");
+  return bindings.filter((binding) => {
+    return matchesAgent(binding, filters.agent) &&
+      matchesAuthor(binding, filters.author) &&
+      matchesBranch(binding, filters.branch) &&
+      matchesCommitFilter(binding, filters.commit) &&
+      matchesBundle(binding, filters.bundle) &&
+      matchesDate(binding, filters.date) &&
+      matchesTitle(binding, filters.title, getTitle);
+  });
+}
+
 function filterBindingsByCommit(bindings, commit) {
   return bindings.filter((binding) => {
     return matchesCommit(binding.projectCommit, commit) ||
@@ -150,7 +163,7 @@ function filterBindingsByCommit(bindings, commit) {
 }
 
 function filterBindingsByBranch(bindings, branch) {
-  return bindings.filter((binding) => binding.projectBranch === branch);
+  return bindings.filter((binding) => matchesBranch(binding, branch));
 }
 
 function filterBindingsByLatestSync(bindings) {
@@ -190,6 +203,65 @@ function compareBindingsByConversationTime(a, b) {
 
 function matchesCommit(value, query) {
   return Boolean(value && query && value.startsWith(query));
+}
+
+function matchesAgent(binding, agent) {
+  return !agent || binding.agent === agent;
+}
+
+function matchesAuthor(binding, author) {
+  if (!author) {
+    return true;
+  }
+  const query = author.toLowerCase();
+  return String(binding.authorName || "").toLowerCase().includes(query) ||
+    String(binding.authorEmail || "").toLowerCase().includes(query);
+}
+
+function matchesBranch(binding, branch) {
+  if (!branch) {
+    return true;
+  }
+  const value = binding.projectBranch || "detached";
+  return value === branch;
+}
+
+function matchesCommitFilter(binding, commit) {
+  if (!commit) {
+    return true;
+  }
+  return matchesCommit(binding.projectCommit, commit) ||
+    matchesCommit(binding.projectBaseCommit, commit);
+}
+
+function matchesBundle(binding, bundle) {
+  return !bundle || Boolean(binding.bundleId && binding.bundleId.startsWith(bundle));
+}
+
+function matchesDate(binding, date) {
+  return !date || formatBindingDate(binding.conversationAt || binding.syncedAt || binding.boundAt) === date;
+}
+
+function matchesTitle(binding, title, getTitle) {
+  if (!title) {
+    return true;
+  }
+  return String(getTitle(binding) || "").toLowerCase().includes(title.toLowerCase());
+}
+
+function formatBindingDate(value) {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    return String(value).slice(0, 10);
+  }
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
 }
 
 function bindingKey(binding) {

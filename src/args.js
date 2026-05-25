@@ -27,6 +27,26 @@ export function parseArgs(rawArgs) {
       options.latest = true;
     } else if (arg === "--current") {
       options.current = true;
+    } else if (arg.startsWith("--agent=")) {
+      options.agent = arg.slice("--agent=".length);
+    } else if (arg === "--agent") {
+      options.agent = rawArgs[++i];
+    } else if (arg.startsWith("--author=")) {
+      options.author = arg.slice("--author=".length);
+    } else if (arg === "--author") {
+      options.author = rawArgs[++i];
+    } else if (arg.startsWith("--bundle=")) {
+      options.bundle = arg.slice("--bundle=".length);
+    } else if (arg === "--bundle") {
+      options.bundle = rawArgs[++i];
+    } else if (arg.startsWith("--date=")) {
+      options.date = arg.slice("--date=".length);
+    } else if (arg === "--date") {
+      options.date = rawArgs[++i];
+    } else if (arg.startsWith("--title=")) {
+      options.title = arg.slice("--title=".length);
+    } else if (arg === "--title") {
+      options.title = rawArgs[++i];
     } else if (arg === "--no-adapt") {
       options.noAdapt = true;
     } else if (arg === "--no-register") {
@@ -73,8 +93,8 @@ export function parseSelector(options, { requireSelector }) {
   const selectors = [
     options.latest ? { type: "latest" } : null,
     options.current ? { type: "current" } : null,
-    options.branch !== undefined ? { type: "branch", value: options.branch } : null,
-    options.commit !== undefined ? { type: "commit", value: options.commit } : null
+    isLegacySelectorOption(options, "branch") ? { type: "branch", value: options.branch } : null,
+    isLegacySelectorOption(options, "commit") ? { type: "commit", value: options.commit } : null
   ].filter(Boolean);
 
   if (selectors.length > 1) {
@@ -92,6 +112,72 @@ export function parseSelector(options, { requireSelector }) {
     throw new Error(`--${selector.type} requires a value`);
   }
   return selector;
+}
+
+function isLegacySelectorOption(options, name) {
+  return options[name] !== undefined && !hasPrimarySelector(options) && !hasBindingFilters(options);
+}
+
+function hasPrimarySelector(options) {
+  return Boolean(options.latest || options.current);
+}
+
+export function hasBindingFilters(options) {
+  return [
+    options.agent,
+    options.author,
+    options.bundle,
+    options.date,
+    options.title
+  ].some((value) => value !== undefined);
+}
+
+export function parseBindingFilters(options, selector = null) {
+  const filters = {
+    agent: parseOptionalFilter(options, "agent"),
+    author: parseOptionalFilter(options, "author"),
+    bundle: parseOptionalFilter(options, "bundle"),
+    date: parseOptionalFilter(options, "date"),
+    title: parseOptionalFilter(options, "title"),
+    branch: selector?.type === "branch" ? null : parseOptionalFilter(options, "branch"),
+    commit: selector?.type === "commit" ? null : parseOptionalFilter(options, "commit")
+  };
+
+  const active = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== null));
+  if (active.agent && !["codex", "claude"].includes(active.agent)) {
+    throw new Error("--agent must be one of codex or claude");
+  }
+  if (active.date && !/^\d{4}-\d{2}-\d{2}$/.test(active.date)) {
+    throw new Error("--date must use YYYY-MM-DD");
+  }
+  return active;
+}
+
+export function hasActiveBindingFilters(filters) {
+  return Object.keys(filters || {}).length > 0;
+}
+
+export function formatBindingFiltersForCommand(filters) {
+  return Object.entries(filters || {})
+    .map(([name, value]) => `--${name} ${shellQuote(String(value))}`)
+    .join(" ");
+}
+
+function parseOptionalFilter(options, name) {
+  if (options[name] === undefined) {
+    return null;
+  }
+  const value = String(options[name]).trim();
+  if (!value) {
+    throw new Error(`--${name} requires a value`);
+  }
+  return value;
+}
+
+function shellQuote(value) {
+  return /^[A-Za-z0-9_./:@+-]+$/.test(value)
+    ? value
+    : JSON.stringify(value);
 }
 
 export function formatSelector(selector) {
