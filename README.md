@@ -414,3 +414,11 @@ This helps confirm whether the remote store contains a bundle for the current pr
 This MVP copies raw project conversation files. Those files may include secrets, code snippets, local paths, prompts, and terminal output. It does not copy Claude account, token, global config, cache, telemetry, plugin, skill, IDE lock, or runtime session files.
 
 Use a private remote. A production version should add default encryption and secret redaction before remote push.
+
+## Publishing Metadata
+
+- Package: `git-agent-sync`
+- Version: `0.1.0`
+- Repository: `https://github.com/Wood-Q/Git-Agent-Sync`
+
+Before publishing, confirm `package.json` still points `repository`, `bugs`, and `homepage` at the repository above, then run `npm test` and `npm pack --dry-run`.

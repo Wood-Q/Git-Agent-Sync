@@ -453,6 +453,12 @@ find .agent-sync-store/projects -maxdepth 2 -name manifest.json -print
 
 ## 发布到 npm
 
+当前发布元信息：
+
+- 包名：`git-agent-sync`
+- 版本：`0.1.0`
+- GitHub 仓库：`https://github.com/Wood-Q/Git-Agent-Sync`
+
 发布前先确认包名是否可用：
 
 ```bash
@@ -499,9 +505,9 @@ git agent-sync --help
 
 ## npm 发布前检查清单
 
-- 修改 `package.json` 里的 `repository`、`bugs`、`homepage`
+- 确认 `package.json` 里的 `repository`、`bugs`、`homepage` 指向 `https://github.com/Wood-Q/Git-Agent-Sync`
 - 确认 `name` 没有被占用
-- 确认 `version` 是新的版本号
+- 确认 `version` 是要发布的版本号，例如当前版本 `0.1.0`
 - 确认 `bin/git-agent-sync.js` 第一行是 `#!/usr/bin/env node`
 - 确认 `npm pack --dry-run` 里没有包含敏感文件
 - 确认 npm 账号已经开启 2FA，或使用符合 npm 要求的 granular access token
