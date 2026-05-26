@@ -1,15 +1,16 @@
 {
   "name": "agent-sync-vscode",
-  "displayName": "Agent Sync",
+  "displayName": "Git Agent Sync",
   "description": "Browse and restore Agent-Sync sessions from the VS Code SCM view.",
-  "version": "0.1.0",
-  "publisher": "agent-sync",
+  "version": "0.1.2",
+  "publisher": "mokio",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Wood-Q/Git-Agent-Sync.git",
     "directory": "extensions/vscode"
   },
+  "icon": "resources/marketplace-icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },

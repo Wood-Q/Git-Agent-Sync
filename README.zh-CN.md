@@ -471,6 +471,7 @@ npm view git-agent-sync
 
 ```bash
 npm login
+npm whoami
 ```
 
 检查即将发布的文件：
@@ -491,6 +492,21 @@ npm run test
 npm publish --access public
 ```
 
+如果发布时报：
+
+```text
+Two-factor authentication or granular access token with bypass 2fa enabled is required to publish packages.
+```
+
+说明 npm 要求当前发布操作使用账号 2FA，或使用开启了 bypass 2FA 的 granular access token。推荐先在 npm 账号设置里开启 2FA，保存 recovery codes，然后重新登录并发布：
+
+```bash
+npm login
+npm publish --access public --otp <当前一次性验证码>
+```
+
+如果 CLI 已经自动弹出 OTP 输入提示，也可以直接运行 `npm publish --access public` 后按提示输入验证码。CI/CD 发布则应使用 npm trusted publishing，或使用有 read/write 权限且开启 bypass 2FA 的 granular access token。
+
 发布成功后，其他人就可以安装：
 
 ```bash
@@ -510,5 +526,15 @@ git agent-sync --help
 - 确认 `version` 是要发布的版本号，例如当前版本 `0.1.0`
 - 确认 `bin/git-agent-sync.js` 第一行是 `#!/usr/bin/env node`
 - 确认 `npm pack --dry-run` 里没有包含敏感文件
-- 确认 npm 账号已经开启 2FA，或使用符合 npm 要求的 granular access token
+- 确认 npm 账号已经开启 2FA，或使用开启 bypass 2FA 的 granular access token
 - 确认远程 GitHub 仓库是公开项目仓库，session store 仓库仍然应该是私有仓库
+
+## VS Code 插件发布元信息
+
+- 扩展包名：`agent-sync-vscode`
+- Marketplace 显示名：`Git Agent Sync`
+- 当前插件版本：`0.1.1`
+- Publisher：`mokio`
+- GitHub 仓库：`https://github.com/Wood-Q/Git-Agent-Sync`
+
+已经发布过的插件版本不能覆盖。修改 Marketplace 显示名、图标、说明或其他 manifest 信息后，需要提升 `extensions/vscode/package.json` 里的 `version`，然后重新运行 `npx vsce publish`。

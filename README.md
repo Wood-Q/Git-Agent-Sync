@@ -422,3 +422,5 @@ Use a private remote. A production version should add default encryption and sec
 - Repository: `https://github.com/Wood-Q/Git-Agent-Sync`
 
 Before publishing, confirm `package.json` still points `repository`, `bugs`, and `homepage` at the repository above, then run `npm test` and `npm pack --dry-run`.
+
+If `npm publish` fails with a 403 that says two-factor authentication or a granular access token with bypass 2FA is required, enable 2FA on the npm account and retry with `npm publish --otp <code>`, or publish with a granular read/write token that has bypass 2FA enabled.

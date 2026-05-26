@@ -1,4 +1,4 @@
-# Agent Sync
+# Git Agent Sync
 
 Browse and restore Agent-Sync sessions from the VS Code SCM view.
 
@@ -7,5 +7,6 @@ This extension calls the `agent-sync` CLI from your PATH by default. If the CLI 
 Publishing metadata:
 
 - Extension package: `agent-sync-vscode`
-- Version: `0.1.0`
+- Display name: `Git Agent Sync`
+- Version: `0.1.1`
 - Repository: `https://github.com/Wood-Q/Git-Agent-Sync`

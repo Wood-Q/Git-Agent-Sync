@@ -12,8 +12,8 @@
     "LICENSE"
   ],
   "bin": {
-    "git-agent-sync": "./bin/git-agent-sync.js",
-    "agent-sync": "./bin/git-agent-sync.js"
+    "git-agent-sync": "bin/git-agent-sync.js",
+    "agent-sync": "bin/git-agent-sync.js"
   },
   "scripts": {
     "check": "node ./scripts/check.js",
