@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cli:
+    name: CLI / ${{ matrix.os }} / Node ${{ matrix.node-version }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        node-version:
+          - "18.x"
+          - "20.x"
+          - "22.x"
+          - "24.x"
+        include:
+          - os: macos-latest
+            node-version: "24.x"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run CLI test suite
+        run: npm test
+
+  package:
+    name: Package checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.x"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            extensions/vscode/package-lock.json
+
+      - name: Install CLI dependencies
+        run: npm ci
+
+      - name: Audit CLI runtime dependencies
+        run: npm audit --omit=dev
+
+      - name: Verify npm package contents
+        run: npm pack --dry-run
+
+      - name: Install VS Code extension dependencies
+        working-directory: extensions/vscode
+        run: npm ci
+
+      - name: Audit VS Code extension dependencies
+        working-directory: extensions/vscode
+        run: npm audit
+
+      - name: Test VS Code extension
+        working-directory: extensions/vscode
+        run: npm test
+
+      - name: Package VS Code extension
+        working-directory: extensions/vscode
+        run: npm run package -- --out /tmp/agent-sync-vscode.vsix
