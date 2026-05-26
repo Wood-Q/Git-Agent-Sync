@@ -1,4 +1,7 @@
 node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/.temp/
+docs/.vitepress/cache/
 .agent-sync/
 .agent-sync-store/
 AGENTS.md
