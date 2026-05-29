@@ -42,13 +42,13 @@ Published extension:
 
 - Extension package: `agent-sync-vscode`
 - Marketplace display name: `Git Agent Sync`
-- Version: `0.1.2`
+- Version: `0.1.3`
 - Publisher: `mokio`
 - Extension ID: `mokio.agent-sync-vscode`
 - Marketplace: `https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode`
 - Repository: `https://github.com/Wood-Q/Git-Agent-Sync`
 
-The extension calls the `agent-sync` CLI from `PATH` by default. Users can override the executable with the `agentSync.cliPath` setting.
+The extension calls the `agent-sync` CLI from `PATH` by default. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. Users can override the executable with the `agentSync.cliPath` setting.
 
 For the next extension release, bump `extensions/vscode/package.json` `version`, then build and publish:
 

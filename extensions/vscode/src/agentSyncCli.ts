@@ -1,8 +1,11 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { delimiter, extname, isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import * as vscode from "vscode";
 
 const execFileAsync = promisify(execFile);
+const WINDOWS_EXECUTABLE_EXTENSIONS = [".cmd", ".exe", ".bat", ".com"];
 
 export interface AgentSyncBinding {
   title?: string | null;
@@ -71,14 +74,17 @@ export class AgentSyncCli {
   }
 
   async run(cwd: string, args: string[]): Promise<string> {
-    const command = getCliPath();
-    const line = `${command} ${args.join(" ")}`;
+    const invocation = resolveCliInvocation();
+    const line = [invocation.command, ...args].map(quoteForDisplay).join(" ");
     this.output.appendLine(`$ ${line}`);
     try {
-      const result = await execFileAsync(command, args, {
+      const result = await execFileAsync(invocation.command, args, {
         cwd,
+        env: invocation.env,
+        shell: invocation.shell,
         timeout: 120000,
-        maxBuffer: 1024 * 1024 * 20
+        maxBuffer: 1024 * 1024 * 20,
+        windowsHide: true
       });
       if (result.stdout) {
         this.output.appendLine(result.stdout.trimEnd());
@@ -100,14 +106,31 @@ export class AgentSyncCli {
       if (failure.stderr) {
         this.output.appendLine(failure.stderr.trimEnd());
       }
-      const detail = failure.stderr?.trim() || failure.message || "Agent-Sync command failed";
+      const detail = formatCliFailure(invocation, failure);
       throw new AgentSyncCliError(detail, failure.stdout || "", failure.stderr || "", failure.code ?? null);
     }
   }
 }
 
+interface CliInvocation {
+  command: string;
+  env: NodeJS.ProcessEnv;
+  shell: boolean;
+}
+
 export function getCliPath(): string {
   return vscode.workspace.getConfiguration("agentSync").get<string>("cliPath")?.trim() || "agent-sync";
+}
+
+export function resolveCliInvocation(): CliInvocation {
+  const env = createCliEnv();
+  const configured = getCliPath();
+  const command = isWindows() ? resolveWindowsCliPath(configured, env) : configured;
+  return {
+    command,
+    env,
+    shell: shouldUseShell(command)
+  };
 }
 
 export function defaultLogFilter(): AgentSyncLogFilter {
@@ -167,4 +190,113 @@ export function parseJson<T>(text: string, label: string): T {
     const message = error instanceof Error ? error.message : String(error);
     throw new AgentSyncCliError(`${label} returned invalid JSON: ${message}`, text);
   }
+}
+
+function createCliEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  if (!isWindows()) {
+    return env;
+  }
+
+  const pathKey = getPathKey(env);
+  const currentPath = env[pathKey] || "";
+  const entries = unique([
+    ...getWindowsNpmSearchDirs(env),
+    ...currentPath.split(delimiter)
+  ].filter(Boolean));
+  env[pathKey] = entries.join(delimiter);
+  return env;
+}
+
+function resolveWindowsCliPath(command: string, env: NodeJS.ProcessEnv): string {
+  const hasPath = command.includes("\\") || command.includes("/") || isAbsolute(command);
+  if (hasPath) {
+    return findWindowsCommandAtPath(command) || command;
+  }
+  return findWindowsCommandOnPath(command, env) || command;
+}
+
+function findWindowsCommandOnPath(command: string, env: NodeJS.ProcessEnv): string | null {
+  const pathValue = env[getPathKey(env)] || "";
+  const names = getWindowsCommandNames(command);
+  for (const dir of pathValue.split(delimiter).filter(Boolean)) {
+    for (const name of names) {
+      const candidate = join(dir, name);
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return null;
+}
+
+function findWindowsCommandAtPath(command: string): string | null {
+  if (existsSync(command)) {
+    return command;
+  }
+  if (extname(command)) {
+    return null;
+  }
+  for (const extension of WINDOWS_EXECUTABLE_EXTENSIONS) {
+    const candidate = `${command}${extension}`;
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function getWindowsCommandNames(command: string): string[] {
+  if (extname(command)) {
+    return [command];
+  }
+  return WINDOWS_EXECUTABLE_EXTENSIONS.map((extension) => `${command}${extension}`);
+}
+
+function getWindowsNpmSearchDirs(env: NodeJS.ProcessEnv): string[] {
+  return [
+    env.npm_config_prefix,
+    env.APPDATA ? join(env.APPDATA, "npm") : "",
+    env.NVM_SYMLINK,
+    env.ProgramFiles ? join(env.ProgramFiles, "nodejs") : "",
+    env["ProgramFiles(x86)"] ? join(env["ProgramFiles(x86)"] as string, "nodejs") : ""
+  ].filter(isNonEmptyString);
+}
+
+function shouldUseShell(command: string): boolean {
+  if (!isWindows()) {
+    return false;
+  }
+  const extension = extname(command).toLowerCase();
+  return !extension || extension === ".cmd" || extension === ".bat";
+}
+
+function formatCliFailure(
+  invocation: CliInvocation,
+  failure: { message?: string; stdout?: string; stderr?: string; code?: number | string | null }
+): string {
+  if (failure.code === "ENOENT") {
+    return `could not find Agent-Sync CLI "${invocation.command}". Install it with "npm install -g git-agent-sync", or set "agentSync.cliPath" to the full agent-sync executable path.`;
+  }
+  return failure.stderr?.trim() || failure.message || "Agent-Sync command failed";
+}
+
+function getPathKey(env: NodeJS.ProcessEnv): string {
+  return Object.keys(env).find((key) => key.toLowerCase() === "path") || "Path";
+}
+
+function quoteForDisplay(value: string): string {
+  return /\s/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
+}
+
+function isWindows(): boolean {
+  return process.platform === "win32";
+}
+
+function isNonEmptyString(value: string | undefined): value is string {
+  return Boolean(value);
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
 }

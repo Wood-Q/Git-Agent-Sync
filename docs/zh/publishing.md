@@ -48,13 +48,13 @@ CI/CD 发布则应使用 npm trusted publishing，或使用有 read/write 权限
 
 - 扩展包名：`agent-sync-vscode`
 - Marketplace 显示名：`Git Agent Sync`
-- 当前插件版本：`0.1.2`
+- 当前插件版本：`0.1.3`
 - Publisher：`mokio`
 - 扩展 ID：`mokio.agent-sync-vscode`
 - Marketplace：`https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode`
 - GitHub 仓库：`https://github.com/Wood-Q/Git-Agent-Sync`
 
-插件默认调用用户 `PATH` 里的 `agent-sync` CLI。如果 CLI 安装在其他位置，用户可以通过 `agentSync.cliPath` 配置。
+插件默认调用用户 `PATH` 里的 `agent-sync` CLI。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。如果 CLI 安装在其他位置，用户可以通过 `agentSync.cliPath` 配置。
 
 下一次插件发版时，先提升 `extensions/vscode/package.json` 里的 `version`，再打包发布：
 

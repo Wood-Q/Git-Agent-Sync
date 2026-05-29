@@ -15,6 +15,8 @@ VS Code 插件已经发布到 Marketplace：
 - Marketplace：[Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - 扩展 ID：`mokio.agent-sync-vscode`
 
+插件会从 `agentSync.cliPath` 调用 CLI，默认命令是 `agent-sync`。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。
+
 本地开发阶段：
 
 ```bash

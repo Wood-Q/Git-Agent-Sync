@@ -15,6 +15,8 @@ VS Code extension:
 - Marketplace: [Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - Extension ID: `mokio.agent-sync-vscode`
 
+The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim.
+
 For local development:
 
 ```bash
