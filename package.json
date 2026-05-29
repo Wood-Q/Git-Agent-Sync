@@ -17,7 +17,7 @@
   "scripts": {
     "check": "node ./scripts/check.js",
     "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs",
+    "docs:build": "vitepress build docs && node ./scripts/prepare-docs-home.js",
     "docs:preview": "vitepress preview docs",
     "smoke": "node ./bin/git-agent-sync.js --help",
     "test": "npm run check && npm run smoke && npm run test:bindings && npm run test:codex-session && npm run test:claude-session && npm run test:scan-cache && npm run test:archive-cache && npm run test:hooks && npm run test:store-promisor && npm run test:e2e",

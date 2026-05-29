@@ -1,0 +1,1776 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Git Agent Sync · 项目展示</title>
+  <style>
+    :root {
+      --bg: #091015;
+      --panel: #101a20;
+      --panel-2: #14242b;
+      --paper: #f5f2e8;
+      --ink: #172025;
+      --muted: #82929b;
+      --line: rgba(245, 242, 232, 0.14);
+      --soft: rgba(245, 242, 232, 0.68);
+      --green: #7ee2ac;
+      --lime: #d8ff72;
+      --cyan: #6ddce8;
+      --orange: #ff9f66;
+      --red: #ff6f7d;
+      --blue: #84a7ff;
+      --shadow: 0 30px 90px rgba(0, 0, 0, 0.35);
+      --radius: 8px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--paper);
+      background: var(--bg);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 18% 8%, rgba(126, 226, 172, 0.14), transparent 26rem),
+        radial-gradient(circle at 88% 22%, rgba(132, 167, 255, 0.12), transparent 24rem),
+        linear-gradient(180deg, #091015 0%, #0d1419 46%, #0a1116 100%);
+    }
+
+    body::before {
+      position: fixed;
+      inset: 0;
+      z-index: -3;
+      content: "";
+      background-image:
+        linear-gradient(rgba(245, 242, 232, 0.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(245, 242, 232, 0.055) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.24));
+    }
+
+    body::after {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      pointer-events: none;
+      content: "";
+      background: linear-gradient(120deg, rgba(255, 255, 255, 0.08), transparent 28%, transparent 70%, rgba(126, 226, 172, 0.08));
+      mix-blend-mode: soft-light;
+      opacity: 0.45;
+    }
+
+    canvas#signal-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      opacity: 0.78;
+      pointer-events: none;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 50;
+      width: 100%;
+      height: 3px;
+      background: rgba(245, 242, 232, 0.08);
+    }
+
+    .progress span {
+      display: block;
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, var(--green), var(--lime), var(--cyan));
+      box-shadow: 0 0 24px rgba(126, 226, 172, 0.45);
+    }
+
+    .topbar {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: min(1120px, calc(100vw - 32px));
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(9, 16, 21, 0.72);
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(18px);
+      transform: translateX(-50%);
+    }
+
+    .brand {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      min-width: 0;
+      font-weight: 720;
+      letter-spacing: 0;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 32px;
+      height: 32px;
+      place-items: center;
+      border: 1px solid rgba(126, 226, 172, 0.42);
+      border-radius: 50%;
+      color: var(--bg);
+      background: var(--green);
+      box-shadow: 0 0 28px rgba(126, 226, 172, 0.28);
+    }
+
+    .nav {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .nav a {
+      padding: 8px 10px;
+      border-radius: 999px;
+      color: rgba(245, 242, 232, 0.7);
+      font-size: 12px;
+      transition: 180ms ease;
+    }
+
+    .nav a:hover,
+    .nav a.active {
+      color: var(--ink);
+      background: var(--lime);
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+    }
+
+    section {
+      position: relative;
+      min-height: 100vh;
+      padding: 118px max(24px, calc((100vw - 1120px) / 2)) 92px;
+      overflow: clip;
+    }
+
+    .section-kicker {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 24px;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 760;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .section-kicker::before {
+      width: 34px;
+      height: 1px;
+      content: "";
+      background: currentColor;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      max-width: 980px;
+      font-size: clamp(56px, 8vw, 126px);
+      line-height: 0.92;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      max-width: 900px;
+      font-size: clamp(40px, 6vw, 88px);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      color: var(--paper);
+      font-size: 22px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 720px;
+      color: var(--soft);
+      font-size: clamp(17px, 2vw, 22px);
+      line-height: 1.75;
+    }
+
+    .mono {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      letter-spacing: 0;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+      gap: 46px;
+      align-items: end;
+      min-height: 100vh;
+      padding-top: 150px;
+    }
+
+    .hero-copy {
+      display: grid;
+      gap: 26px;
+    }
+
+    .hero-tag {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .pill {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      width: fit-content;
+      padding: 8px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: rgba(245, 242, 232, 0.76);
+      background: rgba(245, 242, 232, 0.055);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .pill strong {
+      color: var(--lime);
+      font-weight: 760;
+    }
+
+    .hero-visual {
+      position: relative;
+      min-height: 520px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(140deg, rgba(20, 36, 43, 0.96), rgba(11, 19, 25, 0.86)),
+        radial-gradient(circle at 12% 0%, rgba(126, 226, 172, 0.18), transparent 14rem);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .hero-visual::before {
+      position: absolute;
+      inset: 0;
+      content: "";
+      background-image:
+        linear-gradient(rgba(245, 242, 232, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(245, 242, 232, 0.06) 1px, transparent 1px);
+      background-size: 28px 28px;
+      opacity: 0.72;
+    }
+
+    .orbit {
+      position: absolute;
+      inset: 70px 50px 110px;
+      border: 1px dashed rgba(245, 242, 232, 0.2);
+      border-radius: 50%;
+      animation: spin 22s linear infinite;
+    }
+
+    .orbit:nth-child(2) {
+      inset: 112px 88px 144px;
+      border-color: rgba(126, 226, 172, 0.24);
+      animation-duration: 15s;
+      animation-direction: reverse;
+    }
+
+    .hub {
+      position: absolute;
+      left: 50%;
+      top: 48%;
+      display: grid;
+      width: 154px;
+      height: 154px;
+      place-items: center;
+      border: 1px solid rgba(126, 226, 172, 0.42);
+      border-radius: 50%;
+      background: rgba(9, 16, 21, 0.82);
+      box-shadow: 0 0 55px rgba(126, 226, 172, 0.18), inset 0 0 34px rgba(126, 226, 172, 0.08);
+      transform: translate(-50%, -50%);
+    }
+
+    .hub span {
+      display: block;
+      text-align: center;
+    }
+
+    .hub .big {
+      color: var(--green);
+      font-size: 36px;
+      font-weight: 860;
+    }
+
+    .hub .small {
+      color: var(--soft);
+      font-size: 12px;
+    }
+
+    .node {
+      position: absolute;
+      display: grid;
+      gap: 3px;
+      width: 128px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(245, 242, 232, 0.08);
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(12px);
+    }
+
+    .node b {
+      color: var(--paper);
+      font-size: 14px;
+    }
+
+    .node small {
+      color: rgba(245, 242, 232, 0.6);
+      font-size: 11px;
+    }
+
+    .node.codex {
+      top: 58px;
+      left: 46px;
+    }
+
+    .node.claude {
+      right: 42px;
+      top: 132px;
+    }
+
+    .node.git {
+      bottom: 64px;
+      left: 62px;
+    }
+
+    .node.store {
+      right: 44px;
+      bottom: 72px;
+    }
+
+    .packet {
+      position: absolute;
+      left: 50%;
+      top: 48%;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--lime);
+      box-shadow: 0 0 20px rgba(216, 255, 114, 0.65);
+      animation: packet 5.4s ease-in-out infinite;
+    }
+
+    .packet:nth-of-type(8) {
+      animation-delay: -1.8s;
+      background: var(--cyan);
+    }
+
+    .packet:nth-of-type(9) {
+      animation-delay: -3.2s;
+      background: var(--orange);
+    }
+
+    .hero-caption {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      left: 18px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      color: rgba(245, 242, 232, 0.66);
+      font-size: 12px;
+    }
+
+    .video-strip {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .beat {
+      position: relative;
+      min-height: 86px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(245, 242, 232, 0.052);
+      overflow: hidden;
+    }
+
+    .beat::after {
+      position: absolute;
+      right: 12px;
+      bottom: 8px;
+      color: rgba(245, 242, 232, 0.2);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 26px;
+      font-weight: 800;
+      content: attr(data-time);
+    }
+
+    .beat b {
+      display: block;
+      color: var(--paper);
+      font-size: 14px;
+      line-height: 1.25;
+    }
+
+    .beat small {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .section-head {
+      display: grid;
+      gap: 20px;
+      margin-bottom: 54px;
+    }
+
+    .question-stage {
+      display: grid;
+      grid-template-columns: 0.95fr 1.05fr;
+      gap: 34px;
+      align-items: center;
+    }
+
+    .question-card {
+      position: relative;
+      padding: clamp(28px, 5vw, 56px);
+      border: 1px solid rgba(255, 111, 125, 0.32);
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, rgba(255, 111, 125, 0.14), rgba(245, 242, 232, 0.05));
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .question-card::before {
+      position: absolute;
+      top: 18px;
+      right: 24px;
+      color: rgba(255, 111, 125, 0.22);
+      font-size: clamp(110px, 16vw, 210px);
+      font-weight: 900;
+      line-height: 0.8;
+      content: "?";
+    }
+
+    .question-card h2 {
+      position: relative;
+      max-width: 720px;
+      font-size: clamp(42px, 7vw, 96px);
+    }
+
+    .question-card p {
+      position: relative;
+      max-width: 580px;
+      margin-top: 22px;
+      color: rgba(245, 242, 232, 0.72);
+      font-size: 18px;
+      line-height: 1.7;
+    }
+
+    .pain-stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .pain {
+      display: grid;
+      grid-template-columns: 52px 1fr;
+      gap: 14px;
+      align-items: start;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(245, 242, 232, 0.06);
+      transform: translateX(var(--shift, 0));
+      transition: transform 500ms ease, border-color 500ms ease, background 500ms ease;
+    }
+
+    .pain:hover {
+      border-color: rgba(126, 226, 172, 0.42);
+      background: rgba(126, 226, 172, 0.08);
+      transform: translateX(0) scale(1.01);
+    }
+
+    .pain:nth-child(1) { --shift: 18px; }
+    .pain:nth-child(2) { --shift: -6px; }
+    .pain:nth-child(3) { --shift: 26px; }
+
+    .pain-icon {
+      display: grid;
+      width: 52px;
+      height: 52px;
+      place-items: center;
+      border: 1px solid rgba(245, 242, 232, 0.14);
+      border-radius: 50%;
+      color: var(--lime);
+      background: rgba(245, 242, 232, 0.06);
+      font-weight: 800;
+    }
+
+    .pain p {
+      margin-top: 5px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .story-board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .story-card {
+      min-height: 420px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(180deg, rgba(245, 242, 232, 0.08), rgba(245, 242, 232, 0.03)),
+        linear-gradient(130deg, rgba(126, 226, 172, 0.12), transparent 44%);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+    }
+
+    .story-card:nth-child(2) {
+      margin-top: 44px;
+      background:
+        linear-gradient(180deg, rgba(245, 242, 232, 0.08), rgba(245, 242, 232, 0.03)),
+        linear-gradient(130deg, rgba(255, 159, 102, 0.15), transparent 44%);
+    }
+
+    .story-card:nth-child(3) {
+      margin-top: 88px;
+      background:
+        linear-gradient(180deg, rgba(245, 242, 232, 0.08), rgba(245, 242, 232, 0.03)),
+        linear-gradient(130deg, rgba(109, 220, 232, 0.15), transparent 44%);
+    }
+
+    .story-index {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 34px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .story-index span {
+      display: grid;
+      width: 44px;
+      height: 44px;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      color: var(--paper);
+      background: rgba(245, 242, 232, 0.05);
+      font-weight: 760;
+    }
+
+    .story-card h3 {
+      margin-bottom: 14px;
+      font-size: 26px;
+    }
+
+    .story-card p {
+      color: rgba(245, 242, 232, 0.68);
+      font-size: 16px;
+      line-height: 1.72;
+    }
+
+    .terminal {
+      margin-top: 26px;
+      padding: 14px;
+      border: 1px solid rgba(245, 242, 232, 0.12);
+      border-radius: var(--radius);
+      background: rgba(3, 7, 10, 0.6);
+      color: #dff7e8;
+      font-size: 12px;
+      line-height: 1.7;
+      overflow: hidden;
+    }
+
+    .terminal .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 1.2em;
+      margin-left: 3px;
+      vertical-align: -3px;
+      background: var(--green);
+      animation: blink 1s steps(2) infinite;
+    }
+
+    .principle-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .system-map {
+      position: relative;
+      min-height: 620px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(245, 242, 232, 0.045);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .system-map::before {
+      position: absolute;
+      inset: 0;
+      content: "";
+      background-image:
+        linear-gradient(rgba(245, 242, 232, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(245, 242, 232, 0.06) 1px, transparent 1px);
+      background-size: 32px 32px;
+      opacity: 0.8;
+    }
+
+    .map-box {
+      position: absolute;
+      display: grid;
+      gap: 8px;
+      width: 206px;
+      padding: 16px;
+      border: 1px solid rgba(245, 242, 232, 0.16);
+      border-radius: var(--radius);
+      background: rgba(9, 16, 21, 0.86);
+      box-shadow: 0 20px 55px rgba(0, 0, 0, 0.32);
+      backdrop-filter: blur(14px);
+    }
+
+    .map-box small {
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .map-box.git-root {
+      top: 52px;
+      left: 44px;
+      border-color: rgba(132, 167, 255, 0.36);
+    }
+
+    .map-box.sessions {
+      top: 66px;
+      right: 48px;
+      border-color: rgba(255, 159, 102, 0.38);
+    }
+
+    .map-box.sidecar {
+      left: 50%;
+      top: 51%;
+      width: 260px;
+      border-color: rgba(126, 226, 172, 0.42);
+      transform: translate(-50%, -50%);
+    }
+
+    .map-box.remote {
+      right: 48px;
+      bottom: 52px;
+      border-color: rgba(109, 220, 232, 0.36);
+    }
+
+    .map-box.restore {
+      left: 44px;
+      bottom: 56px;
+      border-color: rgba(216, 255, 114, 0.35);
+    }
+
+    .path-line {
+      position: absolute;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(126, 226, 172, 0.86), transparent);
+      transform-origin: left center;
+      animation: pulseLine 2.6s ease-in-out infinite;
+    }
+
+    .path-line.a {
+      top: 184px;
+      left: 236px;
+      width: 198px;
+      transform: rotate(9deg);
+    }
+
+    .path-line.b {
+      top: 226px;
+      right: 244px;
+      width: 178px;
+      transform: rotate(155deg);
+    }
+
+    .path-line.c {
+      right: 198px;
+      bottom: 202px;
+      width: 176px;
+      transform: rotate(28deg);
+    }
+
+    .path-line.d {
+      left: 206px;
+      bottom: 198px;
+      width: 174px;
+      transform: rotate(-28deg);
+    }
+
+    .fact-panel {
+      display: grid;
+      gap: 14px;
+    }
+
+    .fact {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(245, 242, 232, 0.058);
+    }
+
+    .fact b {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--paper);
+      font-size: 16px;
+    }
+
+    .fact p {
+      color: var(--muted);
+      line-height: 1.62;
+    }
+
+    .rule-list {
+      display: grid;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .rule {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 12px;
+      align-items: start;
+      color: rgba(245, 242, 232, 0.72);
+      line-height: 1.6;
+    }
+
+    .rule::before {
+      display: grid;
+      width: 28px;
+      height: 28px;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--bg);
+      background: var(--green);
+      content: "✓";
+      font-weight: 850;
+    }
+
+    .workflow {
+      display: grid;
+      gap: 18px;
+    }
+
+    .flow-step {
+      position: sticky;
+      top: 108px;
+      display: grid;
+      grid-template-columns: 128px minmax(0, 1fr) 220px;
+      gap: 20px;
+      align-items: center;
+      min-height: 150px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(120deg, rgba(245, 242, 232, 0.09), rgba(245, 242, 232, 0.04));
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.24);
+    }
+
+    .flow-step:nth-child(2) { top: 126px; }
+    .flow-step:nth-child(3) { top: 144px; }
+    .flow-step:nth-child(4) { top: 162px; }
+    .flow-step:nth-child(5) { top: 180px; }
+
+    .flow-num {
+      color: rgba(245, 242, 232, 0.16);
+      font-size: 76px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .flow-step p {
+      margin-top: 8px;
+      color: var(--muted);
+      line-height: 1.62;
+    }
+
+    .cmd {
+      padding: 14px;
+      border: 1px solid rgba(126, 226, 172, 0.2);
+      border-radius: var(--radius);
+      background: rgba(3, 7, 10, 0.62);
+      color: #dff7e8;
+      font-size: 12px;
+      line-height: 1.65;
+      white-space: normal;
+    }
+
+    .capability-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .capability {
+      position: relative;
+      min-height: 230px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(245, 242, 232, 0.055);
+      overflow: hidden;
+      transition: transform 220ms ease, background 220ms ease, border-color 220ms ease;
+    }
+
+    .capability:hover {
+      border-color: rgba(216, 255, 114, 0.4);
+      background: rgba(216, 255, 114, 0.075);
+      transform: translateY(-5px);
+    }
+
+    .capability::after {
+      position: absolute;
+      right: -22px;
+      bottom: -30px;
+      color: rgba(245, 242, 232, 0.08);
+      font-size: 112px;
+      font-weight: 900;
+      content: attr(data-icon);
+    }
+
+    .capability h3 {
+      margin-bottom: 14px;
+      font-size: 20px;
+    }
+
+    .capability p {
+      color: var(--muted);
+      line-height: 1.62;
+    }
+
+    .boundary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .boundary-card {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(245, 242, 232, 0.05);
+    }
+
+    .boundary-card h3 {
+      margin-bottom: 18px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+    }
+
+    .chip {
+      padding: 8px 10px;
+      border: 1px solid rgba(245, 242, 232, 0.12);
+      border-radius: 999px;
+      color: rgba(245, 242, 232, 0.72);
+      background: rgba(245, 242, 232, 0.04);
+      font-size: 12px;
+    }
+
+    .chip.no {
+      border-color: rgba(255, 111, 125, 0.28);
+      color: #ffc3c8;
+      background: rgba(255, 111, 125, 0.07);
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 430px);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .command-board {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(3, 7, 10, 0.64);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .command-top {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      padding: 13px 15px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--red);
+    }
+
+    .dot:nth-child(2) { background: var(--orange); }
+    .dot:nth-child(3) { background: var(--green); }
+
+    .command-lines {
+      min-height: 540px;
+      padding: 18px;
+      color: #e8f7ef;
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    .command-lines .muted {
+      color: rgba(245, 242, 232, 0.44);
+    }
+
+    .side-note {
+      display: grid;
+      gap: 14px;
+    }
+
+    .note-card {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(245, 242, 232, 0.055);
+    }
+
+    .note-card p {
+      color: var(--muted);
+      line-height: 1.62;
+    }
+
+    .note-card b {
+      display: block;
+      margin-bottom: 7px;
+    }
+
+    .closing {
+      display: grid;
+      min-height: 90vh;
+      place-items: center;
+      text-align: center;
+    }
+
+    .closing-inner {
+      display: grid;
+      gap: 24px;
+      justify-items: center;
+      max-width: 880px;
+    }
+
+    .closing h2 {
+      max-width: 860px;
+    }
+
+    .closing .lead {
+      max-width: 720px;
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 10px 14px;
+      border: 1px solid rgba(126, 226, 172, 0.42);
+      border-radius: var(--radius);
+      color: var(--ink);
+      background: var(--green);
+      font-weight: 760;
+      transition: 180ms ease;
+    }
+
+    .button.secondary {
+      color: var(--paper);
+      background: rgba(245, 242, 232, 0.06);
+      border-color: var(--line);
+    }
+
+    .button:hover {
+      transform: translateY(-2px);
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 700ms ease, transform 700ms ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .reveal[data-delay="1"] { transition-delay: 120ms; }
+    .reveal[data-delay="2"] { transition-delay: 220ms; }
+    .reveal[data-delay="3"] { transition-delay: 320ms; }
+    .reveal[data-delay="4"] { transition-delay: 420ms; }
+
+    .scan-word {
+      position: relative;
+      display: inline-block;
+      color: var(--lime);
+    }
+
+    .scan-word::after {
+      position: absolute;
+      inset: 0;
+      content: "";
+      background: linear-gradient(90deg, transparent, rgba(245, 242, 232, 0.38), transparent);
+      transform: translateX(-120%);
+      animation: scan 2.8s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes packet {
+      0% { transform: translate(-22px, -172px) scale(0.7); opacity: 0; }
+      14% { opacity: 1; }
+      32% { transform: translate(136px, -38px) scale(1); }
+      58% { transform: translate(76px, 164px) scale(0.9); }
+      82% { transform: translate(-156px, 112px) scale(1.08); opacity: 1; }
+      100% { transform: translate(-22px, -172px) scale(0.7); opacity: 0; }
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    @keyframes pulseLine {
+      0%, 100% { opacity: 0.18; filter: saturate(0.8); }
+      50% { opacity: 0.95; filter: saturate(1.4); }
+    }
+
+    @keyframes scan {
+      0% { transform: translateX(-120%); }
+      45%, 100% { transform: translateX(120%); }
+    }
+
+    @media (max-width: 960px) {
+      .topbar {
+        align-items: flex-start;
+      }
+
+      .nav {
+        display: none;
+      }
+
+      section {
+        min-height: auto;
+        padding-top: 112px;
+        padding-bottom: 74px;
+      }
+
+      .hero,
+      .question-stage,
+      .principle-grid,
+      .demo-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-visual {
+        min-height: 440px;
+      }
+
+      .video-strip,
+      .story-board,
+      .capability-grid,
+      .boundary {
+        grid-template-columns: 1fr;
+      }
+
+      .story-card,
+      .story-card:nth-child(2),
+      .story-card:nth-child(3) {
+        min-height: auto;
+        margin-top: 0;
+      }
+
+      .flow-step {
+        position: relative;
+        top: auto !important;
+        grid-template-columns: 1fr;
+      }
+
+      .flow-num {
+        font-size: 52px;
+      }
+
+      .system-map {
+        min-height: 760px;
+      }
+
+      .map-box {
+        position: relative;
+        top: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        left: auto !important;
+        width: auto !important;
+        margin: 18px;
+        transform: none !important;
+      }
+
+      .path-line {
+        display: none;
+      }
+
+      .command-lines {
+        min-height: 420px;
+        font-size: 12px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .brand span:last-child {
+        max-width: 190px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      h1 {
+        font-size: 54px;
+      }
+
+      h2 {
+        font-size: 42px;
+      }
+
+      .hero-visual {
+        min-height: 390px;
+      }
+
+      .node {
+        width: 116px;
+        padding: 10px;
+      }
+
+      .node.codex { left: 18px; }
+      .node.claude { right: 16px; }
+      .node.git { left: 20px; bottom: 44px; }
+      .node.store { right: 16px; bottom: 52px; }
+
+      .hub {
+        width: 126px;
+        height: 126px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="signal-canvas" aria-hidden="true"></canvas>
+  <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
+
+  <header class="topbar">
+    <a class="brand" href="#hero" aria-label="返回顶部">
+      <span class="brand-mark">↔</span>
+      <span>Git Agent Sync</span>
+    </a>
+    <nav class="nav" aria-label="页面章节">
+      <a href="#problem">问题</a>
+      <a href="#pain">痛点</a>
+      <a href="#principle">原理</a>
+      <a href="#flow">流程</a>
+      <a href="#capability">能力</a>
+      <a href="#demo">使用</a>
+    </nav>
+  </header>
+
+  <main>
+    <section id="hero" class="hero">
+      <div class="hero-copy">
+        <div class="section-kicker reveal">Git for your AI coding sessions</div>
+        <h1 class="reveal" data-delay="1">把 AI 编程会话，像代码一样带走。</h1>
+        <p class="lead reveal" data-delay="2">
+          Agent-Sync 是一个 Git 风格的会话同步工具。业务代码可以 clone 到另一台机器，但 Codex、Claude Code 的本地对话、命令上下文和项目路径通常不会跟过去。它把这些项目会话放进独立 sidecar Git 仓库，让你在任何机器上找回当时的工作现场。
+        </p>
+        <div class="hero-tag reveal" data-delay="3">
+          <span class="pill"><strong>CLI</strong> git agent-sync</span>
+          <span class="pill"><strong>Agents</strong> Codex / Claude Code</span>
+          <span class="pill"><strong>Store</strong> .agent-sync-store</span>
+          <span class="pill"><strong>Restore</strong> latest / current / branch / commit</span>
+        </div>
+        <div class="video-strip reveal" data-delay="4" aria-label="视频节奏安排">
+          <div class="beat" data-time="00"><b>开场反差</b><small>代码能迁移，会话不能。</small></div>
+          <div class="beat" data-time="15"><b>提出问题</b><small>AI agent 的工作现场在哪里？</small></div>
+          <div class="beat" data-time="35"><b>痛点启发</b><small>跨机器、跨系统、跨分支。</small></div>
+          <div class="beat" data-time="65"><b>核心原理</b><small>结构化事实 + sidecar Git。</small></div>
+          <div class="beat" data-time="105"><b>工具链路</b><small>init / scan / push / pull / restore。</small></div>
+          <div class="beat" data-time="145"><b>收束价值</b><small>让 agent 记忆贴着项目走。</small></div>
+        </div>
+      </div>
+
+      <div class="hero-visual reveal" data-delay="2" aria-label="Agent-Sync 动画示意图">
+        <div class="orbit"></div>
+        <div class="orbit"></div>
+        <div class="node codex"><b>Codex</b><small>state_5.sqlite<br>sessions/*.jsonl</small></div>
+        <div class="node claude"><b>Claude Code</b><small>projects/**/*.jsonl</small></div>
+        <div class="node git"><b>Business Git</b><small>remote / branch / HEAD</small></div>
+        <div class="node store"><b>Sidecar Store</b><small>manifest + bindings</small></div>
+        <div class="hub"><span class="big">sync</span><span class="small">project sessions</span></div>
+        <div class="packet"></div>
+        <div class="packet"></div>
+        <div class="packet"></div>
+        <div class="hero-caption">
+          <span class="mono">projectIdentity = git:github.com/wood-q/git-agent-sync</span>
+          <span class="mono">v0.1.0</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="problem">
+      <div class="question-stage">
+        <div class="question-card reveal">
+          <div class="section-kicker">Question</div>
+          <h2>如果 AI 写代码的记忆，只存在这台电脑上？</h2>
+          <p>
+            Git 解决了源码迁移，却没有处理 agent 会话。一次调试里的推理、命令、报错、项目路径、上下文判断，往往留在本机的隐藏目录里。
+          </p>
+        </div>
+        <div class="pain-stack">
+          <div class="pain reveal" data-delay="1">
+            <div class="pain-icon">01</div>
+            <div>
+              <h3>换机器后，对话列表空了</h3>
+              <p>业务仓库 clone 完整，但 Codex / Claude Code 的项目会话没有跟随仓库一起恢复。</p>
+            </div>
+          </div>
+          <div class="pain reveal" data-delay="2">
+            <div class="pain-icon">02</div>
+            <div>
+              <h3>回到旧 commit，却找不到当时的 agent 思路</h3>
+              <p>代码能 checkout，讨论过程、命令尝试和上下文绑定却没有 Git 风格索引。</p>
+            </div>
+          </div>
+          <div class="pain reveal" data-delay="3">
+            <div class="pain-icon">03</div>
+            <div>
+              <h3>直接同步隐藏目录风险太大</h3>
+              <p>账号、token、缓存、运行态、全局配置都不应该被粗暴打包进项目历史。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="pain">
+      <div class="section-head reveal">
+        <div class="section-kicker">Inspired By Pain</div>
+        <h2>它不是备份工具，而是在补上“AI 工作现场”的版本语义。</h2>
+        <p class="lead">
+          项目文档里反复强调一个边界：Agent-Sync 只把会话当作贴着 Git 项目走的本地资料，不污染业务仓库提交，也不把全局账号和缓存一起带走。
+        </p>
+      </div>
+
+      <div class="story-board">
+        <article class="story-card reveal">
+          <div class="story-index"><span>1</span><b>现状</b></div>
+          <h3>代码有远程仓库，会话只有本机路径</h3>
+          <p>Codex 会话在 <span class="mono">~/.codex/sessions</span>，Claude Code 会话在 <span class="mono">~/.claude/projects</span>。这些文件里有上下文，但默认不会跟随业务仓库流动。</p>
+          <div class="terminal mono">
+            git clone your-project<br>
+            cd your-project<br>
+            <span style="color:#ff9f66"># agent history: missing</span><span class="cursor"></span>
+          </div>
+        </article>
+
+        <article class="story-card reveal" data-delay="1">
+          <div class="story-index"><span>2</span><b>风险</b></div>
+          <h3>会话里有价值，也有隐私</h3>
+          <p>原始会话可能包含私有代码片段、终端输出、本地路径、prompt、调试信息，甚至密钥片段。因此它需要一个私有 sidecar 仓库，而不是混进业务 Git 历史。</p>
+          <div class="terminal mono">
+            .agent-sync-store/<br>
+            └─ projects/&lt;project-id&gt;/<br>
+            &nbsp;&nbsp; ├─ codex/*.jsonl<br>
+            &nbsp;&nbsp; └─ claude/*.jsonl
+          </div>
+        </article>
+
+        <article class="story-card reveal" data-delay="2">
+          <div class="story-index"><span>3</span><b>目标</b></div>
+          <h3>让对话跟着项目，而不是跟着电脑</h3>
+          <p>每次同步都记录业务仓库的 branch、HEAD commit、dirty 状态和同步说明。换机器后可以按 latest、current、branch、commit 或 bundle id 找回。</p>
+          <div class="terminal mono">
+            git agent-sync log --current<br>
+            git agent-sync restore --latest 1<br>
+            <span style="color:#7ee2ac">restored codex thread</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="principle">
+      <div class="section-head reveal">
+        <div class="section-kicker">How It Works</div>
+        <h2>判断归属，靠结构化事实，不靠正文里提到项目名。</h2>
+        <p class="lead">
+          这是这个项目最关键的设计取舍：宁可少同步一些缺少元数据的老会话，也不因为聊天正文里出现项目名，就把别的项目会话混进来。
+        </p>
+      </div>
+
+      <div class="principle-grid">
+        <div class="system-map reveal" aria-label="系统原理图">
+          <div class="path-line a"></div>
+          <div class="path-line b"></div>
+          <div class="path-line c"></div>
+          <div class="path-line d"></div>
+          <div class="map-box git-root">
+            <h3>业务仓库</h3>
+            <small>读取 Git root、remote、branch、HEAD commit 和 dirty 状态。</small>
+          </div>
+          <div class="map-box sessions">
+            <h3>本机 agent 会话</h3>
+            <small>扫描 Codex state / JSONL 和 Claude 项目 JSONL，只读取结构化 cwd、workdir、git 字段。</small>
+          </div>
+          <div class="map-box sidecar">
+            <h3>Sidecar Git Store</h3>
+            <small><span class="mono">manifest.json</span> 存最新快照，<span class="mono">bindings.jsonl</span> 存 append-only 历史索引。</small>
+          </div>
+          <div class="map-box remote">
+            <h3>私有远程仓库</h3>
+            <small>sidecar 仓库独立 push / pull，不进入业务仓库提交历史。</small>
+          </div>
+          <div class="map-box restore">
+            <h3>另一台机器</h3>
+            <small>按当前项目 identity 查找兼容 bundle，再恢复到本机 Codex / Claude 目录。</small>
+          </div>
+        </div>
+
+        <div class="fact-panel">
+          <article class="fact reveal" data-delay="1">
+            <b>稳定项目身份</b>
+            <p>优先用规范化后的 Git remote 生成 <span class="mono">projectIdentity</span> 和 <span class="mono">projectId</span>，兼容 SSH / HTTPS 地址差异；没有 remote 时才退回目录名。</p>
+          </article>
+          <article class="fact reveal" data-delay="2">
+            <b>严格匹配规则</b>
+            <p>Codex 优先读 <span class="mono">state_5.sqlite</span> 的 threads 字段，再回退 JSONL；Claude 读顶层 cwd、Git 字段和 tool-use input。正文文本不是归属证明。</p>
+          </article>
+          <article class="fact reveal" data-delay="3">
+            <b>Git 上下文绑定</b>
+            <p>每次 push 都追加一条 binding：bundle id、agent 类型、业务 branch、HEAD commit、dirty 状态、会话标题和同步说明。</p>
+          </article>
+          <article class="fact reveal" data-delay="4">
+            <b>恢复时适配路径</b>
+            <p>跨系统恢复不会改 sidecar 原文件，只修改写回本机的副本：cwd、workdir、shell、transcript 中的项目根路径都会映射到当前机器。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="flow">
+      <div class="section-head reveal">
+        <div class="section-kicker">Execution Flow</div>
+        <h2>一条链路：业务仓库管代码，sidecar 仓库管会话。</h2>
+        <p class="lead">
+          CLI 设计成 Git 子命令的味道：init 建身份，status/scan 找会话，push 写快照，pull 拉 sidecar，log/show 浏览，restore 写回本机 agent 目录。
+        </p>
+      </div>
+
+      <div class="workflow">
+        <article class="flow-step reveal">
+          <div class="flow-num">01</div>
+          <div>
+            <h3>初始化项目身份</h3>
+            <p>创建 <span class="mono">.agent-sync/config.json</span> 和独立的 <span class="mono">.agent-sync-store/</span> Git 仓库，并把二者加入业务项目 <span class="mono">.gitignore</span>。</p>
+          </div>
+          <div class="cmd mono">git agent-sync init --remote git@github.com:you/agent-session-store.git</div>
+        </article>
+
+        <article class="flow-step reveal">
+          <div class="flow-num">02</div>
+          <div>
+            <h3>扫描当前项目会话</h3>
+            <p>优先用 Codex state 定位 rollout_path，跳过归档会话；再扫描 Claude 项目 JSONL。扫描缓存用 mtime、size、hash 减少重复 I/O。</p>
+          </div>
+          <div class="cmd mono">git agent-sync status<br>git agent-sync scan --json</div>
+        </article>
+
+        <article class="flow-step reveal">
+          <div class="flow-num">03</div>
+          <div>
+            <h3>推送会话快照</h3>
+            <p>匹配到的文件复制到 <span class="mono">projects/&lt;projectId&gt;/</span>，写入 manifest 和 binding，再只提交 sidecar 仓库。</p>
+          </div>
+          <div class="cmd mono">git agent-sync push --m "feat: add login API"</div>
+        </article>
+
+        <article class="flow-step reveal">
+          <div class="flow-num">04</div>
+          <div>
+            <h3>另一台机器拉取索引</h3>
+            <p>sidecar pull 支持 sparse checkout：只完整展开当前项目 bundle，其他项目只保留轻量 manifest 用于兼容匹配。</p>
+          </div>
+          <div class="cmd mono">git agent-sync pull<br>git agent-sync log --latest</div>
+        </article>
+
+        <article class="flow-step reveal">
+          <div class="flow-num">05</div>
+          <div>
+            <h3>恢复可继续的对话</h3>
+            <p>Codex 恢复会注册到 <span class="mono">state_5.sqlite</span> 和 <span class="mono">session_index.jsonl</span>；Claude 写入当前项目 slug 目录。</p>
+          </div>
+          <div class="cmd mono">git agent-sync restore --current 1<br>git agent-sync restore --commit 4f7c2a1</div>
+        </article>
+      </div>
+    </section>
+
+    <section id="capability">
+      <div class="section-head reveal">
+        <div class="section-kicker">Capabilities</div>
+        <h2>它的价值在“可找回”，也在“不过界”。</h2>
+        <p class="lead">
+          Agent-Sync 的 MVP 能力已经覆盖 CLI、Codex、Claude Code、VS Code 扩展、pre-push hook、doctor 检查，以及按 Git 上下文恢复。
+        </p>
+      </div>
+
+      <div class="capability-grid">
+        <article class="capability reveal" data-icon="01">
+          <h3>Git 风格命令</h3>
+          <p><span class="mono">log</span> 像浏览 Git 历史，<span class="mono">show</span> 查看单个快照，<span class="mono">restore</span> 把选中的会话写回本机。</p>
+        </article>
+        <article class="capability reveal" data-delay="1" data-icon="02">
+          <h3>双 agent 支持</h3>
+          <p>支持 Codex 和 Claude Code，并针对两者不同的本机目录和元数据结构分别处理。</p>
+        </article>
+        <article class="capability reveal" data-delay="2" data-icon="03">
+          <h3>跨平台恢复</h3>
+          <p>Windows、macOS、Linux 间恢复时，项目根路径和 shell 引用会映射到当前机器。</p>
+        </article>
+        <article class="capability reveal" data-delay="3" data-icon="04">
+          <h3>自动同步入口</h3>
+          <p><span class="mono">install-hooks</span> 可以安装 pre-push hook，在业务 Git push 前先同步 sidecar 会话。</p>
+        </article>
+      </div>
+
+      <div class="boundary reveal">
+        <div class="boundary-card">
+          <h3>会同步</h3>
+          <div class="chips">
+            <span class="chip">Codex 项目 session JSONL</span>
+            <span class="chip">Claude 项目 JSONL</span>
+            <span class="chip">manifest.json</span>
+            <span class="chip">bindings.jsonl</span>
+            <span class="chip">branch / commit / dirty</span>
+            <span class="chip">会话标题与同步说明</span>
+          </div>
+        </div>
+        <div class="boundary-card">
+          <h3>默认不碰</h3>
+          <div class="chips">
+            <span class="chip no">账号与 token</span>
+            <span class="chip no">全局 config / settings</span>
+            <span class="chip no">缓存与遥测</span>
+            <span class="chip no">运行态 session</span>
+            <span class="chip no">插件和技能资产</span>
+            <span class="chip no">业务仓库 Git 历史</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="demo">
+      <div class="section-head reveal">
+        <div class="section-kicker">Usage Script</div>
+        <h2>演示时，就按这条命令线讲。</h2>
+        <p class="lead">
+          页面这里可以作为视频的操作段：左侧展示命令，右侧解释每一步为什么存在。重点不是“多一个备份”，而是“会话可以被 Git 上下文选择器找回”。
+        </p>
+      </div>
+
+      <div class="demo-grid">
+        <div class="command-board reveal">
+          <div class="command-top">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="mono">agent-sync-demo.sh</span>
+          </div>
+          <div class="command-lines mono" id="typing-board" aria-live="polite"></div>
+        </div>
+
+        <aside class="side-note">
+          <div class="note-card reveal" data-delay="1">
+            <b>首次同步</b>
+            <p>先创建私有 session store。业务项目只存本机配置，真正的会话快照提交到 sidecar 仓库。</p>
+          </div>
+          <div class="note-card reveal" data-delay="2">
+            <b>恢复选择器</b>
+            <p><span class="mono">--latest</span> 看最近批次，<span class="mono">--current</span> 对齐当前 HEAD，没有 commit binding 时回退到当前 branch。</p>
+          </div>
+          <div class="note-card reveal" data-delay="3">
+            <b>排查入口</b>
+            <p><span class="mono">doctor</span> 会检查 config、sidecar remote、manifest、bindings、sparse checkout 和本地 agent 目录。</p>
+          </div>
+          <div class="note-card reveal" data-delay="4">
+            <b>VS Code 扩展</b>
+            <p>Marketplace 上的 Git Agent Sync 扩展会从 SCM 视图调用 CLI，提供浏览和恢复入口。</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="closing">
+      <div class="closing-inner reveal">
+        <div class="section-kicker">Takeaway</div>
+        <h2>Agent-Sync 让 AI agent 的上下文，成为项目历史的旁路记忆。</h2>
+        <p class="lead">
+          它不替代 Git，也不污染 Git。它把会话、项目身份和 commit 绑定在一起，让你在另一台机器、另一个系统、另一个时间点继续同一段工程思路。
+        </p>
+        <div class="cta-row">
+          <a class="button" href="#demo">查看使用命令</a>
+          <a class="button secondary" href="./zh/">阅读中文文档</a>
+          <a class="button secondary" href="./zh/execution-flow.html">执行链路文档</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const progressBar = document.querySelector("#progress-bar");
+    const navLinks = [...document.querySelectorAll(".nav a")];
+    const sections = navLinks
+      .map((link) => document.querySelector(link.getAttribute("href")))
+      .filter(Boolean);
+
+    function updateProgress() {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const height = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = height > 0 ? Math.min(1, scrollTop / height) : 0;
+      progressBar.style.width = `${progress * 100}%`;
+
+      let activeId = sections[0]?.id;
+      for (const section of sections) {
+        const rect = section.getBoundingClientRect();
+        if (rect.top <= window.innerHeight * 0.35) {
+          activeId = section.id;
+        }
+      }
+      navLinks.forEach((link) => {
+        link.classList.toggle("active", link.getAttribute("href") === `#${activeId}`);
+      });
+    }
+
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("visible");
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.16 });
+
+    document.querySelectorAll(".reveal").forEach((item) => revealObserver.observe(item));
+    window.addEventListener("scroll", updateProgress, { passive: true });
+    window.addEventListener("resize", updateProgress);
+    updateProgress();
+
+    const lines = [
+      ["$ cd your-project", "cmd"],
+      ["$ git agent-sync init --remote git@github.com:yourname/agent-session-store.git", "cmd"],
+      ["agent-sync initialized for your-project", "out"],
+      ["$ git agent-sync status", "cmd"],
+      ["codex: 3 matched session(s), archived skipped", "out"],
+      ["claude: 2 matched session(s)", "out"],
+      ["$ git agent-sync push --m \"sync current agent sessions\"", "cmd"],
+      ["committed 5 matched session file(s), 5 new binding(s)", "out"],
+      ["$ git clone git@github.com:yourname/your-project.git", "cmd"],
+      ["$ git agent-sync pull && git agent-sync log --latest", "cmd"],
+      ["Index 1  codex   feat: implement restore selectors", "out"],
+      ["Index 2  claude  review sidecar privacy boundary", "out"],
+      ["$ git agent-sync restore --latest 1", "cmd"],
+      ["restored codex thread: registered in state_5.sqlite", "ok"]
+    ];
+
+    const board = document.querySelector("#typing-board");
+    let lineIndex = 0;
+
+    function typeLine() {
+      if (!board) {
+        return;
+      }
+      if (lineIndex >= lines.length) {
+        return;
+      }
+      const [text, kind] = lines[lineIndex];
+      const row = document.createElement("div");
+      row.className = kind === "cmd" ? "" : kind === "ok" ? "" : "muted";
+      if (kind === "ok") {
+        row.style.color = "#7ee2ac";
+      }
+      board.appendChild(row);
+      let charIndex = 0;
+      const timer = setInterval(() => {
+        row.textContent = text.slice(0, charIndex);
+        charIndex += 1;
+        if (charIndex > text.length) {
+          clearInterval(timer);
+          lineIndex += 1;
+          setTimeout(typeLine, kind === "cmd" ? 260 : 420);
+        }
+      }, kind === "cmd" ? 18 : 8);
+    }
+
+    const demoSection = document.querySelector("#demo");
+    const typingObserver = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        typeLine();
+        typingObserver.disconnect();
+      }
+    }, { threshold: 0.28 });
+    if (demoSection) {
+      typingObserver.observe(demoSection);
+    }
+
+    const canvas = document.querySelector("#signal-canvas");
+    const ctx = canvas.getContext("2d");
+    let points = [];
+    let width = 0;
+    let height = 0;
+    let pointer = { x: -9999, y: -9999 };
+
+    function resizeCanvas() {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.floor(width * ratio);
+      canvas.height = Math.floor(height * ratio);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      const count = Math.min(82, Math.max(38, Math.floor(width * height / 18000)));
+      points = Array.from({ length: count }, (_, index) => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.32,
+        vy: (Math.random() - 0.5) * 0.32,
+        hue: index % 3
+      }));
+    }
+
+    function animateCanvas() {
+      ctx.clearRect(0, 0, width, height);
+      points.forEach((point) => {
+        point.x += point.vx;
+        point.y += point.vy;
+        if (point.x < -20) point.x = width + 20;
+        if (point.x > width + 20) point.x = -20;
+        if (point.y < -20) point.y = height + 20;
+        if (point.y > height + 20) point.y = -20;
+      });
+
+      for (let i = 0; i < points.length; i += 1) {
+        for (let j = i + 1; j < points.length; j += 1) {
+          const a = points[i];
+          const b = points[j];
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const distance = Math.hypot(dx, dy);
+          if (distance < 138) {
+            const alpha = (1 - distance / 138) * 0.16;
+            ctx.strokeStyle = `rgba(126, 226, 172, ${alpha})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      points.forEach((point) => {
+        const distanceToPointer = Math.hypot(point.x - pointer.x, point.y - pointer.y);
+        const glow = distanceToPointer < 160 ? 0.9 : 0.36;
+        ctx.fillStyle = point.hue === 0
+          ? `rgba(126, 226, 172, ${glow})`
+          : point.hue === 1
+            ? `rgba(109, 220, 232, ${glow * 0.78})`
+            : `rgba(216, 255, 114, ${glow * 0.66})`;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, distanceToPointer < 160 ? 2.6 : 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      requestAnimationFrame(animateCanvas);
+    }
+
+    window.addEventListener("mousemove", (event) => {
+      pointer = { x: event.clientX, y: event.clientY };
+    }, { passive: true });
+    window.addEventListener("mouseleave", () => {
+      pointer = { x: -9999, y: -9999 };
+    });
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+    animateCanvas();
+  </script>
+</body>
+</html>
