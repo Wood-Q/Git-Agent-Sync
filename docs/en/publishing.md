@@ -88,6 +88,10 @@ npm pack --dry-run
 
 Keep real publishing metadata such as package names, repository URLs, and Marketplace publisher IDs. Replace only local-machine paths, private remotes, account identifiers, tokens, and raw agent session artifacts.
 
+## GitHub Pages Checks
+
+This repository is served at `https://wood-q.github.io/Git-Agent-Sync/`, so `docs/.vitepress/config.mts` must keep `base: "/Git-Agent-Sync/"`. If the repository name or Pages URL changes, update the VitePress `base`, root redirect in `docs/index.md`, favicon URL, and Open Graph image URL together before deploying.
+
 The Marketplace icon comes from the extension manifest:
 
 ```json

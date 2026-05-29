@@ -94,6 +94,10 @@ npm pack --dry-run
 
 包名、GitHub 仓库地址、Marketplace publisher 等真实发布元数据应保留；需要替换的是本机路径、私有 remote、个人账号标识、token，以及原始 agent session 文件。
 
+## GitHub Pages 检查
+
+当前仓库的 Pages 地址是 `https://wood-q.github.io/Git-Agent-Sync/`，因此 `docs/.vitepress/config.mts` 必须保持 `base: "/Git-Agent-Sync/"`。如果后续仓库名或 Pages 地址变化，需要同时更新 VitePress `base`、`docs/index.md` 根路径跳转、favicon URL 和 Open Graph 图片 URL，再重新部署。
+
 Marketplace 图标来自插件 manifest：
 
 ```json

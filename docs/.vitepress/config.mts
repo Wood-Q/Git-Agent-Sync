@@ -42,7 +42,7 @@ export default defineConfig({
   lang: "zh-CN",
   title: "Agent-Sync",
   description: "Git for your AI coding sessions.",
-  base: "/Agent-Sync/",
+  base: "/Git-Agent-Sync/",
   cleanUrls: true,
   srcExclude: [
     "README.md",
@@ -60,16 +60,15 @@ export default defineConfig({
   ],
   lastUpdated: true,
   ignoreDeadLinks: [
-    /^https:\/\/github\.com\/Wood-Q\/Git-Agent-Sync/,
-    /^https:\/\/github\.com\/Wood-Q\/Agent-Sync/
+    /^https:\/\/github\.com\/Wood-Q\/Git-Agent-Sync/
   ],
   head: [
-    ["link", { rel: "icon", href: "/Agent-Sync/logo.svg", type: "image/svg+xml" }],
+    ["link", { rel: "icon", href: "/Git-Agent-Sync/logo.svg", type: "image/svg+xml" }],
     ["meta", { name: "theme-color", content: "#151924" }],
     ["meta", { property: "og:type", content: "website" }],
     ["meta", { property: "og:title", content: "Agent-Sync" }],
     ["meta", { property: "og:description", content: "Git for your AI coding sessions." }],
-    ["meta", { property: "og:image", content: "https://wood-q.github.io/Agent-Sync/logo.png" }]
+    ["meta", { property: "og:image", content: "https://wood-q.github.io/Git-Agent-Sync/logo.png" }]
   ],
   themeConfig: {
     logo: "/logo.svg",
@@ -148,10 +147,10 @@ export default defineConfig({
     nav: [
       { text: "简体中文", link: "/zh/" },
       { text: "English", link: "/en/" },
-      { text: "GitHub", link: "https://github.com/Wood-Q/Agent-Sync" }
+      { text: "GitHub", link: "https://github.com/Wood-Q/Git-Agent-Sync" }
     ],
     socialLinks: [
-      { icon: "github", link: "https://github.com/Wood-Q/Agent-Sync" }
+      { icon: "github", link: "https://github.com/Wood-Q/Git-Agent-Sync" }
     ],
     footer: {
       message: "Released under the MIT License.",
@@ -189,7 +188,7 @@ export default defineConfig({
           { text: "首页", link: "/zh/" },
           { text: "使用指南", link: "/zh/usage" },
           { text: "概念", link: "/zh/concepts" },
-          { text: "GitHub", link: "https://github.com/Wood-Q/Agent-Sync" }
+          { text: "GitHub", link: "https://github.com/Wood-Q/Git-Agent-Sync" }
         ],
         sidebar: {
           "/zh/": zhSidebar
@@ -231,7 +230,7 @@ export default defineConfig({
           { text: "Home", link: "/en/" },
           { text: "Usage", link: "/en/usage" },
           { text: "Concepts", link: "/en/concepts" },
-          { text: "GitHub", link: "https://github.com/Wood-Q/Agent-Sync" }
+          { text: "GitHub", link: "https://github.com/Wood-Q/Git-Agent-Sync" }
         ],
         sidebar: {
           "/en/": enSidebar
