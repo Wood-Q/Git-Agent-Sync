@@ -47,28 +47,7 @@ features:
   </div>
 </section>
 
-<section class="landing-section">
-  <p class="landing-eyebrow">Workflow</p>
-  <h2>Initialize once, then let code and agent context travel side by side.</h2>
-  <div class="landing-flow">
-    <div class="flow-step">
-      <strong>1. init</strong>
-      <span>Connect a private session store and generate the current project identity.</span>
-    </div>
-    <div class="flow-step">
-      <strong>2. push</strong>
-      <span>Scan current-project sessions, write them into the sidecar store, and record Git context.</span>
-    </div>
-    <div class="flow-step">
-      <strong>3. pull</strong>
-      <span>Fetch project snapshots from the sidecar store on another machine.</span>
-    </div>
-    <div class="flow-step">
-      <strong>4. restore</strong>
-      <span>Restore Codex or Claude Code sessions by latest, current, branch, or commit selector.</span>
-    </div>
-  </div>
-</section>
+<WorkflowSimulator locale="en" />
 
 <section class="landing-section landing-install">
   <p class="landing-eyebrow">Install</p>

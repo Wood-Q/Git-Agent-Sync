@@ -30,7 +30,7 @@ features:
 
 <section class="landing-section">
   <p class="landing-eyebrow">Why it exists</p>
-  <h2>代码能 clone，AI 编程会话也应该能跟着项目走。</h2>
+  <h2>代码能 clone，AI 编程会话也能跟着项目走</h2>
   <div class="landing-grid">
     <article class="landing-card">
       <h3>换机器不丢上下文</h3>
@@ -47,32 +47,11 @@ features:
   </div>
 </section>
 
-<section class="landing-section">
-  <p class="landing-eyebrow">Workflow</p>
-  <h2>一次初始化，之后让项目和会话并行移动。</h2>
-  <div class="landing-flow">
-    <div class="flow-step">
-      <strong>1. init</strong>
-      <span>连接一个私有 session store，生成当前项目 identity。</span>
-    </div>
-    <div class="flow-step">
-      <strong>2. push</strong>
-      <span>扫描当前项目会话，写入 sidecar store 并记录 Git 上下文。</span>
-    </div>
-    <div class="flow-step">
-      <strong>3. pull</strong>
-      <span>在另一台机器拉取 sidecar store 中的项目快照。</span>
-    </div>
-    <div class="flow-step">
-      <strong>4. restore</strong>
-      <span>按 latest、current、branch 或 commit 恢复 Codex / Claude Code 会话。</span>
-    </div>
-  </div>
-</section>
+<WorkflowSimulator locale="zh" />
 
 <section class="landing-section landing-install">
   <p class="landing-eyebrow">Install</p>
-  <h2>CLI 和 VS Code 扩展都已经可以使用。</h2>
+  <h2>CLI 和 VS Code 扩展都已经可以使用</h2>
 </section>
 
 ```bash
