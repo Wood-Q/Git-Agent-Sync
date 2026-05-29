@@ -23,7 +23,7 @@ const codexBranch = join(base, "codex-branch");
 const codexCommit = join(base, "codex-commit");
 const claudeA = join(base, "claude-a");
 const claudeB = join(base, "claude-b");
-const windowsRoot = `C:\\Users\\woodq\\FullStack\\${projectName}`;
+const windowsRoot = `C:\\Users\\example\\FullStack\\${projectName}`;
 const pushMessage = "feat: add user login API";
 const conversationAtMs = Date.parse("2026-05-23T02:14:00.000Z");
 const olderConversationAtMs = Date.parse("2026-05-21T02:14:00.000Z");
@@ -42,8 +42,8 @@ mkdirSync(claudeB, { recursive: true });
 mkdirSync(join(codexA, "archived_sessions"), { recursive: true });
 mkdirSync(join(codexA, "2026", "05", "21"), { recursive: true });
 mkdirSync(join(codexA, "2026", "05", "20"), { recursive: true });
-mkdirSync(join(claudeA, `-Users-woodq-FullStack-${projectName}`), { recursive: true });
-mkdirSync(join(claudeA, "-Users-woodq-FullStack-Agent-Sync"), { recursive: true });
+mkdirSync(join(claudeA, `-Users-example-FullStack-${projectName}`), { recursive: true });
+mkdirSync(join(claudeA, "-Users-example-FullStack-Agent-Sync"), { recursive: true });
 
 run("git", ["init", "--bare", "-b", "main", bareProjectRemote], base);
 run("git", ["init", "--bare", "-b", "main", bareStoreRemote], base);
@@ -66,8 +66,8 @@ const sessionPath = join(codexA, "2026", "05", "21", "session.jsonl");
 const olderSessionPath = join(codexA, "2026", "05", "20", "older-session.jsonl");
 const foreignSessionPath = join(codexA, "2026", "05", "21", "foreign-session.jsonl");
 const archivedPath = join(codexA, "archived_sessions", "archived-session.jsonl");
-const claudeSessionPath = join(claudeA, `-Users-woodq-FullStack-${projectName}`, "claude-session.jsonl");
-const foreignClaudeSessionPath = join(claudeA, "-Users-woodq-FullStack-Agent-Sync", "foreign-claude-session.jsonl");
+const claudeSessionPath = join(claudeA, `-Users-example-FullStack-${projectName}`, "claude-session.jsonl");
+const foreignClaudeSessionPath = join(claudeA, "-Users-example-FullStack-Agent-Sync", "foreign-claude-session.jsonl");
 writeJsonl(sessionPath, [
   {
     type: "session_meta",
@@ -119,15 +119,15 @@ writeJsonl(foreignSessionPath, [
     type: "session_meta",
     payload: {
       id: "foreign-session",
-      cwd: "/Users/woodq/FullStack/Agent-Sync",
+      cwd: "/tmp/example/FullStack/Agent-Sync",
       git: {
         commit_hash: "foreign-commit",
         branch: "main",
-        repository_url: "https://github.com/Wood-Q/Agent-Sync.git"
+        repository_url: "https://github.com/example-org/Agent-Sync.git"
       }
     }
   },
-  { type: "turn_context", payload: { cwd: "/Users/woodq/FullStack/Agent-Sync" } },
+  { type: "turn_context", payload: { cwd: "/tmp/example/FullStack/Agent-Sync" } },
   {
     type: "response_item",
     payload: {
@@ -162,8 +162,8 @@ writeJsonl(claudeSessionPath, makeClaudeSession({
 }));
 writeJsonl(foreignClaudeSessionPath, makeClaudeSession({
   sessionId: "foreign-claude",
-  cwd: "/Users/woodq/FullStack/Agent-Sync",
-  gitRemote: "https://github.com/Wood-Q/Agent-Sync.git",
+  cwd: "/tmp/example/FullStack/Agent-Sync",
+  gitRemote: "https://github.com/example-org/Agent-Sync.git",
   gitBranch: "main",
   timestamp: "2026-05-23T03:14:00.000Z",
   title: `This ${projectName} text is not enough for Claude ownership`
@@ -391,8 +391,8 @@ const restoreForeignBundle = "claude-restore-foreign";
 const restoreForeignStoreRelative = `projects/${projectConfigB.projectId}/claude/${restoreForeignBundle}.jsonl`;
 writeJsonl(join(projectB, ".agent-sync-store", restoreForeignStoreRelative), makeClaudeSession({
   sessionId: "restore-foreign-claude",
-  cwd: "/Users/woodq/FullStack/Agent-Sync",
-  gitRemote: "https://github.com/Wood-Q/Agent-Sync.git",
+  cwd: "/tmp/example/FullStack/Agent-Sync",
+  gitRemote: "https://github.com/example-org/Agent-Sync.git",
   gitBranch: "main",
   timestamp: "2026-05-24T00:00:00.000Z",
   title: `Restore foreign Claude mentions ${projectName}`
@@ -402,8 +402,8 @@ restoreForeignManifest.matches.push({
   agent: "claude",
   bundleId: restoreForeignBundle,
   storeRelativePath: restoreForeignStoreRelative,
-  originalPath: "~/.claude/projects/-Users-woodq-FullStack-Agent-Sync/restore-foreign.jsonl",
-  agentRelativePath: "-Users-woodq-FullStack-Agent-Sync/restore-foreign.jsonl"
+  originalPath: "~/.claude/projects/-Users-example-FullStack-Agent-Sync/restore-foreign.jsonl",
+  agentRelativePath: "-Users-example-FullStack-Agent-Sync/restore-foreign.jsonl"
 });
 writeFileSync(join(legacyProjectDir, "manifest.json"), `${JSON.stringify(restoreForeignManifest, null, 2)}\n`);
 const skippedForeignRestore = agent(projectB, codexB, claudeB, ["restore", restoreForeignBundle]);
@@ -514,8 +514,8 @@ function seedForeignCurrentProjectEntry(baseDir, remote, projectId) {
     agent: "claude",
     bundleId: "claude-current-foreign",
     storeRelativePath: `projects/${projectId}/claude/claude-current-foreign.jsonl`,
-    originalPath: "~/.claude/projects/-Users-woodq-FullStack-Agent-Sync/current-foreign.jsonl",
-    agentRelativePath: "-Users-woodq-FullStack-Agent-Sync/current-foreign.jsonl"
+    originalPath: "~/.claude/projects/-Users-example-FullStack-Agent-Sync/current-foreign.jsonl",
+    agentRelativePath: "-Users-example-FullStack-Agent-Sync/current-foreign.jsonl"
   };
   manifest.matches.push(foreignMatch);
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -539,8 +539,8 @@ function seedForeignCurrentProjectEntry(baseDir, remote, projectId) {
   })}\n`);
   writeJsonl(join(projectDir, "claude", "claude-current-foreign.jsonl"), makeClaudeSession({
     sessionId: "current-foreign-claude",
-    cwd: "/Users/woodq/FullStack/Agent-Sync",
-    gitRemote: "https://github.com/Wood-Q/Agent-Sync.git",
+    cwd: "/tmp/example/FullStack/Agent-Sync",
+    gitRemote: "https://github.com/example-org/Agent-Sync.git",
     gitBranch: "main",
     timestamp: "2026-05-22T00:00:00.000Z",
     title: `Foreign Claude mentions ${projectName}`

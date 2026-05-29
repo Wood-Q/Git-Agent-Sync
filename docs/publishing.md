@@ -7,7 +7,7 @@
 Published package:
 
 - Package: `git-agent-sync`
-- Version: `0.1.0`
+- Version: `0.1.3`
 - npm: `https://www.npmjs.com/package/git-agent-sync`
 - Repository: `https://github.com/Wood-Q/Git-Agent-Sync`
 
@@ -34,7 +34,14 @@ If `npm publish` fails with a 403 that says two-factor authentication or a granu
 npm publish --access public --otp <code>
 ```
 
-For CI/CD, use npm trusted publishing or a granular read/write token that has bypass 2FA enabled.
+CI publishes from `.github/workflows/release-npm.yml`. Configure the repository secret `NPM_TOKEN` with publish permission for `git-agent-sync`, then publish either by running the workflow manually or by pushing a release tag after the version bump is on `main`:
+
+```bash
+git tag v0.1.4
+git push origin v0.1.4
+```
+
+The npm package intentionally includes only `bin/`, `src/`, the root READMEs, and `LICENSE`; the documentation site is published separately through GitHub Pages.
 
 ## VS Code Extension
 
@@ -50,7 +57,14 @@ Published extension:
 
 The extension calls the `agent-sync` CLI from `PATH` by default. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. Users can override the executable with the `agentSync.cliPath` setting.
 
-For the next extension release, bump `extensions/vscode/package.json` `version`, then build and publish:
+CI publishes from `.github/workflows/release-vscode.yml`. Configure the repository secret `VSCE_PAT` with Marketplace publish permission for publisher `mokio`, then publish either by running the workflow manually or by pushing a VS Code release tag after the extension version bump is on `main`:
+
+```bash
+git tag vscode-v0.1.4
+git push origin vscode-v0.1.4
+```
+
+For manual publishing, bump `extensions/vscode/package.json` `version`, then build and publish:
 
 ```bash
 cd extensions/vscode
@@ -62,6 +76,17 @@ npx vsce publish
 ```
 
 Published Marketplace versions cannot be overwritten. Any change to `displayName`, `icon`, README, commands, configuration, or code requires bumping `extensions/vscode/package.json` `version` and publishing a new version.
+
+## Public Release Privacy Check
+
+Before pushing release tags, scan the repository and package contents:
+
+```bash
+rg -n "(token|secret|password|_authToken|BEGIN .*PRIVATE KEY|/Users/|C:\\\\Users\\\\|AppData|\\.npmrc)" .
+npm pack --dry-run
+```
+
+Keep real publishing metadata such as package names, repository URLs, and Marketplace publisher IDs. Replace only local-machine paths, private remotes, account identifiers, tokens, and raw agent session artifacts.
 
 The Marketplace icon comes from the extension manifest:
 

@@ -1,0 +1,66 @@
+name: Release VS Code Extension
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "vscode-v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-vscode-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish Marketplace extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify release source
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "Manual VS Code extension releases must run from main."
+            exit 1
+          fi
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            git fetch origin main
+            git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
+          cache: npm
+          cache-dependency-path: extensions/vscode/package-lock.json
+
+      - name: Install dependencies
+        working-directory: extensions/vscode
+        run: npm ci
+
+      - name: Compile extension
+        working-directory: extensions/vscode
+        run: npm run compile
+
+      - name: Test extension
+        working-directory: extensions/vscode
+        run: npm test
+
+      - name: Package extension
+        working-directory: extensions/vscode
+        run: npx vsce package --no-dependencies --out agent-sync-vscode.vsix
+
+      - name: Publish to VS Code Marketplace
+        working-directory: extensions/vscode
+        run: npx vsce publish --packagePath agent-sync-vscode.vsix --pat "$VSCE_PAT"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}

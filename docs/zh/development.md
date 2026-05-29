@@ -22,6 +22,10 @@ src/
   utils.js           # JSON、hash、路径、遍历等共享工具
 ```
 
+## 分支规范
+
+日常开发使用 `develop` 分支。功能分支先合入 `develop`，只有准备发版的改动再从 `develop` 合入 `main`。发布 workflow 通过 tag 触发，因此 tag 应该打在 `main` 上已经确认可发布的提交。
+
 ## 开发验证
 
 运行完整 MVP 测试：

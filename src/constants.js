@@ -1,4 +1,4 @@
-export const TOOL_VERSION = "0.1.0";
+export const TOOL_VERSION = "0.1.3";
 export const CONFIG_DIR = ".agent-sync";
 export const CONFIG_FILE = ".agent-sync/config.json";
 export const CACHE_FILE = ".agent-sync/last-scan.json";

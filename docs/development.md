@@ -22,6 +22,10 @@ src/
   utils.js           # Shared JSON, hash, path, and walk helpers
 ```
 
+## Branching
+
+Use `develop` for day-to-day development. Open pull requests from feature branches into `develop`, then merge `develop` into `main` only for release-ready changes. The release workflows publish from tags, so tagging should happen after the release commit is on `main`.
+
 ## Verification
 
 Run the full MVP test suite:

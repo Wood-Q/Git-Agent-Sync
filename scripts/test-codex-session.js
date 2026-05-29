@@ -17,27 +17,27 @@ import {
   registerRestoredCodexSession
 } from "../src/codex-session.js";
 
-const targetRoot = "/Users/test/workspace/MokioAgent";
+const targetRoot = "/tmp/test/workspace/SampleAgent";
 const localShell = process.platform === "win32" ? process.env.ComSpec || "cmd.exe" : process.env.SHELL || "/bin/sh";
 
 for (const fixture of [
   {
     name: "windows",
-    root: "C:\\Users\\woodq\\FullStack\\MokioAgent",
+    root: "C:\\Users\\example\\FullStack\\SampleAgent",
     shell: "powershell.exe",
-    cmd: "Get-ChildItem C:\\Users\\woodq\\FullStack\\MokioAgent\\src"
+    cmd: "Get-ChildItem C:\\Users\\example\\FullStack\\SampleAgent\\src"
   },
   {
     name: "linux",
-    root: "/home/woodq/FullStack/MokioAgent",
+    root: "/home/example/FullStack/SampleAgent",
     shell: "bash",
-    cmd: "ls /home/woodq/FullStack/MokioAgent/src"
+    cmd: "ls /home/example/FullStack/SampleAgent/src"
   },
   {
     name: "macos",
-    root: "/Users/woodq/FullStack/MokioAgent",
+    root: "/tmp/example/FullStack/SampleAgent",
     shell: "zsh",
-    cmd: "ls /Users/woodq/FullStack/MokioAgent/src"
+    cmd: "ls /tmp/example/FullStack/SampleAgent/src"
   }
 ]) {
   const content = makeSession(fixture);
@@ -49,7 +49,7 @@ for (const fixture of [
   assert.equal(metadata.gitContexts[0].commit, `${fixture.name}-commit`);
 
   const result = adaptCodexSessionContent(content, {
-    projectName: "MokioAgent",
+    projectName: "SampleAgent",
     projectRoot: targetRoot
   });
   assert.equal(result.adapted, true);
@@ -71,16 +71,16 @@ for (const fixture of [
 }
 
 const mokioConfig = {
-  projectIdentity: "git:github.com/wood-q/mokioagent",
-  projectName: "MokioAgent",
+  projectIdentity: "git:github.com/example-org/sampleagent",
+  projectName: "SampleAgent",
   projectRoot: targetRoot
 };
 const agentSyncContent = makeSession({
   name: "agent-sync",
-  root: "/Users/woodq/FullStack/Agent-Sync",
+  root: "/tmp/example/FullStack/Agent-Sync",
   shell: "zsh",
-  cmd: "echo discussing MokioAgent from Agent-Sync"
-}).replace("https://example.com/agent-sync/MokioAgent.git", "https://github.com/Wood-Q/Agent-Sync.git");
+  cmd: "echo discussing SampleAgent from Agent-Sync"
+}).replace("https://example.com/agent-sync/SampleAgent.git", "https://github.com/example-org/Agent-Sync.git");
 const foreignMatch = getCodexContentProjectMatch(agentSyncContent, mokioConfig);
 assert.equal(foreignMatch.matched, false);
 assert.equal(foreignMatch.reason, "codex:foreign-git");
@@ -90,8 +90,8 @@ const mixedContent = makeSession({
   name: "mixed",
   root: targetRoot,
   shell: "zsh",
-  cmd: "ls /Users/woodq/FullStack/Agent-Sync"
-}).replace("https://example.com/mixed/MokioAgent.git", "https://github.com/Wood-Q/MokioAgent.git");
+  cmd: "ls /tmp/example/FullStack/Agent-Sync"
+}).replace("https://example.com/mixed/SampleAgent.git", "https://github.com/example-org/SampleAgent.git");
 const mixedLines = parseJsonl(mixedContent);
 mixedLines.push({
   type: "response_item",
@@ -100,7 +100,7 @@ mixedLines.push({
     name: "exec_command",
     arguments: JSON.stringify({
       cmd: "pwd",
-      workdir: "/Users/woodq/FullStack/Agent-Sync",
+      workdir: "/tmp/example/FullStack/Agent-Sync",
       shell: "zsh"
     })
   }
@@ -114,7 +114,7 @@ const unstructuredContent = `${JSON.stringify({
   payload: {
     type: "message",
     role: "user",
-    content: "This mentions MokioAgent but has no Codex project metadata."
+    content: "This mentions SampleAgent but has no Codex project metadata."
   }
 })}\n`;
 const unstructuredMatch = getCodexContentProjectMatch(unstructuredContent, mokioConfig);
@@ -143,12 +143,12 @@ const statePath = join(codexHome, "state_5.sqlite");
     archived_at integer
 )`);
   const insert = db.prepare("insert into threads values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-  insert.run("state-session", "/tmp/state-session.jsonl", "State title", "Preview fallback", "First fallback", "/tmp/MokioAgent", "state-sha", "main", "https://github.com/Wood-Q/MokioAgent.git", 0, null);
-  insert.run("preview-session", "/tmp/preview-session.jsonl", "", "Preview title", "First fallback", "/tmp/MokioAgent", null, null, null, 0, null);
-  insert.run("first-session", "/tmp/first-session.jsonl", "", "", "Traceback (most recent call last):\\nFile \"bad.py\"\\n修改一下报错", "/tmp/MokioAgent", null, null, null, 0, null);
-  insert.run("state-wins-session", "/tmp/state-wins-session.jsonl", "State wins", "Index should not overwrite", "First fallback", "/tmp/MokioAgent", null, null, null, 0, null);
-  insert.run("foreign-state-session", "/tmp/foreign-state-session.jsonl", "Foreign state", "", "", "/tmp/Agent-Sync", "foreign-sha", "main", "https://github.com/Wood-Q/Agent-Sync.git", 0, null);
-  insert.run("archived-session", "/tmp/archived-session.jsonl", "Archived", "", "", "/tmp/MokioAgent", null, null, null, 1, 123);
+  insert.run("state-session", "/tmp/state-session.jsonl", "State title", "Preview fallback", "First fallback", "/tmp/SampleAgent", "state-sha", "main", "https://github.com/example-org/SampleAgent.git", 0, null);
+  insert.run("preview-session", "/tmp/preview-session.jsonl", "", "Preview title", "First fallback", "/tmp/SampleAgent", null, null, null, 0, null);
+  insert.run("first-session", "/tmp/first-session.jsonl", "", "", "Traceback (most recent call last):\\nFile \"bad.py\"\\n修改一下报错", "/tmp/SampleAgent", null, null, null, 0, null);
+  insert.run("state-wins-session", "/tmp/state-wins-session.jsonl", "State wins", "Index should not overwrite", "First fallback", "/tmp/SampleAgent", null, null, null, 0, null);
+  insert.run("foreign-state-session", "/tmp/foreign-state-session.jsonl", "Foreign state", "", "", "/tmp/Agent-Sync", "foreign-sha", "main", "https://github.com/example-org/Agent-Sync.git", 0, null);
+  insert.run("archived-session", "/tmp/archived-session.jsonl", "Archived", "", "", "/tmp/SampleAgent", null, null, null, 1, 123);
   db.close();
 }
 writeFileSync(join(codexHome, "session_index.jsonl"), `${JSON.stringify({
@@ -165,9 +165,9 @@ assert.equal(titles.get("index-session"), "Index title");
 const threadIndex = loadCodexThreadIndex(codexHome);
 const stateThread = threadIndex.byId.get("state-session");
 assert.equal(stateThread.title, "State title");
-assert.equal(stateThread.cwd, "/tmp/MokioAgent");
+assert.equal(stateThread.cwd, "/tmp/SampleAgent");
 assert.equal(stateThread.gitSha, "state-sha");
-assert.equal(stateThread.gitOriginUrl, "https://github.com/Wood-Q/MokioAgent.git");
+assert.equal(stateThread.gitOriginUrl, "https://github.com/example-org/SampleAgent.git");
 const archiveInfo = getCodexThreadArchiveInfo(codexHome);
 assert.equal(archiveInfo.status, "ok");
 assert.deepEqual(archiveInfo.paths, ["/tmp/archived-session.jsonl"]);
@@ -222,8 +222,8 @@ const restoreContent = makeSession({
 });
 const restoreConfig = {
   projectRoot: targetRoot,
-  projectName: "MokioAgent",
-  projectIdentity: "name:MokioAgent"
+  projectName: "SampleAgent",
+  projectIdentity: "name:SampleAgent"
 };
 const restoreRegister = registerRestoredCodexSession(restoreContent, restoreTarget, restoreConfig, {
   bundleId: "codex-restore",
@@ -261,7 +261,7 @@ function makeSession({ name, root, shell, cmd }) {
         git: {
           commit_hash: `${name}-commit`,
           branch: name,
-          repository_url: `https://example.com/${name}/MokioAgent.git`
+          repository_url: `https://example.com/${name}/SampleAgent.git`
         }
       }
     },

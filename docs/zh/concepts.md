@@ -19,9 +19,9 @@
 
 ```json
 {
-  "projectId": "MokioAgent-1a2b3c4d5e",
-  "projectIdentity": "git:github.com/wood-q/mokioagent",
-  "legacyProjectIds": ["MokioAgent-f49ebafc58"]
+  "projectId": "SampleAgent-1a2b3c4d5e",
+  "projectIdentity": "git:github.com/example-org/sampleagent",
+  "legacyProjectIds": ["SampleAgent-f49ebafc58"]
 }
 ```
 
@@ -63,7 +63,7 @@ git agent-sync push --m "feat: add user login API"
 
 ## 恢复适配
 
-Agent session 文件里可能记录创建会话时的 shell、工作目录和项目根目录。例如 Windows 上创建的 session 可能包含 `powershell.exe` 和 `C:\...\MokioAgent` 路径。把这类 session 恢复到 macOS 或 Linux 后，如果这些旧引用不变，继续会话时就可能一直尝试使用错误终端，或者引用一个当前机器不存在的项目目录。
+Agent session 文件里可能记录创建会话时的 shell、工作目录和项目根目录。例如 Windows 上创建的 session 可能包含 `powershell.exe` 和 `C:\...\SampleAgent` 路径。把这类 session 恢复到 macOS 或 Linux 后，如果这些旧引用不变，继续会话时就可能一直尝试使用错误终端，或者引用一个当前机器不存在的项目目录。
 
 默认情况下，`restore` 不会修改 sidecar store 中的原始文件，只会在恢复到本机的副本里适配项目路径：
 

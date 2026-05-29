@@ -19,9 +19,9 @@ Example config:
 
 ```json
 {
-  "projectId": "MokioAgent-1a2b3c4d5e",
-  "projectIdentity": "git:github.com/wood-q/mokioagent",
-  "legacyProjectIds": ["MokioAgent-f49ebafc58"]
+  "projectId": "SampleAgent-1a2b3c4d5e",
+  "projectIdentity": "git:github.com/example-org/sampleagent",
+  "legacyProjectIds": ["SampleAgent-f49ebafc58"]
 }
 ```
 
@@ -63,7 +63,7 @@ When human-readable output is longer than the terminal, Agent-Sync opens the con
 
 ## Restore Adaptation
 
-Agent session files can contain the shell, working directory, and project-root paths used on the source machine. For example, a session created on Windows may contain `powershell.exe` and `C:\...\MokioAgent` paths. When restored on macOS or Linux, stale references can make the continued session try to use a missing terminal or a project directory that does not exist.
+Agent session files can contain the shell, working directory, and project-root paths used on the source machine. For example, a session created on Windows may contain `powershell.exe` and `C:\...\SampleAgent` paths. When restored on macOS or Linux, stale references can make the continued session try to use a missing terminal or a project directory that does not exist.
 
 By default, `restore` keeps the sidecar source file unchanged and adapts only the restored local copy when it detects source project paths:
 

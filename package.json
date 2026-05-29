@@ -5,9 +5,7 @@
   "type": "module",
   "files": [
     "bin/",
-    "docs/",
     "src/",
-    "logo.svg",
     "README.md",
     "README.zh-CN.md",
     "LICENSE"

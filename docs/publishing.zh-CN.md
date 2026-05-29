@@ -7,7 +7,7 @@
 已发布包：
 
 - 包名：`git-agent-sync`
-- 版本：`0.1.0`
+- 版本：`0.1.3`
 - npm：`https://www.npmjs.com/package/git-agent-sync`
 - GitHub 仓库：`https://github.com/Wood-Q/Git-Agent-Sync`
 
@@ -40,7 +40,14 @@ Two-factor authentication or granular access token with bypass 2fa enabled is re
 npm publish --access public --otp <当前一次性验证码>
 ```
 
-CI/CD 发布则应使用 npm trusted publishing，或使用有 read/write 权限且开启 bypass 2FA 的 granular access token。
+CI 通过 `.github/workflows/release-npm.yml` 发布。先在 GitHub 仓库里配置 `NPM_TOKEN` secret，并确保它对 `git-agent-sync` 有发布权限；之后可以手动运行 workflow，或者在版本提交合入 `main` 后推送 release tag：
+
+```bash
+git tag v0.1.4
+git push origin v0.1.4
+```
+
+npm 包只包含 `bin/`、`src/`、根目录 README 和 `LICENSE`；文档站点通过 GitHub Pages 单独发布，不进入 npm tarball。
 
 ## VS Code 插件
 
@@ -56,7 +63,14 @@ CI/CD 发布则应使用 npm trusted publishing，或使用有 read/write 权限
 
 插件默认调用用户 `PATH` 里的 `agent-sync` CLI。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。如果 CLI 安装在其他位置，用户可以通过 `agentSync.cliPath` 配置。
 
-下一次插件发版时，先提升 `extensions/vscode/package.json` 里的 `version`，再打包发布：
+CI 通过 `.github/workflows/release-vscode.yml` 发布。先在 GitHub 仓库里配置 `VSCE_PAT` secret，并确保它对 publisher `mokio` 有 Marketplace 发布权限；之后可以手动运行 workflow，或者在插件版本提交合入 `main` 后推送 VS Code release tag：
+
+```bash
+git tag vscode-v0.1.4
+git push origin vscode-v0.1.4
+```
+
+手动发版时，先提升 `extensions/vscode/package.json` 里的 `version`，再打包发布：
 
 ```bash
 cd extensions/vscode
@@ -68,6 +82,17 @@ npx vsce publish
 ```
 
 已经发布到 Marketplace 的版本不能覆盖。修改 `displayName`、`icon`、README、命令、配置或代码后，需要提升 `extensions/vscode/package.json` 里的 `version`，再发布新版本。
+
+## 公开发布前隐私检查
+
+推送 release tag 前，先扫描仓库和打包内容：
+
+```bash
+rg -n "(token|secret|password|_authToken|BEGIN .*PRIVATE KEY|/Users/|C:\\\\Users\\\\|AppData|\\.npmrc)" .
+npm pack --dry-run
+```
+
+包名、GitHub 仓库地址、Marketplace publisher 等真实发布元数据应保留；需要替换的是本机路径、私有 remote、个人账号标识、token，以及原始 agent session 文件。
 
 Marketplace 图标来自插件 manifest：
 

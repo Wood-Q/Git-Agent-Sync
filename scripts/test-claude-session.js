@@ -8,17 +8,17 @@ import {
   isClaudeSessionContentForProject
 } from "../src/claude-session.js";
 
-const projectRoot = "/Users/test/workspace/MokioAgent";
+const projectRoot = "/tmp/test/workspace/SampleAgent";
 const config = {
-  projectIdentity: "git:github.com/wood-q/mokioagent",
-  projectName: "MokioAgent",
+  projectIdentity: "git:github.com/example-org/sampleagent",
+  projectName: "SampleAgent",
   projectRoot
 };
 
 const content = makeClaudeSession({
   sessionId: "claude-session",
-  cwd: "C:\\Users\\woodq\\FullStack\\MokioAgent",
-  gitRemote: "https://github.com/Wood-Q/MokioAgent.git",
+  cwd: "C:\\Users\\example\\FullStack\\SampleAgent",
+  gitRemote: "https://github.com/example-org/SampleAgent.git",
   title: "Fix Claude session restore",
   timestamp: "2026-05-23T02:14:00.000Z"
 });
@@ -27,9 +27,9 @@ const metadata = extractClaudeSessionMetadata(content);
 assert.equal(metadata.sessionId, "claude-session");
 assert.equal(metadata.title, "Fix Claude session restore");
 assert.equal(metadata.conversationAt, "2026-05-23T02:14:00.000Z");
-assert.equal(metadata.projectRoots[0], "C:/Users/woodq/FullStack/MokioAgent");
-assert.equal(metadata.workdirs.includes("C:/Users/woodq/FullStack/MokioAgent"), true);
-assert.equal(metadata.gitContexts[0].repositoryUrl, "https://github.com/Wood-Q/MokioAgent.git");
+assert.equal(metadata.projectRoots[0], "C:/Users/example/FullStack/SampleAgent");
+assert.equal(metadata.workdirs.includes("C:/Users/example/FullStack/SampleAgent"), true);
+assert.equal(metadata.gitContexts[0].repositoryUrl, "https://github.com/example-org/SampleAgent.git");
 assert.equal(isClaudeSessionContentForProject(content, config), true);
 
 const adapted = adaptClaudeSessionContent(content, config);
@@ -42,9 +42,9 @@ assert.equal(adaptedLines[0].agentSyncAdapted.projectRoot, projectRoot);
 
 const foreign = makeClaudeSession({
   sessionId: "foreign-claude",
-  cwd: "/Users/woodq/FullStack/Agent-Sync",
-  gitRemote: "https://github.com/Wood-Q/Agent-Sync.git",
-  title: "This mentions MokioAgent in body",
+  cwd: "/tmp/example/FullStack/Agent-Sync",
+  gitRemote: "https://github.com/example-org/Agent-Sync.git",
+  title: "This mentions SampleAgent in body",
   timestamp: "2026-05-23T02:14:00.000Z"
 });
 const foreignMatch = getClaudeContentProjectMatch(foreign, config);
@@ -57,7 +57,7 @@ const mixed = [
     type: "assistant",
     cwd: projectRoot,
     sessionId: "mixed-claude",
-    gitRemote: "https://github.com/Wood-Q/MokioAgent.git",
+    gitRemote: "https://github.com/example-org/SampleAgent.git",
     message: {
       role: "assistant",
       content: [{
@@ -65,7 +65,7 @@ const mixed = [
         name: "Bash",
         input: {
           command: "pwd",
-          cwd: "/Users/woodq/FullStack/Agent-Sync"
+          cwd: "/tmp/example/FullStack/Agent-Sync"
         }
       }]
     }
@@ -80,17 +80,17 @@ const unstructured = `${JSON.stringify({
   sessionId: "unstructured",
   message: {
     role: "user",
-    content: `Please work on MokioAgent from this transcript body only.`
+    content: `Please work on SampleAgent from this transcript body only.`
   }
 })}\n`;
 const unstructuredMatch = getClaudeContentProjectMatch(unstructured, config);
 assert.equal(unstructuredMatch.matched, false);
 assert.equal(unstructuredMatch.reason, "claude:missing-project-metadata");
 
-const relative = getClaudeRestoreRelativePath("-Users-woodq-FullStack-MokioAgent/claude-session.jsonl", {
-  projectRoot: join("/home/test/workspace", "MokioAgent")
+const relative = getClaudeRestoreRelativePath("-Users-example-FullStack-SampleAgent/claude-session.jsonl", {
+  projectRoot: join("/home/test/workspace", "SampleAgent")
 });
-assert.equal(relative, "-home-test-workspace-MokioAgent/claude-session.jsonl");
+assert.equal(relative, "-home-test-workspace-SampleAgent/claude-session.jsonl");
 
 console.log("claude session test passed");
 

@@ -7,30 +7,30 @@ import { getCodexArchiveInfo } from "../src/codex-archive.js";
 import { SCAN_CACHE_FILE } from "../src/constants.js";
 
 const base = mkdtempSync(join(tmpdir(), "agent-sync-scan-cache-"));
-const project = join(base, "MokioAgent");
+const project = join(base, "SampleAgent");
 const codexRoot = join(base, "codex", "sessions");
 const claudeRoot = join(base, "claude", "projects");
 mkdirSync(project, { recursive: true });
 mkdirSync(join(codexRoot, "2026", "05", "21"), { recursive: true });
-mkdirSync(join(claudeRoot, "-tmp-MokioAgent"), { recursive: true });
+mkdirSync(join(claudeRoot, "-tmp-SampleAgent"), { recursive: true });
 mkdirSync(join(claudeRoot, "-tmp-Agent-Sync"), { recursive: true });
 
 process.env.AGENT_SYNC_CODEX_DIR = codexRoot;
 process.env.AGENT_SYNC_CLAUDE_DIR = claudeRoot;
 
 const config = {
-  projectId: "MokioAgent-cache-test",
-  projectIdentity: "name:MokioAgent",
-  projectName: "MokioAgent",
+  projectId: "SampleAgent-cache-test",
+  projectIdentity: "name:SampleAgent",
+  projectName: "SampleAgent",
   projectRoot: project
 };
 
 const sessionPath = join(codexRoot, "2026", "05", "21", "session.jsonl");
-const claudePath = join(claudeRoot, "-tmp-MokioAgent", "claude-session.jsonl");
+const claudePath = join(claudeRoot, "-tmp-SampleAgent", "claude-session.jsonl");
 const foreignClaudePath = join(claudeRoot, "-tmp-Agent-Sync", "foreign-claude.jsonl");
 writeFileSync(sessionPath, makeSession("first"));
 writeFileSync(claudePath, makeClaudeSession("first", project));
-writeFileSync(foreignClaudePath, makeClaudeSession("foreign", "/tmp/Agent-Sync", "This mentions MokioAgent but is foreign."));
+writeFileSync(foreignClaudePath, makeClaudeSession("foreign", "/tmp/Agent-Sync", "This mentions SampleAgent but is foreign."));
 
 const first = scanSessions(project, config, getCodexArchiveInfo(codexRoot, { gitRoot: project }));
 assert.equal(first.candidates, 3);
