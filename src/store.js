@@ -66,8 +66,7 @@ export function syncStoreFromRemote(config) {
 function fetchStoreBranch(storePath) {
   const filtered = runGit(["fetch", "--filter=blob:none", "origin", DEFAULT_STORE_BRANCH], storePath, { allowFail: true });
   if (filtered.status === 0) {
-    runGit(["config", "remote.origin.promisor", "true"], storePath);
-    runGit(["config", "remote.origin.partialclonefilter", "blob:none"], storePath);
+    ensureStorePromisorRemote(storePath);
     return true;
   }
   runGit(["fetch", "origin", DEFAULT_STORE_BRANCH], storePath);
@@ -80,6 +79,7 @@ export function applyStoreSparseCheckout(config) {
   if (!config.remote || !existsSync(join(config.storePath, ".git"))) {
     return { enabled: false, status: "disabled" };
   }
+  ensureStorePromisorRemote(config.storePath);
   const init = runGit(["sparse-checkout", "init", "--no-cone"], config.storePath, { allowFail: true });
   if (init.status !== 0) {
     return { enabled: false, status: "unsupported", message: (init.stderr || init.stdout || "").trim() };
@@ -106,6 +106,13 @@ export function getStoreSparseStatus(config) {
     cone: cone || "unset",
     filter
   };
+}
+
+function ensureStorePromisorRemote(storePath) {
+  // Sparse sidecar stores can leave non-current project blobs remote-only.
+  // Keep Git aware that missing blobs are promised by origin, not corrupt.
+  runGit(["config", "remote.origin.promisor", "true"], storePath, { allowFail: true });
+  runGit(["config", "remote.origin.partialclonefilter", "blob:none"], storePath, { allowFail: true });
 }
 
 function getStoreSparsePatterns(config) {

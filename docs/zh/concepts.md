@@ -110,7 +110,7 @@ Agent session 文件里可能记录创建会话时的 shell、工作目录和项
         claude-<hash>.jsonl
 ```
 
-配置了 sidecar remote 时，`pull` 会启用 sparse checkout：本地 `.agent-sync-store/` 只完整展开当前项目的会话 bundle，其他项目只保留轻量 `manifest.json` 用于识别兼容项目。
+配置了 sidecar remote 时，`pull` 会启用 sparse checkout：本地 `.agent-sync-store/` 只完整展开当前项目的会话 bundle，其他项目只保留轻量 `manifest.json` 用于识别兼容项目。sidecar remote 也会保持 Git promisor remote 和 `blob:none` filter 配置，因此提交时可以安全引用仍留在远端的非当前项目 blob，而不必把它们全部展开到本机。
 
 ## 隐私边界
 
