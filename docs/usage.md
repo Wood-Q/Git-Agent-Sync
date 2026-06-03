@@ -26,6 +26,22 @@ npm link
 git agent-sync --help
 ```
 
+## Codex Skill
+
+This repository includes a repo-scoped Codex skill at `.agents/skills/agent-sync/`. When you open this project in Codex, start a new thread and invoke it explicitly:
+
+```text
+Use $agent-sync to sync this project's Codex and Claude sessions.
+```
+
+You can also ask naturally, for example:
+
+- "Sync the current project conversations."
+- "Show the latest Agent-Sync history."
+- "Restore the latest session for this project."
+
+The skill routes intent to the existing CLI. It asks a question only when the operation is ambiguous, a sidecar remote is missing, or a restore target is unclear.
+
 ## First Sync
 
 Create a private repository just for agent sessions:

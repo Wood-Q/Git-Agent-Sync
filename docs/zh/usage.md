@@ -26,6 +26,22 @@ npm link
 git agent-sync --help
 ```
 
+## Codex Skill
+
+仓库内置了一个 repo-scoped Codex skill，位置是 `.agents/skills/agent-sync/`。在 Codex 中打开这个项目后，可以新开一个对话并显式调用：
+
+```text
+Use $agent-sync to sync this project's Codex and Claude sessions.
+```
+
+也可以直接用自然语言说：
+
+- “同步一下当前项目对话”
+- “看看最近的 Agent-Sync 历史”
+- “恢复当前项目最近一次会话”
+
+这个 skill 会把用户意图路由到现有 CLI。只有操作不明确、缺少 sidecar remote、或 restore 目标不清楚时才会追问。
+
 ## 首次同步
 
 先创建一个专门保存 agent 会话的私有仓库：

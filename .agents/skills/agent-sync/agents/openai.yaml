@@ -1,0 +1,8 @@
+interface:
+  display_name: "Agent-Sync"
+  short_description: "Sync project agent sessions from Codex"
+  brand_color: "#151924"
+  default_prompt: "Use $agent-sync to sync this project's Codex and Claude sessions."
+
+policy:
+  allow_implicit_invocation: true
