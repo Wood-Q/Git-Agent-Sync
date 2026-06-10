@@ -1,6 +1,6 @@
 {
   "name": "git-agent-sync",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Git-native MVP for syncing Codex and Claude Code session files across machines.",
   "type": "module",
   "files": [
