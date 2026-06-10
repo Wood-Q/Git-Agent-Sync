@@ -73,6 +73,14 @@ export class AgentSyncCli {
     return parseJson<RestoreResponse>(stdout, `agent-sync restore --index ${index} --json`);
   }
 
+  async pull(cwd: string): Promise<string> {
+    return this.run(cwd, ["pull"]);
+  }
+
+  async push(cwd: string): Promise<string> {
+    return this.run(cwd, ["push"]);
+  }
+
   async run(cwd: string, args: string[]): Promise<string> {
     const invocation = resolveCliInvocation();
     const line = [invocation.command, ...args].map(quoteForDisplay).join(" ");

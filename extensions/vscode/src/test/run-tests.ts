@@ -78,6 +78,10 @@ async function main() {
     commitMessage: "sync message with a deliberately long explanation that should be clipped before it can dominate the history table row layout"
   }]);
   assert.match(html, /Agent Sync History/);
+  assert.match(html, /id="pull"/);
+  assert.match(html, /id="push"/);
+  assert.match(html, /command: 'pull'/);
+  assert.match(html, /command: 'push'/);
   assert.match(html, /data-filter-column="author"/);
   assert.match(html, /data-filter-column="branch"/);
   assert.match(html, /data-author="Agent Sync Test"/);

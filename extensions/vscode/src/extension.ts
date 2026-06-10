@@ -24,6 +24,20 @@ export function activate(context: vscode.ExtensionContext) {
     });
   }));
 
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.pull", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await syncSidecarAndRefresh(cli, historyView, cwd, "pull");
+    });
+  }));
+
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.push", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await syncSidecarAndRefresh(cli, historyView, cwd, "push");
+    });
+  }));
+
   context.subscriptions.push(vscode.commands.registerCommand("agentSync.restore", async () => {
     await withErrorHandling(output, async () => {
       const cwd = getWorkspaceRoot();
@@ -41,6 +55,24 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {}
+
+async function syncSidecarAndRefresh(cli: AgentSyncCli, historyView: HistoryView, cwd: string, direction: "pull" | "push") {
+  const label = direction === "pull" ? "Pull" : "Push";
+  await vscode.window.withProgress({
+    location: vscode.ProgressLocation.Notification,
+    title: `Agent Sync: ${label}`,
+    cancellable: false
+  }, async () => {
+    if (direction === "pull") {
+      await cli.pull(cwd);
+    } else {
+      await cli.push(cwd);
+    }
+    const bindings = await cli.log(cwd);
+    historyView.refresh(bindings);
+  });
+  vscode.window.showInformationMessage(`Agent Sync: ${direction} complete.`);
+}
 
 async function restoreFromPick(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string, bindings: AgentSyncBinding[]) {
   if (!bindings.length) {

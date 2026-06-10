@@ -15,7 +15,7 @@ VS Code 插件已经发布到 Marketplace：
 - Marketplace：[Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - 扩展 ID：`mokio.agent-sync-vscode`
 
-插件会从 `agentSync.cliPath` 调用 CLI，默认命令是 `agent-sync`。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。
+插件会从 `agentSync.cliPath` 调用 CLI，默认命令是 `agent-sync`。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。History 视图顶部工具栏可以对当前 workspace 执行 pull、push、刷新、清空筛选和恢复会话。
 
 本地开发阶段：
 
@@ -40,7 +40,7 @@ Use $agent-sync to sync this project's Codex and Claude sessions.
 - “看看最近的 Agent-Sync 历史”
 - “恢复当前项目最近一次会话”
 
-这个 skill 会把用户意图路由到现有 CLI。只有操作不明确、缺少 sidecar remote、或 restore 目标不清楚时才会追问。
+这个 skill 会通过 `.agents/skills/agent-sync/scripts/agent-sync-runner.mjs` 里的轻量 Node runner，把用户意图路由到现有 CLI。只有操作不明确、缺少 sidecar remote、或 restore 目标不清楚时才会追问。
 
 ## 首次同步
 
@@ -64,6 +64,8 @@ git agent-sync push --m "sync current agent sessions"
 ```bash
 git agent-sync init git@github.com:yourname/agent-session-store.git
 ```
+
+如果 sidecar remote 已经有 `main` 分支，并且本地 `.agent-sync-store/` 还没有提交，`init` 会自动 checkout 这段远程 sidecar 历史。新项目初始化后可以直接 `push`；后续需要刷新已有 store 时再运行 `pull`。
 
 ## 在另一台机器恢复
 
@@ -157,6 +159,8 @@ git agent-sync init --remote git@github.com:yourname/agent-session-store.git
 ```
 
 如果旧版本曾经报“当前分支没有跟踪信息”，升级后重新运行 `git agent-sync pull`。当前版本会自动 fetch `origin/main`，在需要时创建或绑定本地 `main -> origin/main`，然后执行 fast-forward pull。
+
+如果 `push` 或 `pull` 提示 sidecar 历史无关，说明本地 `.agent-sync-store/` 已经有提交，并且这些提交和配置的 sidecar remote 没有共同祖先。先备份 `.agent-sync-store/`，再显式用 Git 合并两段历史，或把 sidecar store 重置到远端后重新同步。
 
 如果 `pull` 成功但没有显示可恢复会话，运行：
 

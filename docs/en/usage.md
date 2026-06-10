@@ -15,7 +15,7 @@ VS Code extension:
 - Marketplace: [Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - Extension ID: `mokio.agent-sync-vscode`
 
-The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim.
+The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. The History view toolbar can pull, push, refresh, clear filters, and restore sessions for the current workspace.
 
 For local development:
 
@@ -40,7 +40,7 @@ You can also ask naturally, for example:
 - "Show the latest Agent-Sync history."
 - "Restore the latest session for this project."
 
-The skill routes intent to the existing CLI. It asks a question only when the operation is ambiguous, a sidecar remote is missing, or a restore target is unclear.
+The skill routes intent to the existing CLI through a lightweight Node runner at `.agents/skills/agent-sync/scripts/agent-sync-runner.mjs`. It asks a question only when the operation is ambiguous, a sidecar remote is missing, or a restore target is unclear.
 
 ## First Sync
 
@@ -64,6 +64,8 @@ git agent-sync push --m "sync current agent sessions"
 ```bash
 git agent-sync init git@github.com:you/agent-session-store.git
 ```
+
+If the sidecar remote already has a `main` branch and the local `.agent-sync-store/` has no commits, `init` automatically checks out the remote sidecar history. A new project can run `push` directly after `init`; use `pull` later when you want to refresh an existing store.
 
 ## Restore On Another Machine
 
@@ -157,6 +159,8 @@ git agent-sync init --remote git@github.com:you/agent-session-store.git
 ```
 
 If `pull` previously failed with "no tracking information", rerun it with the current version. The tool fetches `origin/main`, checks out or tracks it when needed, then pulls with `--ff-only`.
+
+If `push` or `pull` reports unrelated sidecar history, the local `.agent-sync-store/` already has commits that do not share ancestry with the configured sidecar remote. Back up `.agent-sync-store/`, then either explicitly merge the histories with Git or reset the sidecar store to the remote before syncing again.
 
 If `pull` succeeds but no sessions are available, run:
 

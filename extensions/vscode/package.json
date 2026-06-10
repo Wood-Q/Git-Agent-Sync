@@ -21,7 +21,9 @@
   "activationEvents": [
     "onCommand:agentSync.history",
     "onCommand:agentSync.restore",
-    "onCommand:agentSync.refreshHistory"
+    "onCommand:agentSync.refreshHistory",
+    "onCommand:agentSync.pull",
+    "onCommand:agentSync.push"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -43,6 +45,16 @@
         "command": "agentSync.refreshHistory",
         "title": "Agent Sync: Refresh History",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "agentSync.pull",
+        "title": "Agent Sync: Pull",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "agentSync.push",
+        "title": "Agent Sync: Push",
+        "icon": "$(cloud-upload)"
       }
     ],
     "configuration": {
@@ -69,6 +81,14 @@
         }
       ],
       "webview/context": [
+        {
+          "command": "agentSync.pull",
+          "when": "webviewId == 'agentSyncHistory'"
+        },
+        {
+          "command": "agentSync.push",
+          "when": "webviewId == 'agentSyncHistory'"
+        },
         {
           "command": "agentSync.refreshHistory",
           "when": "webviewId == 'agentSyncHistory'"

@@ -42,6 +42,7 @@ import {
   pruneArchivedManifestEntries,
   pruneArchivedSidecarEntries,
   pruneForeignProjectSidecarEntries,
+  syncNewStoreFromRemote,
   syncStoreFromRemote,
   writeManifest
 } from "./store.js";
@@ -238,6 +239,7 @@ function initCommand(gitRoot, args, options) {
   };
 
   ensureStoreRepo(storePath, config.remote);
+  const initSync = syncNewStoreFromRemote(config);
   adoptExistingProjectBundle(config);
   writeConfig(gitRoot, config);
   writeGitignoreEntry(gitRoot, CONFIG_DIR);
@@ -249,6 +251,13 @@ function initCommand(gitRoot, args, options) {
   console.log(`project id: ${config.projectId}`);
   if (config.remote) {
     console.log(`remote: ${config.remote}`);
+  }
+  if (initSync.status === "synced") {
+    console.log(`agent-sync: initialized sidecar store from origin/${DEFAULT_STORE_BRANCH}.`);
+  } else if (initSync.status === "unrelated") {
+    console.log(`agent-sync: existing sidecar history is unrelated to origin/${DEFAULT_STORE_BRANCH}; init left it unchanged.`);
+  } else if (initSync.status === "diverged") {
+    console.log(`agent-sync: existing sidecar history has diverged from origin/${DEFAULT_STORE_BRANCH}; init left it unchanged.`);
   }
 }
 

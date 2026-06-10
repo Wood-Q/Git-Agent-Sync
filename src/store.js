@@ -56,11 +56,43 @@ export function syncStoreFromRemote(config) {
   if (upstream.status !== 0 || upstream.stdout.trim() !== `origin/${DEFAULT_STORE_BRANCH}`) {
     runGit(["branch", "--set-upstream-to", `origin/${DEFAULT_STORE_BRANCH}`, DEFAULT_STORE_BRANCH], storePath);
   }
+  const relation = getStoreBranchRelation(storePath);
+  if (relation === "unrelated") {
+    throw new Error(`sidecar store history is unrelated to origin/${DEFAULT_STORE_BRANCH}; back up .agent-sync-store, then explicitly merge with --allow-unrelated-histories or reset to the remote before pushing`);
+  }
+  if (relation === "diverged") {
+    throw new Error(`sidecar store has diverged from origin/${DEFAULT_STORE_BRANCH}; resolve the sidecar Git history before pushing`);
+  }
   runGit(["merge", "--ff-only", `origin/${DEFAULT_STORE_BRANCH}`], storePath);
   if (sparse.enabled) {
     applyStoreSparseCheckout(config);
   }
   return true;
+}
+
+export function syncNewStoreFromRemote(config) {
+  const { storePath, remote } = config;
+  if (!remote) {
+    return { status: "disabled" };
+  }
+
+  const remoteHead = runGit(["ls-remote", "--heads", "origin", DEFAULT_STORE_BRANCH], storePath, { allowFail: true });
+  if (remoteHead.status !== 0 || !remoteHead.stdout.trim()) {
+    return { status: "remote-missing" };
+  }
+
+  const branch = runGit(["rev-parse", "--verify", DEFAULT_STORE_BRANCH], storePath, { allowFail: true });
+  if (branch.status !== 0) {
+    syncStoreFromRemote(config);
+    return { status: "synced" };
+  }
+
+  fetchStoreBranch(storePath);
+  const relation = getStoreBranchRelation(storePath);
+  if (relation === "unrelated" || relation === "diverged") {
+    return { status: relation };
+  }
+  return { status: "local-history" };
 }
 
 function fetchStoreBranch(storePath) {
@@ -113,6 +145,26 @@ function ensureStorePromisorRemote(storePath) {
   // Keep Git aware that missing blobs are promised by origin, not corrupt.
   runGit(["config", "remote.origin.promisor", "true"], storePath, { allowFail: true });
   runGit(["config", "remote.origin.partialclonefilter", "blob:none"], storePath, { allowFail: true });
+}
+
+function getStoreBranchRelation(storePath) {
+  const remoteRef = `origin/${DEFAULT_STORE_BRANCH}`;
+  const mergeBase = runGit(["merge-base", DEFAULT_STORE_BRANCH, remoteRef], storePath, { allowFail: true });
+  if (mergeBase.status !== 0) {
+    return "unrelated";
+  }
+
+  const localAncestor = runGit(["merge-base", "--is-ancestor", DEFAULT_STORE_BRANCH, remoteRef], storePath, { allowFail: true });
+  if (localAncestor.status === 0) {
+    return "local-behind";
+  }
+
+  const remoteAncestor = runGit(["merge-base", "--is-ancestor", remoteRef, DEFAULT_STORE_BRANCH], storePath, { allowFail: true });
+  if (remoteAncestor.status === 0) {
+    return "local-ahead";
+  }
+
+  return "diverged";
 }
 
 function getStoreSparsePatterns(config) {

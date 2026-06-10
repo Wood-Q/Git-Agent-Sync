@@ -183,7 +183,12 @@ seedForeignCurrentProjectEntry(base, bareStoreRemote, projectConfigA.projectId);
 seedForeignStoreProject(base, bareStoreRemote);
 
 run("git", ["clone", bareProjectRemote, projectB], machineBParent);
-agent(projectB, codexB, claudeB, ["init", "--remote", bareStoreRemote]);
+const initBOut = agent(projectB, codexB, claudeB, ["init", "--remote", bareStoreRemote]);
+assert.match(initBOut, /initialized sidecar store from origin\/main/);
+assert.equal(
+  run("git", ["rev-parse", "HEAD"], join(projectB, ".agent-sync-store")),
+  run("git", ["rev-parse", "origin/main"], join(projectB, ".agent-sync-store"))
+);
 const pullOut = agent(projectB, codexB, claudeB, ["pull"]);
 assert.match(pullOut, /pruned 1 foreign project file\(s\), 1 binding\(s\), and 1 manifest entry/);
 assert.match(pullOut, /3 session file\(s\) available for restore/);

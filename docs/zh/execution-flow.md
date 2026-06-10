@@ -45,6 +45,7 @@ git agent-sync init --remote git@github.com:yourname/agent-session-store.git
 - 根据业务仓库 remote 生成稳定的 `projectIdentity` 和 `projectId`。
 - 创建 `.agent-sync/config.json`，保存当前机器的本地配置。
 - 创建 `.agent-sync-store/`，它本身是一个独立 Git 仓库。
+- 如果配置了 sidecar remote，且远程已有 `main`、本地 `.agent-sync-store/` 还没有提交，会自动 checkout `origin/main`，让第一次 `push` 直接追加到已有 sidecar 历史上。
 - 自动把 `.agent-sync/` 和 `.agent-sync-store/` 写入业务仓库 `.gitignore`。
 
 这一阶段不会复制 session，也不会提交业务仓库代码。

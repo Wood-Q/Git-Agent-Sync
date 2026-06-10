@@ -65,6 +65,8 @@ git agent-sync status
 git agent-sync push
 ```
 
+如果 sidecar remote 已经有 `main` 分支，并且当前项目的本地 `.agent-sync-store/` 还没有提交，`init` 会自动 checkout 这段远程历史。新项目初始化后可以直接 `push`。
+
 在另一台机器上：
 
 ```bash

@@ -63,6 +63,8 @@ git agent-sync status
 git agent-sync push
 ```
 
+If the sidecar remote already has a `main` branch and this project's local `.agent-sync-store/` has no commits yet, `init` automatically checks out that remote history. A new project can run `push` directly after `init`.
+
 On another machine:
 
 ```bash

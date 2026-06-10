@@ -33,6 +33,10 @@ export class HistoryView {
           vscode.commands.executeCommand("agentSync.restoreIndex", message.index);
         } else if (message?.command === "refresh") {
           vscode.commands.executeCommand("agentSync.refreshHistory");
+        } else if (message?.command === "pull") {
+          vscode.commands.executeCommand("agentSync.pull");
+        } else if (message?.command === "push") {
+          vscode.commands.executeCommand("agentSync.push");
         }
       });
     }
@@ -286,6 +290,8 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
   <div class="toolbar">
     <div class="title">Agent Sync History</div>
     <div class="count"><span id="visibleCount">${bindings.length}</span> / ${bindings.length}</div>
+    <button type="button" id="pull" title="Pull sidecar sessions">Pull</button>
+    <button type="button" id="push" title="Push local sessions">Push</button>
     <button type="button" id="refresh">Refresh</button>
     <button type="button" id="clear">Clear</button>
   </div>
@@ -374,6 +380,12 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     });
     document.getElementById('refresh').addEventListener('click', () => {
       vscode.postMessage({ command: 'refresh' });
+    });
+    document.getElementById('pull').addEventListener('click', () => {
+      vscode.postMessage({ command: 'pull' });
+    });
+    document.getElementById('push').addEventListener('click', () => {
+      vscode.postMessage({ command: 'push' });
     });
     document.getElementById('clear').addEventListener('click', () => {
       Object.keys(filters).forEach((key) => delete filters[key]);

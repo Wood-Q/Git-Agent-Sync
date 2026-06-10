@@ -6,7 +6,7 @@ This page summarizes the internal flow. The Chinese version contains the most de
 
 ## 1. Init
 
-`git agent-sync init` resolves the business Git root, creates `.agent-sync/config.json`, computes a cross-platform project identity, and prepares `.agent-sync-store/` as an independent sidecar Git repository. If a remote is provided, it is attached to the sidecar store rather than the business repository.
+`git agent-sync init` resolves the business Git root, creates `.agent-sync/config.json`, computes a cross-platform project identity, and prepares `.agent-sync-store/` as an independent sidecar Git repository. If a remote is provided, it is attached to the sidecar store rather than the business repository. When the remote already has `main` and the local sidecar store has no commits, init checks out `origin/main` so the first `push` appends to the existing sidecar history.
 
 ## 2. Scan
 
