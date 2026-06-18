@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
   CACHE_FILE,
@@ -392,12 +392,11 @@ function pullCommand(gitRoot) {
 }
 
 function installHooksCommand(gitRoot) {
-  const hooksDir = join(gitRoot, ".git", "hooks");
-  mkdirSync(hooksDir, { recursive: true });
-  const hookPath = join(hooksDir, "pre-push");
+  const hookPath = resolveHookPath(gitRoot);
+  mkdirSync(dirname(hookPath), { recursive: true });
   if (existsSync(hookPath)) {
     const existing = readFileSync(hookPath, "utf8");
-    if (!existing.includes("AGENT_SYNC_HOOK=pre-push")) {
+    if (!isAgentSyncHook(existing)) {
       throw new Error(`pre-push hook already exists and was not installed by agent-sync: ${hookPath}`);
     }
   }
@@ -428,17 +427,30 @@ fi
 }
 
 function uninstallHooksCommand(gitRoot) {
-  const hookPath = join(gitRoot, ".git", "hooks", "pre-push");
+  const hookPath = resolveHookPath(gitRoot);
   if (!existsSync(hookPath)) {
     console.log("agent-sync: no pre-push hook installed.");
     return;
   }
   const content = readFileSync(hookPath, "utf8");
-  if (!content.includes("AGENT_SYNC_HOOK=pre-push")) {
+  if (!isAgentSyncHook(content)) {
     throw new Error(`pre-push hook was not installed by agent-sync: ${hookPath}`);
   }
   unlinkSync(hookPath);
   console.log(`agent-sync: removed pre-push hook at ${hookPath}`);
+}
+
+function resolveHookPath(gitRoot) {
+  const hookRelative = getGitValue(["rev-parse", "--git-path", "hooks/pre-push"], gitRoot);
+  if (!hookRelative) {
+    return join(gitRoot, ".git", "hooks", "pre-push");
+  }
+  return resolve(gitRoot, hookRelative);
+}
+
+function isAgentSyncHook(content) {
+  // New marker (5445bfa+) and the original header used before the marker existed.
+  return content.includes("AGENT_SYNC_HOOK=pre-push") || content.includes("# Installed by git-agent-sync");
 }
 
 function commitStoreCleanup(config, archivedPruned, manifestPruned, foreignPruned) {
