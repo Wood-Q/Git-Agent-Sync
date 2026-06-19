@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { getCodexArchiveInfo } from "../src/codex-archive.js";
-import { ARCHIVE_CACHE_FILE } from "../src/constants.js";
+import { getCodexArchiveInfo } from "../dist/codex-archive.js";
+import { ARCHIVE_CACHE_FILE } from "../dist/constants.js";
 
 const base = mkdtempSync(join(tmpdir(), "agent-sync-archive-cache-"));
 const project = join(base, "project");

@@ -101,7 +101,7 @@ function formatQueryScope(selector, filters = {}) {
   return parts.length ? parts.join(", ") : "log";
 }
 
-function restoreMatches(config, matches, options = {}) {
+function restoreMatches(config, matches, options: Record<string, any> = {}) {
   const results = [];
   for (const match of matches) {
     const source = join(config.storePath, match.storeRelativePath);
@@ -120,7 +120,7 @@ function restoreMatches(config, matches, options = {}) {
     }
     const target = getRestoreTarget(config, match);
     mkdirSync(dirname(target), { recursive: true });
-    const result = restoreSessionFile(config, match, source, target, options);
+    const result: any = restoreSessionFile(config, match, source, target, options);
     const suffix = formatRestoreSuffix(result);
     printRestoreLine(options, `restored ${match.agent}: ${target}${suffix}`);
     const registered = registerRestoredSession(config, match, target, result.content, options);
@@ -255,7 +255,7 @@ function registerRestoredSession(config, match, target, content, options) {
     };
   }
   if (match.agent === "claude") {
-    const result = registerRestoredClaudeSession(content, target, config, match, getAgentRoot("claude"));
+    const result: any = registerRestoredClaudeSession(content, target, config, match);
     if (result.registered) {
       printRestoreLine(options, `registered claude session: ${result.sessionId || match.bundleId}`);
       return {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { filterBindings, inspectBindings, queryBindings, writeBindings } from "../src/bindings.js";
+import { filterBindings, inspectBindings, queryBindings, writeBindings } from "../dist/bindings.js";
 
 const dir = mkdtempSync(join(tmpdir(), "agent-sync-bindings-"));
 const config = { storePath: dir, projectId: "project" };

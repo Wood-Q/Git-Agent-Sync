@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const files = [
-  ...readdirSync("src").filter((file) => file.endsWith(".js")).map((file) => join("src", file)),
+  ...readdirSync("dist").filter((file) => file.endsWith(".js")).map((file) => join("dist", file)),
   ...readdirSync("bin").filter((file) => file.endsWith(".js")).map((file) => join("bin", file))
 ];
 

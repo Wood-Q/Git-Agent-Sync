@@ -7,8 +7,9 @@ import { readJson, writeJson } from "./utils.js";
 const BINDINGS_INDEX_VERSION = 1;
 const DEFAULT_AUTHOR_NAME = "agent-sync";
 const DEFAULT_AUTHOR_EMAIL = "agent-sync@example.invalid";
+type AnyRecord = Record<string, any>;
 
-export function writeBindings(config, matches, gitContext, syncRunId = createSyncRunId(gitContext), commitInfo = {}) {
+export function writeBindings(config, matches, gitContext, syncRunId = createSyncRunId(gitContext), commitInfo: AnyRecord = {}) {
   const agentMatches = matches.filter((match) => isSupportedAgent(match.agent));
   if (!agentMatches.length) {
     return 0;
@@ -142,7 +143,7 @@ export function queryBindings(config, selector, gitRoot) {
   throw new Error(`unsupported selector "${selector.type}"`);
 }
 
-export function filterBindings(bindings, filters = {}, options = {}) {
+export function filterBindings(bindings, filters: AnyRecord = {}, options: AnyRecord = {}) {
   const getTitle = options.getTitle || ((binding) => binding.title || binding.bundleId || "");
   return bindings.filter((binding) => {
     return matchesAgent(binding, filters.agent) &&

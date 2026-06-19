@@ -1,6 +1,35 @@
-export function parseArgs(rawArgs) {
-  const args = [];
-  const options = {};
+export type CliOptions = Record<string, string | boolean | undefined> & {
+  all?: boolean;
+  current?: boolean;
+  help?: boolean;
+  json?: boolean;
+  latest?: boolean;
+  noAdapt?: boolean;
+  noRegister?: boolean;
+  oneline?: boolean;
+  agent?: string;
+  author?: string;
+  branch?: string;
+  bundle?: string;
+  commit?: string;
+  date?: string;
+  index?: string;
+  maxCount?: string;
+  message?: string;
+  remote?: string;
+  store?: string;
+  title?: string;
+};
+
+export type BindingSelector =
+  | { type: "latest" | "current" }
+  | { type: "branch" | "commit"; value: string };
+
+export type BindingFilters = Record<string, string>;
+
+export function parseArgs(rawArgs: string[]) {
+  const args: string[] = [];
+  const options: CliOptions = {};
   let command = rawArgs[0];
 
   if (command?.startsWith("-")) {
@@ -89,13 +118,13 @@ export function parseArgs(rawArgs) {
   return { command, args, options };
 }
 
-export function parseSelector(options, { requireSelector }) {
+export function parseSelector(options: CliOptions, { requireSelector }: { requireSelector: boolean }) {
   const selectors = [
     options.latest ? { type: "latest" } : null,
     options.current ? { type: "current" } : null,
     isLegacySelectorOption(options, "branch") ? { type: "branch", value: options.branch } : null,
     isLegacySelectorOption(options, "commit") ? { type: "commit", value: options.commit } : null
-  ].filter(Boolean);
+  ].filter(Boolean) as BindingSelector[];
 
   if (selectors.length > 1) {
     throw new Error("choose only one of --latest, --current, --branch, or --commit");
@@ -114,15 +143,15 @@ export function parseSelector(options, { requireSelector }) {
   return selector;
 }
 
-function isLegacySelectorOption(options, name) {
+function isLegacySelectorOption(options: CliOptions, name: string) {
   return options[name] !== undefined && !hasPrimarySelector(options) && !hasBindingFilters(options);
 }
 
-function hasPrimarySelector(options) {
+function hasPrimarySelector(options: CliOptions) {
   return Boolean(options.latest || options.current);
 }
 
-export function hasBindingFilters(options) {
+export function hasBindingFilters(options: CliOptions) {
   return [
     options.agent,
     options.author,
@@ -132,7 +161,7 @@ export function hasBindingFilters(options) {
   ].some((value) => value !== undefined);
 }
 
-export function parseBindingFilters(options, selector = null) {
+export function parseBindingFilters(options: CliOptions, selector: BindingSelector | null = null): BindingFilters {
   const filters = {
     agent: parseOptionalFilter(options, "agent"),
     author: parseOptionalFilter(options, "author"),
@@ -143,7 +172,7 @@ export function parseBindingFilters(options, selector = null) {
     commit: selector?.type === "commit" ? null : parseOptionalFilter(options, "commit")
   };
 
-  const active = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== null));
+  const active = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== null)) as BindingFilters;
   if (active.agent && !["codex", "claude"].includes(active.agent)) {
     throw new Error("--agent must be one of codex or claude");
   }
@@ -153,17 +182,17 @@ export function parseBindingFilters(options, selector = null) {
   return active;
 }
 
-export function hasActiveBindingFilters(filters) {
+export function hasActiveBindingFilters(filters: BindingFilters | null | undefined) {
   return Object.keys(filters || {}).length > 0;
 }
 
-export function formatBindingFiltersForCommand(filters) {
+export function formatBindingFiltersForCommand(filters: BindingFilters | null | undefined) {
   return Object.entries(filters || {})
     .map(([name, value]) => `--${name} ${shellQuote(String(value))}`)
     .join(" ");
 }
 
-function parseOptionalFilter(options, name) {
+function parseOptionalFilter(options: CliOptions, name: string) {
   if (options[name] === undefined) {
     return null;
   }
@@ -174,18 +203,21 @@ function parseOptionalFilter(options, name) {
   return value;
 }
 
-function shellQuote(value) {
+function shellQuote(value: string) {
   return /^[A-Za-z0-9_./:@+-]+$/.test(value)
     ? value
     : JSON.stringify(value);
 }
 
-export function formatSelector(selector) {
+export function formatSelector(selector: BindingSelector) {
   if (selector.type === "latest") {
     return "latest";
   }
   if (selector.type === "current") {
     return "current";
   }
-  return `${selector.type} ${selector.value}`;
+  if (selector.type === "branch" || selector.type === "commit") {
+    return `${selector.type} ${selector.value}`;
+  }
+  return selector.type;
 }

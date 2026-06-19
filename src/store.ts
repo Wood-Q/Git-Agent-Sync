@@ -204,8 +204,8 @@ export function pruneArchivedSidecarEntries(config, archiveInfo) {
   }
 
   const manifestPath = getManifestPath(config);
-  const archivedStorePaths = new Set();
-  const archivedOriginalPaths = new Set();
+  const archivedStorePaths = new Set<string>();
+  const archivedOriginalPaths = new Set<string>();
 
   if (existsSync(manifestPath)) {
     try {
@@ -279,8 +279,8 @@ export function pruneForeignProjectSidecarEntries(config) {
   }
 
   const manifestPath = getManifestPath(config);
-  const foreignStorePaths = new Set();
-  const foreignBundleIds = new Set();
+  const foreignStorePaths = new Set<string>();
+  const foreignBundleIds = new Set<string>();
   let removedManifestEntries = 0;
 
   if (existsSync(manifestPath)) {

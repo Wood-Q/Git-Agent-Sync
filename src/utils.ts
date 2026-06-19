@@ -3,26 +3,26 @@ import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
-export function writeJson(path, value) {
+export function writeJson(path: string, value: unknown) {
   writeFileAtomic(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-export function writeFileAtomic(path, content, options = undefined) {
+export function writeFileAtomic(path: string, content: string, options: any = undefined) {
   mkdirSync(dirname(path), { recursive: true });
   const tempPath = join(dirname(path), `.${Date.now()}-${process.pid}-${Math.random().toString(16).slice(2)}.tmp`);
   writeFileSync(tempPath, content, options);
   renameSync(tempPath, path);
 }
 
-export function readJson(path) {
+export function readJson<T = any>(path: string): T {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-export function sha256(value) {
+export function sha256(value: string | Buffer) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-export function safeRead(path) {
+export function safeRead(path: string) {
   try {
     return readFileSync(path, "utf8");
   } catch {
@@ -30,19 +30,19 @@ export function safeRead(path) {
   }
 }
 
-export function unique(values) {
+export function unique<T>(values: Iterable<T>): T[] {
   return [...new Set(values)];
 }
 
-export function normalizePath(path) {
+export function normalizePath(path: string) {
   return resolve(path).replaceAll("\\", "/");
 }
 
-export function toSlash(path) {
+export function toSlash(path: string) {
   return path.replaceAll("\\", "/");
 }
 
-export function shrinkHome(path) {
+export function shrinkHome(path: string) {
   const home = normalizePath(homedir());
   const normalized = normalizePath(path);
   if (normalized.startsWith(`${home}/`)) {
@@ -51,7 +51,7 @@ export function shrinkHome(path) {
   return normalized;
 }
 
-export function expandHome(path) {
+export function expandHome(path: string) {
   if (path === "~") {
     return homedir();
   }
@@ -61,8 +61,8 @@ export function expandHome(path) {
   return path;
 }
 
-export function walk(root) {
-  const files = [];
+export function walk(root: string) {
+  const files: string[] = [];
   const stack = [root];
   while (stack.length) {
     const current = stack.pop();

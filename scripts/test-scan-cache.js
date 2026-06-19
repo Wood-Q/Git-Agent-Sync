@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { scanSessions } from "../src/agents.js";
-import { getCodexArchiveInfo } from "../src/codex-archive.js";
-import { SCAN_CACHE_FILE } from "../src/constants.js";
+import { scanSessions } from "../dist/agents.js";
+import { getCodexArchiveInfo } from "../dist/codex-archive.js";
+import { SCAN_CACHE_FILE } from "../dist/constants.js";
 
 const base = mkdtempSync(join(tmpdir(), "agent-sync-scan-cache-"));
 const project = join(base, "SampleAgent");

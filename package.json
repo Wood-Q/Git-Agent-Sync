@@ -5,6 +5,7 @@
   "type": "module",
   "files": [
     "bin/",
+    "dist/",
     "src/",
     "README.md",
     "README.zh-CN.md",
@@ -15,7 +16,9 @@
     "agent-sync": "bin/git-agent-sync.js"
   },
   "scripts": {
-    "check": "node ./scripts/check.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check": "npm run build && node ./scripts/check.js",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
@@ -28,7 +31,8 @@
     "test:archive-cache": "node ./scripts/test-archive-cache.js",
     "test:hooks": "node ./scripts/test-hooks.js",
     "test:store-promisor": "node ./scripts/test-store-promisor.js",
-    "test:e2e": "node ./scripts/test-e2e.js"
+    "test:e2e": "node ./scripts/test-e2e.js",
+    "prepare": "npm run build"
   },
   "keywords": [
     "git",
@@ -53,6 +57,9 @@
     "better-sqlite3": "^11.10.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^26.0.0",
+    "typescript": "^6.0.3",
     "vitepress": "^1.6.4"
   }
 }

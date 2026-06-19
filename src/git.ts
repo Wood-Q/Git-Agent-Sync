@@ -83,7 +83,7 @@ export function normalizeRemoteUrl(remote) {
   return normalized;
 }
 
-export function runGit(args, cwd, options = {}) {
+export function runGit(args, cwd, options: { allowFail?: boolean } = {}) {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
   if (result.status !== 0 && !options.allowFail) {
     throw new Error(`git ${args.join(" ")} failed: ${(result.stderr || result.stdout).trim()}`);

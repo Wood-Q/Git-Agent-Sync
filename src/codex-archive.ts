@@ -6,7 +6,7 @@ import { expandHome, normalizePath, readJson, shrinkHome, walk, writeJson } from
 
 const CACHE_VERSION = 1;
 
-export function getCodexArchiveInfo(codexRoot, options = {}) {
+export function getCodexArchiveInfo(codexRoot, options: { cachePath?: string; gitRoot?: string } = {}) {
   const codexHome = resolveCodexHome(codexRoot);
   const statePath = join(codexHome, "state_5.sqlite");
   const archivedSessionsDir = join(codexHome, "archived_sessions");

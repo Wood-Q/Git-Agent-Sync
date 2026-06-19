@@ -15,7 +15,7 @@ import {
   loadCodexThreadIndex,
   loadCodexSessionTitles,
   registerRestoredCodexSession
-} from "../src/codex-session.js";
+} from "../dist/codex-session.js";
 
 const targetRoot = "/tmp/test/workspace/SampleAgent";
 const localShell = process.platform === "win32" ? process.env.ComSpec || "cmd.exe" : process.env.SHELL || "/bin/sh";

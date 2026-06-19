@@ -5,6 +5,12 @@ import Database from "better-sqlite3";
 import { expandHome, sha256, normalizePath, unique, writeFileAtomic } from "./utils.js";
 import { getGitContext, getProjectRemote, normalizeRemoteUrl } from "./git.js";
 
+type ProjectMatch = {
+  matched: boolean;
+  matchedBy?: string[];
+  reason?: string;
+};
+
 const codexStateCache = new Map();
 
 export function extractCodexSessionMetadata(content) {
@@ -177,7 +183,7 @@ export function cleanCodexTitle(value) {
   return cleanTitle(value);
 }
 
-export function registerRestoredCodexSession(content, targetPath, config, match = {}, codexRoot = null) {
+export function registerRestoredCodexSession(content, targetPath, config, match: Record<string, any> = {}, codexRoot = null) {
   const codexHome = resolveCodexHome(getCodexRestoreRoot(targetPath, codexRoot));
   const metadata = extractCodexSessionMetadata(content);
   const sessionId = metadata.sessionId || match.sessionId;
@@ -190,7 +196,7 @@ export function registerRestoredCodexSession(content, targetPath, config, match 
   const title = chooseFirstTitle([match.title, metadata.title, match.bundleId]) || sessionId;
   const firstUserMessage = extractFirstUserMessage(content) || title;
   const sessionMeta = extractFirstSessionMeta(content);
-  const thread = {
+  const thread: Record<string, any> = {
     id: sessionId,
     rollout_path: normalizePath(targetPath),
     created_at: getSessionCreatedAtSeconds(sessionMeta, now),
@@ -491,11 +497,11 @@ function openReadonlyDatabase(path) {
   });
 }
 
-function getTableColumns(db, table) {
+function getTableColumns(db, table): Set<string> {
   try {
-    return new Set(db.prepare(`pragma table_info(${quoteIdentifier(table)})`).all().map((row) => row.name));
+    return new Set(db.prepare(`pragma table_info(${quoteIdentifier(table)})`).all().map((row: any) => String(row.name)));
   } catch {
-    return new Set();
+    return new Set<string>();
   }
 }
 
@@ -546,7 +552,7 @@ function normalizeCodexThreadTime(msValue, secondsValue) {
   return null;
 }
 
-export function getCodexProjectMatch(metadata, config, projectRemote = getConfigRemoteIdentity(config)) {
+export function getCodexProjectMatch(metadata, config, projectRemote = getConfigRemoteIdentity(config)): ProjectMatch {
   const remoteMatch = matchCodexRemote(metadata, projectRemote);
   if (hasKnownDifferentRemote(metadata, projectRemote)) {
     return { matched: false, reason: "codex:foreign-git" };
@@ -575,7 +581,7 @@ export function getCodexProjectMatch(metadata, config, projectRemote = getConfig
   return { matched: false, reason: "codex:missing-project-metadata" };
 }
 
-export function getCodexContentProjectMatch(content, config, projectRemote = getConfigRemoteIdentity(config)) {
+export function getCodexContentProjectMatch(content, config, projectRemote = getConfigRemoteIdentity(config)): ProjectMatch {
   const metadata = extractCodexSessionMetadata(content);
   return getCodexProjectMatch(metadata, config, projectRemote);
 }

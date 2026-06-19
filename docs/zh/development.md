@@ -4,23 +4,25 @@
 
 ## 源码结构
 
-CLI 入口保持很薄。`src/cli.js` 只负责命令分发，具体行为拆到按职责划分的模块：
+CLI 入口保持很薄。`src/cli.ts` 只负责命令分发，具体行为拆到按职责划分的 TypeScript 模块：
 
 ```text
 src/
-  args.js            # CLI 参数与 selector 校验
-  agents.js          # agent 发现与扫描匹配
-  bindings.js        # Git context binding 历史索引
-  scan-cache.js      # 增量扫描缓存
-  codex-archive.js   # Codex 归档识别与缓存
-  codex-session.js   # Codex JSONL 元数据提取与恢复适配
-  claude-session.js  # Claude Code JSONL 元数据提取与恢复适配
-  config.js          # 本地项目配置与项目 identity
-  git.js             # Git root、remote 与工作区上下文
-  restore.js         # restore 流程与目标路径
-  store.js           # sidecar Git store 与 manifest
-  utils.js           # JSON、hash、路径、遍历等共享工具
+  args.ts            # CLI 参数与 selector 校验
+  agents.ts          # agent 发现与扫描匹配
+  bindings.ts        # Git context binding 历史索引
+  scan-cache.ts      # 增量扫描缓存
+  codex-archive.ts   # Codex 归档识别与缓存
+  codex-session.ts   # Codex JSONL 元数据提取与恢复适配
+  claude-session.ts  # Claude Code JSONL 元数据提取与恢复适配
+  config.ts          # 本地项目配置与项目 identity
+  git.ts             # Git root、remote 与工作区上下文
+  restore.ts         # restore 流程与目标路径
+  store.ts           # sidecar Git store 与 manifest
+  utils.ts           # JSON、hash、路径、遍历等共享工具
 ```
+
+`npm run build` 会把根 CLI 源码编译到 `dist/`。`bin/git-agent-sync.js` 包装入口加载 `dist/cli.js`，根包测试脚本也导入 `dist` 模块，因此本地测试覆盖的是实际打包运行路径。
 
 ## 分支规范
 
@@ -36,7 +38,7 @@ npm run test
 
 测试内容包括：
 
-- `npm run check`：JavaScript 语法检查和 `git diff --check`
+- `npm run check`：TypeScript 构建、编译后 JavaScript 语法检查和 `git diff --check`
 - `npm run smoke`：CLI 入口帮助输出
 - `npm run test:bindings`：v2 `bindings.jsonl` 校验和坏行容错
 - `npm run test:codex-session`：Windows / macOS / Linux 风格 Codex 路径适配

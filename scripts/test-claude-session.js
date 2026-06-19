@@ -6,7 +6,7 @@ import {
   getClaudeContentProjectMatch,
   getClaudeRestoreRelativePath,
   isClaudeSessionContentForProject
-} from "../src/claude-session.js";
+} from "../dist/claude-session.js";
 
 const projectRoot = "/tmp/test/workspace/SampleAgent";
 const config = {

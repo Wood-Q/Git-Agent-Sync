@@ -3,6 +3,12 @@ import { basename } from "node:path";
 import { getProjectRemote, normalizeRemoteUrl } from "./git.js";
 import { normalizePath, toSlash, unique, walk } from "./utils.js";
 
+type ProjectMatch = {
+  matched: boolean;
+  matchedBy?: string[];
+  reason?: string;
+};
+
 export function findClaudeSessionCandidates(claudeRoot) {
   if (!existsSync(claudeRoot)) {
     return [];
@@ -19,7 +25,7 @@ export function findClaudeSessionCandidates(claudeRoot) {
     }));
 }
 
-export function extractClaudeSessionMetadata(content, candidate = {}) {
+export function extractClaudeSessionMetadata(content, candidate: Record<string, any> = {}) {
   const metadata = {
     sessionId: null,
     title: null,
@@ -66,7 +72,7 @@ export function extractClaudeSessionMetadata(content, candidate = {}) {
   return metadata;
 }
 
-export function getClaudeProjectMatch(metadata, config, projectRemote = getConfigRemoteIdentity(config)) {
+export function getClaudeProjectMatch(metadata, config, projectRemote = getConfigRemoteIdentity(config)): ProjectMatch {
   const remoteMatch = matchClaudeRemote(metadata, projectRemote);
   if (hasKnownDifferentRemote(metadata, projectRemote)) {
     return { matched: false, reason: "claude:foreign-git" };
@@ -95,7 +101,7 @@ export function getClaudeProjectMatch(metadata, config, projectRemote = getConfi
   return { matched: false, reason: "claude:missing-project-metadata" };
 }
 
-export function getClaudeContentProjectMatch(content, config, projectRemote = getConfigRemoteIdentity(config)) {
+export function getClaudeContentProjectMatch(content, config, projectRemote = getConfigRemoteIdentity(config)): ProjectMatch {
   return getClaudeProjectMatch(extractClaudeSessionMetadata(content), config, projectRemote);
 }
 
@@ -163,7 +169,7 @@ export function getClaudeRestoreRelativePath(agentRelativePath, config) {
   return [currentProjectSlug, ...parts].join("/");
 }
 
-export function registerRestoredClaudeSession(content, targetPath, config, match = {}) {
+export function registerRestoredClaudeSession(content, targetPath, config, match: Record<string, any> = {}) {
   const metadata = extractClaudeSessionMetadata(content);
   return {
     registered: true,

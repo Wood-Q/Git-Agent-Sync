@@ -704,7 +704,7 @@ function getFilteredBindings(config, selector, filters, gitRoot) {
   });
 }
 
-function renderBindings(config, bindings, selector, filters, options = {}) {
+function renderBindings(config, bindings, selector, filters, options: Record<string, any> = {}) {
   return options.oneline
     ? renderBindingsOneline(config, bindings)
     : renderBindingsFull(config, bindings, selector, filters);

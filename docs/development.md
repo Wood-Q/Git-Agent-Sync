@@ -4,23 +4,25 @@
 
 ## Source Layout
 
-The CLI entrypoint is intentionally small. `src/cli.js` handles command dispatch, while the behavior lives in focused modules:
+The CLI entrypoint is intentionally small. `src/cli.ts` handles command dispatch, while the behavior lives in focused TypeScript modules:
 
 ```text
 src/
-  args.js            # CLI argument and selector validation
-  agents.js          # Agent discovery and scan matching
-  bindings.js        # Git context binding history
-  scan-cache.js      # Incremental session scan cache
-  codex-archive.js   # Codex archived-session detection and cache
-  codex-session.js   # Codex JSONL metadata extraction and restore adaptation
-  claude-session.js  # Claude Code JSONL metadata extraction and restore adaptation
-  config.js          # Local project config and identity
-  git.js             # Git root, remote, and worktree context
-  restore.js         # Restore flow and target paths
-  store.js           # Sidecar Git store and manifest
-  utils.js           # Shared JSON, hash, path, and walk helpers
+  args.ts            # CLI argument and selector validation
+  agents.ts          # Agent discovery and scan matching
+  bindings.ts        # Git context binding history
+  scan-cache.ts      # Incremental session scan cache
+  codex-archive.ts   # Codex archived-session detection and cache
+  codex-session.ts   # Codex JSONL metadata extraction and restore adaptation
+  claude-session.ts  # Claude Code JSONL metadata extraction and restore adaptation
+  config.ts          # Local project config and identity
+  git.ts             # Git root, remote, and worktree context
+  restore.ts         # Restore flow and target paths
+  store.ts           # Sidecar Git store and manifest
+  utils.ts           # Shared JSON, hash, path, and walk helpers
 ```
+
+`npm run build` compiles the root CLI sources into `dist/`. The `bin/git-agent-sync.js` wrapper loads `dist/cli.js`, and the root test scripts import `dist` modules so local tests exercise the same runtime path that is packaged.
 
 ## Branching
 
@@ -36,7 +38,7 @@ npm run test
 
 The suite includes:
 
-- `npm run check`: JavaScript syntax checks and `git diff --check`.
+- `npm run check`: TypeScript build, compiled JavaScript syntax checks, and `git diff --check`.
 - `npm run smoke`: CLI entrypoint help output.
 - `npm run test:bindings`: v2 `bindings.jsonl` validation and invalid-line handling.
 - `npm run test:codex-session`: Windows / macOS / Linux style Codex path adaptation.

@@ -1,6 +1,6 @@
 {
-  "pid": 80897,
-  "version": "0.9.7",
+  "pid": 27886,
+  "version": "1.0.1",
   "socketPath": "/Users/woodq/FullStack/Agent-Sync/.codegraph/daemon.sock",
-  "startedAt": 1781072188412
+  "startedAt": 1781867492148
 }
