@@ -15,7 +15,7 @@ VS Code 插件已经发布到 Marketplace：
 - Marketplace：[Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - 扩展 ID：`mokio.agent-sync-vscode`
 
-插件会从 `agentSync.cliPath` 调用 CLI，默认命令是 `agent-sync`。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。History 视图顶部工具栏可以对当前 workspace 执行 pull、push、查看同步状态、隐私扫描、列出 sidecar 冲突、Conversation IR 检查、本机 provider clone 和 register、打开 TUI、刷新、清空筛选和恢复会话；Command Palette 还提供后台同步、队列 flush、daemon 状态、register-local、repair-local、隐私脱敏预览和 readable tool export。
+插件会从 `agentSync.cliPath` 调用 CLI，默认命令是 `agent-sync`。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。History 视图顶部工具栏可以对当前 workspace 执行 pull、push、查看同步状态、隐私扫描、列出 sidecar 冲突、Conversation IR 检查、本机 provider clone / register / clean、打开 TUI、刷新、清空筛选和恢复会话；Command Palette 还提供后台同步、队列 flush、daemon 状态、register-local、repair-local、clean-local 预览、隐私脱敏预览和 readable tool export。
 
 本地开发阶段：
 
@@ -98,9 +98,11 @@ git agent-sync clone-local openrouter
 git agent-sync clone-local openrouter --no-register
 git agent-sync register-local
 git agent-sync repair-local
+git agent-sync clean-local
+git agent-sync clean-local --force
 ```
 
-省略目标 provider 时，Agent-Sync 会读取 `~/.codex/config.toml` 里的 `model_provider`。克隆后的 rollout 仍写在 `~/.codex/sessions`，会生成稳定的新 session id，并记录 `cloned_from`、`original_provider`、`clone_timestamp` 等元数据。默认还会注册本机 `state_5.sqlite` 和 `session_index.jsonl`，让 Codex UI 能看到克隆会话；如果只想写文件，可以加 `--no-register`。运行 `register-local` 可以显式把本机已存在的 Agent-Sync provider 克隆注册进 Codex UI 索引。如果底层文件已存在但 UI 看不到，运行 `repair-local` 会重新注册 Agent-Sync 生成的 provider 克隆。命令只处理通过结构化项目元数据匹配当前 Git 项目的 Codex 会话。
+省略目标 provider 时，Agent-Sync 会读取 `~/.codex/config.toml` 里的 `model_provider`。克隆后的 rollout 仍写在 `~/.codex/sessions`，会生成稳定的新 session id，并记录 `cloned_from`、`original_provider`、`clone_timestamp` 等元数据。默认还会注册本机 `state_5.sqlite` 和 `session_index.jsonl`，让 Codex UI 能看到克隆会话；如果只想写文件，可以加 `--no-register`。运行 `register-local` 可以显式把本机已存在的 Agent-Sync provider 克隆注册进 Codex UI 索引。如果底层文件已存在但 UI 看不到，运行 `repair-local` 会重新注册 Agent-Sync 生成的 provider 克隆。`clean-local` 默认只预览当前项目生成的 provider clone；加 `--force` 后才会删除这些 Agent-Sync 生成的 rollout 文件。命令只处理通过结构化项目元数据匹配当前 Git 项目的 Codex 会话或克隆。
 
 切换 Codex API provider 时如果希望自动同步：
 
@@ -118,7 +120,7 @@ git agent-sync watch-local
 git agent-sync tui
 ```
 
-TUI 可以执行 status、最新 log、pull、push、按编号 restore、`clone-local`、`register-local`、`repair-local`、本机 watch，以及冲突 list/show/resolve。VS Code History 视图里也有 TUI 按钮，会在集成终端打开同一个菜单。
+TUI 可以执行 status、最新 log、pull、push、按编号 restore、`clone-local`、`register-local`、`repair-local`、`clean-local` 预览、本机 watch，以及冲突 list/show/resolve。VS Code History 视图里也有 TUI 按钮，会在集成终端打开同一个菜单。
 
 这个终端 UI 使用 React Ink 构建。操作会分成 Dashboard、Sync Queue、Session History、Local Provider、Tool Convert、Privacy Review、Conflicts 和 Settings 视图。方向键移动，Tab 或右方向键切换视图，Enter 执行当前动作；需要 restore index 或 bundle id 时会在底部提示输入。长时间运行的 provider watch 会交给普通 CLI 命令继续执行。
 

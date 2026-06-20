@@ -12,6 +12,7 @@ assert.match(menu, /Agent Sync TUI - Project/);
 assert.match(menu, /Sync Queue/);
 assert.match(menu, /Clone Codex sessions to current provider/);
 assert.match(menu, /Register local provider clones/);
+assert.match(menu, /Preview local clone cleanup/);
 assert.match(menu, /Watch Codex provider changes/);
 assert.match(menu, /Tool Convert/);
 assert.match(menu, /Privacy Review/);
@@ -24,6 +25,7 @@ assert.equal(getTuiChoices().some((choice) => choice.key === "i" && choice.promp
 assert.equal(getTuiChoices().some((choice) => choice.key === "5" && choice.prompt), true);
 assert.deepEqual(resolveTuiChoice("6").args, ["clone-local"]);
 assert.deepEqual(resolveTuiChoice("n").args, ["register-local"]);
+assert.deepEqual(resolveTuiChoice("z").args, ["clean-local"]);
 assert.deepEqual(resolveTuiChoice("w").args, ["watch-local"]);
 assert.deepEqual(resolveTuiChoice("i").args, ["tool", "inspect", "--session"]);
 assert.deepEqual(resolveTuiChoice("g", "conflicts").args, ["conflicts", "list"]);

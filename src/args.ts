@@ -18,6 +18,7 @@ export type CliOptions = Record<string, string | boolean | undefined> & {
   commit?: string;
   date?: string;
   dryRun?: boolean;
+  force?: boolean;
   from?: string;
   index?: string;
   interval?: string;
@@ -101,6 +102,8 @@ export function parseArgs(rawArgs: string[]) {
       options.noInitialSync = true;
     } else if (arg === "--dry-run") {
       options.dryRun = true;
+    } else if (arg === "--force") {
+      options.force = true;
     } else if (arg === "--once") {
       options.once = true;
     } else if (arg.startsWith("--from=")) {

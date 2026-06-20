@@ -34,6 +34,7 @@ import {
   DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS,
   checkLocalTransferWatch,
   normalizeWatchOptions,
+  runLocalClean,
   runLocalRepair,
   runLocalRegister,
   runLocalTransfer
@@ -121,6 +122,7 @@ export async function main(argv) {
     "watch-local": () => localTransferWatchCommand(gitRoot, options),
     "register-local": () => localRegisterCommand(gitRoot, options),
     "repair-local": () => localRepairCommand(gitRoot, options),
+    "clean-local": () => localCleanCommand(gitRoot, options),
     tui: () => tuiCommand(gitRoot),
     "install-hooks": () => installHooksCommand(gitRoot),
     "uninstall-hooks": () => uninstallHooksCommand(gitRoot),
@@ -161,6 +163,7 @@ Usage:
   git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
   git agent-sync register-local [--dry-run] [--json]
   git agent-sync repair-local [--dry-run] [--json]
+  git agent-sync clean-local [--force] [--json]
   git agent-sync tui
   git agent-sync restore <bundle-id>|--index <n>|--i <n>|--all|[filters] [index] [--no-adapt] [--no-register]
   git agent-sync install-hooks
@@ -290,6 +293,11 @@ Registers Agent-Sync local Codex provider clones in this machine's Codex UI inde
   git agent-sync repair-local [--dry-run] [--json]
 
 Repairs local Codex UI registration for Agent-Sync provider clones without rewriting the rollout files.`,
+    "clean-local": `Usage:
+  git agent-sync clean-local [--force] [--json]
+
+Previews Agent-Sync local Codex provider clone cleanup by default.
+Use --force to remove only current-project rollout files created by clone-local.`,
     tui: `Usage:
   git agent-sync tui
 
@@ -516,6 +524,12 @@ function localRepairCommand(gitRoot, options) {
 function localRegisterCommand(gitRoot, options) {
   const config = readConfigWithBundle(gitRoot);
   const result = runLocalRegister(gitRoot, config, options);
+  printLocalTransferResult(result, options);
+}
+
+function localCleanCommand(gitRoot, options) {
+  const config = readConfigWithBundle(gitRoot);
+  const result = runLocalClean(gitRoot, config, options);
   printLocalTransferResult(result, options);
 }
 
@@ -1097,6 +1111,22 @@ function printLocalTransferResult(result, options: Record<string, any> = {}) {
       } else if (item.action === "error") {
         console.log(`[error] ${item.path}: ${item.message}`);
       }
+    }
+    return;
+  }
+
+  if (result.mode === "clean") {
+    console.log(`agent-sync: ${result.dryRun ? "preview" : "clean"} local Codex provider clones`);
+    console.log(`removed: ${result.stats.removed}, dry-run: ${result.stats.dry_run}, skipped: ${result.stats.skipped_unmarked + result.stats.skipped_foreign}, errors: ${result.stats.error}`);
+    for (const item of result.results) {
+      if (item.action === "removed" || item.action === "dry_run") {
+        console.log(`[${item.action}] ${item.path}`);
+      } else if (item.action === "error") {
+        console.log(`[error] ${item.path}: ${item.message}`);
+      }
+    }
+    if (result.dryRun) {
+      console.log("agent-sync: dry run, add --force to remove generated local clone files.");
     }
     return;
   }

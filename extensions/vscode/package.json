@@ -33,6 +33,7 @@
     "onCommand:agentSync.conflictsList",
     "onCommand:agentSync.registerLocal",
     "onCommand:agentSync.repairLocal",
+    "onCommand:agentSync.cleanLocal",
     "onCommand:agentSync.toolInspect",
     "onCommand:agentSync.toolExportReadable",
     "onCommand:agentSync.localClone",
@@ -114,6 +115,11 @@
         "command": "agentSync.repairLocal",
         "title": "Agent Sync: Repair Local Codex Registration",
         "icon": "$(tools)"
+      },
+      {
+        "command": "agentSync.cleanLocal",
+        "title": "Agent Sync: Preview Local Clone Cleanup",
+        "icon": "$(trash)"
       },
       {
         "command": "agentSync.toolInspect",

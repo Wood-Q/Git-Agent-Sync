@@ -136,6 +136,7 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync watch-local [--interval <seconds>]` | Watch Codex `model_provider` changes and clone sessions to the active provider |
 | `git agent-sync register-local` | Register Agent-Sync local Codex provider clones in local Codex UI indexes |
 | `git agent-sync repair-local` | Repair local Codex UI registration for provider clones |
+| `git agent-sync clean-local [--force]` | Preview or remove generated local Codex provider clones for the current project |
 | `git agent-sync tui` | Open an interactive terminal menu for common Agent-Sync operations |
 | `git agent-sync log [--oneline] [-n <count>\|-<count>] [--json]` | Browse restorable session history |
 | `git agent-sync log --latest [--oneline] [-n <count>\|-<count>] [--json]` | Browse sessions from the latest sync batch |

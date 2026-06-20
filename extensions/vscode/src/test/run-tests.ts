@@ -71,6 +71,7 @@ async function main() {
   assert.match(buildCliCommandLine(["privacy", "scan"]), /privacy scan/);
   assert.match(buildCliCommandLine(["conflicts", "list"]), /conflicts list/);
   assert.match(buildCliCommandLine(["register-local"]), /register-local/);
+  assert.match(buildCliCommandLine(["clean-local"]), /clean-local/);
   assert.match(buildCliCommandLine(["tool", "inspect", "--session", "bundle-1"]), /tool inspect/);
 
   const html = renderHistoryHtml({ cspSource: "vscode-resource:" }, [{
@@ -92,6 +93,7 @@ async function main() {
   assert.match(html, /id="toolInspect"/);
   assert.match(html, /id="localClone"/);
   assert.match(html, /id="registerLocal"/);
+  assert.match(html, /id="cleanLocal"/);
   assert.match(html, /id="watchLocalCopy"/);
   assert.match(html, /id="openTui"/);
   assert.match(html, /command: 'pull'/);
@@ -102,6 +104,7 @@ async function main() {
   assert.match(html, /command: 'toolInspect'/);
   assert.match(html, /command: 'localClone'/);
   assert.match(html, /command: 'registerLocal'/);
+  assert.match(html, /command: 'cleanLocal'/);
   assert.match(html, /command: 'watchLocalCopy'/);
   assert.match(html, /command: 'openTui'/);
   assert.match(html, /data-filter-column="author"/);

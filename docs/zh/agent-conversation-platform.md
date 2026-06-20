@@ -23,10 +23,10 @@ Agent-Sync 的长期目标是成为 agent conversation processing platform：
 - **bindings 历史**：`bindings.jsonl` 记录会话 bundle 与业务 Git commit / branch / 同步批次之间的关系，`bindings.idx.json` 是可重建查询缓存。
 - **恢复适配**：恢复时会把源机器的路径映射到当前机器的 Codex / Claude 目录，并给恢复文件写入 `agentSyncAdapted` 标记。
 - **Codex UI 注册**：恢复 Codex 会话时会写入本机 `state_5.sqlite` 和 `session_index.jsonl`，让 Codex 插件 / App 能看到恢复后的会话。
-- **本机 provider 同步**：`clone-local` 会把当前项目的 Codex 会话克隆到指定或当前 `model_provider`；`watch-local` 会监听 provider 变化后触发克隆；`register-local` / `repair-local` 会把 Agent-Sync 本机 provider 克隆注册进 Codex UI 索引。
+- **本机 provider 同步**：`clone-local` 会把当前项目的 Codex 会话克隆到指定或当前 `model_provider`；`watch-local` 会监听 provider 变化后触发克隆；`register-local` / `repair-local` 会把 Agent-Sync 本机 provider 克隆注册进 Codex UI 索引；`clean-local` 会预览或删除当前项目由 Agent-Sync 生成的 provider clone。
 - **冲突隔离与 review**：事件重放发现同一 agent session id 对应多个对象 hash 时，会写入 `conflicts/` 隔离记录；`conflicts list/show/resolve` 可以查看并用非破坏性的元数据标记解决。
 - **TUI 入口**：`git agent-sync tui` 提供交互式终端菜单，降低常用操作的记忆成本。
-- **VS Code 入口**：扩展可以调用 CLI 执行 push、pull、restore、sync status/background/flush、privacy scan/redact dry-run、conflicts list、Conversation IR inspect/export、打开 TUI、触发本机 provider clone/watch/repair。
+- **VS Code 入口**：扩展可以调用 CLI 执行 push、pull、restore、sync status/background/flush、privacy scan/redact dry-run、conflicts list、Conversation IR inspect/export、打开 TUI、触发本机 provider clone/register/watch/repair/clean。
 
 当前最大的边界也很明确：
 
@@ -236,7 +236,7 @@ git agent-sync repair-local
 后续新增本机操作也应沿用 `-local`：
 
 ```bash
-git agent-sync clean-local
+git agent-sync import-local
 ```
 
 ### 5.2 缓存不一致风险
@@ -470,6 +470,7 @@ git agent-sync clone-local
 git agent-sync watch-local
 git agent-sync register-local
 git agent-sync repair-local
+git agent-sync clean-local
 git agent-sync tool inspect
 git agent-sync tool convert
 git agent-sync tool export
@@ -479,13 +480,13 @@ git agent-sync tui
 未来扩展：
 
 ```bash
-git agent-sync clean-local
+git agent-sync import-local
 ```
 
 命名边界：
 
 - `push` / `pull` / `sync`：跨设备 sidecar remote。
-- `clone-local` / `watch-local` / `repair-local` / `register-local`：只改本机 Codex / Claude 会话目录或本机索引。
+- `clone-local` / `watch-local` / `register-local` / `repair-local` / `clean-local`：只改本机 Codex / Claude 会话目录或本机索引。
 - `tool convert` / `tool export`：跨 agent 格式处理。
 - `privacy scan` / `privacy redact`：隐私检查与脱敏。
 - `conflicts list` / `conflicts show` / `conflicts resolve`：sidecar 冲突隔离区 review 和非破坏性解决标记。
@@ -495,7 +496,7 @@ git agent-sync clean-local
 
 TUI 适合使用 React Ink。目标不是把 CLI 命令包一层菜单，而是提供“可视化选择 + 风险确认 + 批量操作”。
 
-当前实现已经把 `git agent-sync tui` 切换为 React Ink 操作台：左侧是视图导航，右侧是动作列表，底部显示运行状态、prompt 和命令输出摘要；非 TTY 环境会输出同一套动作的文本菜单，方便测试和脚本环境查看。Local Provider 视图已接入 `clone-local`、`register-local`、`repair-local` 和 `watch-local`；Conflicts 视图已接入 `conflicts list/show/resolve --strategy keep-all`，作为后续 richer diff/review UI 的 CLI 一致入口。
+当前实现已经把 `git agent-sync tui` 切换为 React Ink 操作台：左侧是视图导航，右侧是动作列表，底部显示运行状态、prompt 和命令输出摘要；非 TTY 环境会输出同一套动作的文本菜单，方便测试和脚本环境查看。Local Provider 视图已接入 `clone-local`、`register-local`、`repair-local`、`clean-local` 预览和 `watch-local`；Conflicts 视图已接入 `conflicts list/show/resolve --strategy keep-all`，作为后续 richer diff/review UI 的 CLI 一致入口。
 
 信息架构：
 
@@ -529,7 +530,7 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 - **Provider Controls**：显示当前 Codex provider，提供 `clone-local`、`watch-local`、`repair-local`。
 - **Tool Conversion View**：用统一结构展示 Codex / Claude 消息和工具调用，支持导出。
 
-当前 VS Code 实现保持“只调用 CLI”的边界：History toolbar 和 Command Palette 已接入 pull、push、sync status/background/flush、daemon status、privacy scan/redact dry-run、conflicts list、tool inspect/export readable、clone-local、register-local、watch-local、repair-local、TUI 和 restore。
+当前 VS Code 实现保持“只调用 CLI”的边界：History toolbar 和 Command Palette 已接入 pull、push、sync status/background/flush、daemon status、privacy scan/redact dry-run、conflicts list、tool inspect/export readable、clone-local、register-local、watch-local、repair-local、clean-local 预览、TUI 和 restore。
 
 体验要求：
 
@@ -663,7 +664,7 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 - **冲突隔离测试**：同 session id 分叉时进入 `conflicts/`，不会覆盖原始对象；list/show/resolve 能查看和标记解决，事件索引重建不会抹掉 resolved 元数据。
 - **daemon 测试**：queue 状态迁移、锁、retry、crash recovery。
 - **隐私 fixture**：覆盖常见 token、误报 allowlist、dry-run diff。
-- **provider clone 测试**：provider 变化、重复 clone、注册 Codex state、register-local、repair-local。
+- **provider clone 测试**：provider 变化、重复 clone、注册 Codex state、register-local、repair-local、clean-local dry-run/force。
 - **Codex adapter golden test**：session meta、turn context、message、function_call。
 - **Claude adapter golden test**：message content、tool_use、tool_result、workdir。
 - **跨工具 export smoke**：导出 readable session 后能在目标 viewer 中打开。

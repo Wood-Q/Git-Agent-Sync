@@ -1,5 +1,5 @@
 import { basename, join } from "node:path";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, unlinkSync } from "node:fs";
 import { getAgentRoot, scanSessions } from "./agents.js";
 import { extractCodexSessionMetadata, registerRestoredCodexSession, resolveCodexHome } from "./codex-session.js";
 import { normalizePath, sha256, walk, writeFileAtomic } from "./utils.js";
@@ -128,6 +128,64 @@ export function runLocalRegister(gitRoot, config, rawOptions: Record<string, any
   };
 }
 
+export function runLocalClean(gitRoot, config, rawOptions: Record<string, any> = {}) {
+  const options = normalizeCleanOptions(rawOptions);
+  const codexRoot = getAgentRoot("codex");
+  const results = [];
+  const stats = {
+    removed: 0,
+    dry_run: 0,
+    skipped_foreign: 0,
+    skipped_unmarked: 0,
+    error: 0
+  };
+
+  for (const path of walk(codexRoot).filter((file) => file.endsWith(".jsonl"))) {
+    try {
+      const content = readFileSync(path, "utf8");
+      const meta = getFirstSessionMeta(content);
+      const marker = meta.payload?.[TRANSFER_MARKER];
+      if (!marker || marker.type !== "codex-provider-clone") {
+        stats.skipped_unmarked += 1;
+        continue;
+      }
+      if (!isCurrentProjectClone(config, meta.payload)) {
+        stats.skipped_foreign += 1;
+        continue;
+      }
+      const action = options.dryRun ? "dry_run" : "removed";
+      if (!options.dryRun) {
+        unlinkSync(path);
+      }
+      stats[options.dryRun ? "dry_run" : "removed"] += 1;
+      results.push({
+        action,
+        path: normalizePath(path),
+        sessionId: meta.payload.id,
+        provider: meta.payload.model_provider || null,
+        sourceSessionId: marker.sourceSessionId || null
+      });
+    } catch (error) {
+      stats.error += 1;
+      results.push({
+        action: "error",
+        path: normalizePath(path),
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  return {
+    version: 1,
+    mode: "clean",
+    dryRun: options.dryRun,
+    force: options.force,
+    scannedAt: new Date().toISOString(),
+    stats,
+    results
+  };
+}
+
 export function checkLocalTransferWatch(gitRoot, config, rawOptions, previousProvider = "") {
   const options = normalizeWatchOptions(rawOptions);
   const provider = detectCodexModelProvider(options.targetProvider);
@@ -179,6 +237,14 @@ function normalizeLocalTransferOptions(rawOptions): LocalTransferOptions {
 function normalizeRepairOptions(rawOptions) {
   return {
     dryRun: Boolean(rawOptions.dryRun)
+  };
+}
+
+function normalizeCleanOptions(rawOptions) {
+  const force = Boolean(rawOptions.force);
+  return {
+    force,
+    dryRun: Boolean(rawOptions.dryRun) || !force
   };
 }
 

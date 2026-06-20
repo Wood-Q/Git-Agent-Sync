@@ -54,6 +54,7 @@ export function activate(context: vscode.ExtensionContext) {
   registerCliAction(context, output, cli, "agentSync.conflictsList", "Conflicts", ["conflicts", "list"]);
   registerCliAction(context, output, cli, "agentSync.registerLocal", "Register Local Codex Clones", ["register-local"]);
   registerCliAction(context, output, cli, "agentSync.repairLocal", "Repair Local Codex Registration", ["repair-local"]);
+  registerCliAction(context, output, cli, "agentSync.cleanLocal", "Preview Local Clone Cleanup", ["clean-local"]);
 
   context.subscriptions.push(vscode.commands.registerCommand("agentSync.toolInspect", async () => {
     await withErrorHandling(output, async () => {

@@ -100,6 +100,7 @@ const MENU_CHOICES: TuiChoice[] = [
   { key: "6", view: "local", badge: "LOCAL", label: "Clone Codex sessions to current provider", description: "Copy current-project Codex sessions under the active provider.", args: ["clone-local"] },
   { key: "n", view: "local", badge: "INDEX", label: "Register local provider clones", description: "Add Agent-Sync provider clones to local Codex indexes.", args: ["register-local"] },
   { key: "7", view: "local", badge: "REPAIR", label: "Repair local Codex UI registration", description: "Re-register Agent-Sync provider clones in local Codex indexes.", args: ["repair-local"] },
+  { key: "z", view: "local", badge: "CLEAN", label: "Preview local clone cleanup", description: "List generated provider clones that clean-local --force would remove.", args: ["clean-local"] },
   { key: "o", view: "local", badge: "WATCH", label: "Check provider change once", description: "Run one local provider watch check.", args: ["watch-local", "--once"] },
   { key: "w", view: "local", badge: "WATCH", label: "Watch Codex provider changes", description: "Hand off to the long-running local watch command.", args: ["watch-local"], handoff: true },
   {
@@ -214,6 +215,7 @@ export function renderTuiMenu(config) {
     "  6  Clone Codex sessions to current provider",
     "  n  Register local provider clones",
     "  7  Repair local Codex UI registration",
+    "  z  Preview local clone cleanup",
     "  o  Check provider change once",
     "  w  Watch Codex provider changes",
     "",

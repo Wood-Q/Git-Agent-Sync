@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { registerRestoredCodexSession } from "../dist/codex-session.js";
-import { checkLocalTransferWatch, runLocalRegister, runLocalRepair, runLocalTransfer } from "../dist/local-transfer.js";
+import { checkLocalTransferWatch, runLocalClean, runLocalRegister, runLocalRepair, runLocalTransfer } from "../dist/local-transfer.js";
 
 const repoRoot = process.cwd();
 const cli = join(repoRoot, "bin", "git-agent-sync.js");
@@ -105,6 +105,24 @@ const noRegister = runLocalTransfer(projectRoot, config, {
   noRegister: true
 });
 assert.equal(noRegister.results.some((item) => item.registered?.reason === "disabled"), true);
+
+const cleanPreview = runLocalClean(projectRoot, config);
+assert.equal(cleanPreview.mode, "clean");
+assert.equal(cleanPreview.dryRun, true);
+assert.equal(cleanPreview.stats.dry_run >= 1, true);
+assert.equal(existsSync(cloneResult.results[0].targetPath), true);
+
+const cliCleanPreview = JSON.parse(agent(["clean-local", "--json"]));
+assert.equal(cliCleanPreview.mode, "clean");
+assert.equal(cliCleanPreview.dryRun, true);
+assert.equal(cliCleanPreview.stats.dry_run >= 1, true);
+
+const cliCleanForce = JSON.parse(agent(["clean-local", "--force", "--json"]));
+assert.equal(cliCleanForce.mode, "clean");
+assert.equal(cliCleanForce.dryRun, false);
+assert.equal(cliCleanForce.stats.removed >= 1, true);
+assert.equal(existsSync(cloneResult.results[0].targetPath), false);
+assert.equal(existsSync(codexSessionPath), true);
 
 console.log("local transfer test passed");
 
