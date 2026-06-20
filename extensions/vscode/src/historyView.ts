@@ -43,6 +43,8 @@ export class HistoryView {
           vscode.commands.executeCommand("agentSync.localCopy");
         } else if (message?.command === "watchLocalCopy") {
           vscode.commands.executeCommand("agentSync.watchLocalCopy");
+        } else if (message?.command === "openTui") {
+          vscode.commands.executeCommand("agentSync.openTui");
         }
       });
     }
@@ -301,6 +303,7 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     <button type="button" id="localClone" title="Clone local sessions across providers">Clone</button>
     <button type="button" id="localCopy" title="Copy local sessions across providers">Copy</button>
     <button type="button" id="watchLocalCopy" title="Watch local provider copy">Watch</button>
+    <button type="button" id="openTui" title="Open Agent Sync TUI">TUI</button>
     <button type="button" id="refresh">Refresh</button>
     <button type="button" id="clear">Clear</button>
   </div>
@@ -404,6 +407,9 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     });
     document.getElementById('watchLocalCopy').addEventListener('click', () => {
       vscode.postMessage({ command: 'watchLocalCopy' });
+    });
+    document.getElementById('openTui').addEventListener('click', () => {
+      vscode.postMessage({ command: 'openTui' });
     });
     document.getElementById('clear').addEventListener('click', () => {
       Object.keys(filters).forEach((key) => delete filters[key]);

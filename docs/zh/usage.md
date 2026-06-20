@@ -107,6 +107,16 @@ git agent-sync watch --from codex --to claude --mode copy
 
 VS Code History 视图里也有 Clone、Copy 和 Watch 按钮，会对当前 workspace 执行同一组本机转换命令。
 
+## 终端 TUI
+
+如果希望把常用流程集中在一个终端菜单里，可以运行：
+
+```bash
+git agent-sync tui
+```
+
+TUI 可以执行 status、最新 log、pull、push、按编号 restore、本机 clone/copy 和本机 watch。VS Code History 视图里也有 TUI 按钮，会在集成终端打开同一个菜单。
+
 ## 自动同步
 
 在需要自动同步会话的业务项目里安装 pre-push hook：

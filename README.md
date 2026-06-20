@@ -111,6 +111,7 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync clone --from <agent> --to <agent>` | Clone local current-project sessions across Codex and Claude with new stable target ids |
 | `git agent-sync copy --from <agent> --to <agent>` | Copy local current-project sessions across Codex and Claude, updating Agent-Sync-created copies |
 | `git agent-sync watch --from <agent> --to <agent> [--mode clone\|copy]` | Watch local sessions and rerun cross-provider clone/copy when source sessions change |
+| `git agent-sync tui` | Open an interactive terminal menu for common Agent-Sync operations |
 | `git agent-sync log [--oneline] [-n <count>\|-<count>] [--json]` | Browse restorable session history |
 | `git agent-sync log --latest [--oneline] [-n <count>\|-<count>] [--json]` | Browse sessions from the latest sync batch |
 | `git agent-sync log --current [--json]` | Browse sessions bound to the current business repo commit |

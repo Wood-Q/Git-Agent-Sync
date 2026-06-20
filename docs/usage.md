@@ -107,6 +107,16 @@ git agent-sync watch --from codex --to claude --mode copy
 
 The VS Code History view includes Clone, Copy, and Watch buttons that run the same local transfer commands for the current workspace.
 
+## Terminal TUI
+
+Open the terminal menu when you want the common workflows in one place:
+
+```bash
+git agent-sync tui
+```
+
+The TUI can run status, latest log, pull, push, restore by index, local clone/copy, and local watch actions. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
+
 ## Automatic Push
 
 Install a pre-push hook in each project where you want automatic session sync:

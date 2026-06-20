@@ -68,6 +68,13 @@ export function activate(context: vscode.ExtensionContext) {
     });
   }));
 
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.openTui", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      startTuiTerminal(cwd);
+    });
+  }));
+
   context.subscriptions.push(vscode.commands.registerCommand("agentSync.restore", async () => {
     await withErrorHandling(output, async () => {
       const cwd = getWorkspaceRoot();
@@ -133,6 +140,15 @@ async function startLocalWatchTerminal(cwd: string) {
   });
   terminal.show();
   terminal.sendText(buildCliCommandLine(["watch", "--from", pair.from, "--to", pair.to, "--mode", "copy"]));
+}
+
+function startTuiTerminal(cwd: string) {
+  const terminal = vscode.window.createTerminal({
+    name: "Agent Sync TUI",
+    cwd
+  });
+  terminal.show();
+  terminal.sendText(buildCliCommandLine(["tui"]));
 }
 
 async function pickTransferPair(title: string): Promise<{ from: LocalTransferAgent; to: LocalTransferAgent } | null> {

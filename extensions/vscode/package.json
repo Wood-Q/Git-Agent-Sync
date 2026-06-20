@@ -26,7 +26,8 @@
     "onCommand:agentSync.push",
     "onCommand:agentSync.localClone",
     "onCommand:agentSync.localCopy",
-    "onCommand:agentSync.watchLocalCopy"
+    "onCommand:agentSync.watchLocalCopy",
+    "onCommand:agentSync.openTui"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -73,6 +74,11 @@
         "command": "agentSync.watchLocalCopy",
         "title": "Agent Sync: Watch Local Provider Copy",
         "icon": "$(eye)"
+      },
+      {
+        "command": "agentSync.openTui",
+        "title": "Agent Sync: Open TUI",
+        "icon": "$(terminal)"
       }
     ],
     "configuration": {

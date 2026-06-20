@@ -37,6 +37,7 @@ import {
   runLocalTransfer
 } from "./local-transfer.js";
 import { restoreCommand } from "./restore.js";
+import { runTui } from "./tui.js";
 import {
   adoptExistingProjectBundle,
   copyMatchesToStore,
@@ -85,6 +86,7 @@ export async function main(argv) {
     clone: () => localTransferCommand(gitRoot, "clone", options),
     copy: () => localTransferCommand(gitRoot, "copy", options),
     watch: () => localTransferWatchCommand(gitRoot, options),
+    tui: () => tuiCommand(gitRoot),
     "install-hooks": () => installHooksCommand(gitRoot),
     "uninstall-hooks": () => uninstallHooksCommand(gitRoot),
     restore: () => restoreCommand(gitRoot, args, options, readConfigWithBundle(gitRoot)),
@@ -118,6 +120,7 @@ Usage:
   git agent-sync clone --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
   git agent-sync copy --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
   git agent-sync watch --from <codex|claude> --to <codex|claude> [--mode clone|copy] [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
+  git agent-sync tui
   git agent-sync restore <bundle-id>|--index <n>|--i <n>|--all|[filters] [index] [--no-adapt] [--no-register]
   git agent-sync install-hooks
   git agent-sync uninstall-hooks
@@ -211,6 +214,10 @@ Copy mode preserves the source session id when possible and updates an existing 
 
 Watches local source sessions and automatically runs cross-provider clone/copy when matched source sessions change.
 Defaults to --mode copy and an interval of ${DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS} seconds.`,
+    tui: `Usage:
+  git agent-sync tui
+
+Opens an interactive terminal menu for status, log, pull, push, restore, local clone/copy, and local watch operations.`,
     restore: `Usage:
   git agent-sync restore <bundle-id> [--no-adapt] [--no-register]
   git agent-sync restore --index <n> [--no-adapt] [--no-register]
@@ -333,6 +340,11 @@ async function localTransferWatchCommand(gitRoot, options) {
     }
     await sleep(watchOptions.intervalSeconds * 1000);
   }
+}
+
+async function tuiCommand(gitRoot) {
+  const config = readConfigWithBundle(gitRoot);
+  await runTui(gitRoot, config);
 }
 
 function logCommand(gitRoot, options) {

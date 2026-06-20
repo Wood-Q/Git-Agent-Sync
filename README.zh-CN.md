@@ -113,6 +113,7 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 | `git agent-sync clone --from <agent> --to <agent>` | 在 Codex 与 Claude 之间 clone 本机当前项目会话，并生成稳定的新目标 id |
 | `git agent-sync copy --from <agent> --to <agent>` | 在 Codex 与 Claude 之间复制本机当前项目会话，并更新 Agent-Sync 创建的目标副本 |
 | `git agent-sync watch --from <agent> --to <agent> [--mode clone\|copy]` | 监视本机会话变化，并自动执行跨 provider clone/copy |
+| `git agent-sync tui` | 打开交互式终端菜单，集中执行常用 Agent-Sync 操作 |
 | `git agent-sync log [--oneline] [-n <count>\|-<count>] [--json]` | 浏览可恢复会话历史 |
 | `git agent-sync log --latest [--oneline] [-n <count>\|-<count>] [--json]` | 浏览最近一次同步批次 |
 | `git agent-sync log --current [--json]` | 浏览当前业务 commit 对应会话 |

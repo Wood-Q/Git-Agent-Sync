@@ -67,6 +67,7 @@ async function main() {
   assert.deepEqual(normalizeLogFilter({ selector: "branch", value: " main " }), { selector: "branch", value: "main" });
   assert.deepEqual(normalizeLogFilter({ selector: "latest" }), { selector: "latest" });
   assert.match(buildCliCommandLine(["watch", "--from", "codex", "--to", "claude"]), /watch --from codex --to claude/);
+  assert.match(buildCliCommandLine(["tui"]), /tui/);
 
   const html = renderHistoryHtml({ cspSource: "vscode-resource:" }, [{
     title: "Restore <this>",
@@ -84,11 +85,13 @@ async function main() {
   assert.match(html, /id="localClone"/);
   assert.match(html, /id="localCopy"/);
   assert.match(html, /id="watchLocalCopy"/);
+  assert.match(html, /id="openTui"/);
   assert.match(html, /command: 'pull'/);
   assert.match(html, /command: 'push'/);
   assert.match(html, /command: 'localClone'/);
   assert.match(html, /command: 'localCopy'/);
   assert.match(html, /command: 'watchLocalCopy'/);
+  assert.match(html, /command: 'openTui'/);
   assert.match(html, /data-filter-column="author"/);
   assert.match(html, /data-filter-column="branch"/);
   assert.match(html, /data-author="Agent Sync Test"/);
