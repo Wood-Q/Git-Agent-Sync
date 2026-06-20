@@ -15,7 +15,7 @@ VS Code extension:
 - Marketplace: [Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - Extension ID: `mokio.agent-sync-vscode`
 
-The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. The History view toolbar can pull, push, inspect sync status, run privacy scan, list sidecar conflicts, inspect Conversation IR, clone local provider sessions, open the TUI, refresh, clear filters, and restore sessions for the current workspace; the Command Palette also exposes background sync, queue flush, daemon status, repair-local, privacy redaction preview, and readable tool export.
+The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. The History view toolbar can pull, push, inspect sync status, run privacy scan, list sidecar conflicts, inspect Conversation IR, clone and register local provider sessions, open the TUI, refresh, clear filters, and restore sessions for the current workspace; the Command Palette also exposes background sync, queue flush, daemon status, register-local, repair-local, privacy redaction preview, and readable tool export.
 
 For local development:
 
@@ -96,10 +96,11 @@ Use local clone when you switch Codex API providers and want current-project Cod
 git agent-sync clone-local
 git agent-sync clone-local openrouter
 git agent-sync clone-local openrouter --no-register
+git agent-sync register-local
 git agent-sync repair-local
 ```
 
-When the target provider is omitted, Agent-Sync reads `model_provider` from `~/.codex/config.toml`. The cloned rollout stays in `~/.codex/sessions`, gets a new stable session id, and records `cloned_from`, `original_provider`, and `clone_timestamp` metadata. By default it also registers local `state_5.sqlite` and `session_index.jsonl` entries so the Codex UI can see the clone; use `--no-register` when you only want to write the file. If the file exists but the UI cannot see it, run `repair-local` to re-register Agent-Sync provider clones. Only sessions that match the current Git project through structured metadata are cloned.
+When the target provider is omitted, Agent-Sync reads `model_provider` from `~/.codex/config.toml`. The cloned rollout stays in `~/.codex/sessions`, gets a new stable session id, and records `cloned_from`, `original_provider`, and `clone_timestamp` metadata. By default it also registers local `state_5.sqlite` and `session_index.jsonl` entries so the Codex UI can see the clone; use `--no-register` when you only want to write the file. Run `register-local` to explicitly register Agent-Sync provider clones that already exist on this machine. If the file exists but the UI cannot see it, run `repair-local` to re-register Agent-Sync provider clones. Only sessions that match the current Git project through structured metadata are cloned.
 
 To keep Codex sessions available while switching API providers:
 
@@ -117,7 +118,7 @@ Open the terminal menu when you want the common workflows in one place:
 git agent-sync tui
 ```
 
-The TUI can run status, latest log, pull, push, restore by index, `clone-local`, `repair-local`, local watch actions, and conflict list/show/resolve commands. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
+The TUI can run status, latest log, pull, push, restore by index, `clone-local`, `register-local`, `repair-local`, local watch actions, and conflict list/show/resolve commands. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
 
 The terminal UI is built with React Ink. It groups actions into Dashboard, Sync Queue, Session History, Local Provider, Tool Convert, Privacy Review, Conflicts, and Settings views. Use arrow keys to move, Tab or the right arrow to switch views, Enter to run the selected action, and prompts for restore indexes or bundle ids. Long-running provider watch hands off to the normal CLI command.
 

@@ -4,7 +4,7 @@ Browse, pull, push, inspect, and restore Agent-Sync sessions from VS Code.
 
 This extension calls the `agent-sync` CLI from your PATH by default. On Windows it also checks common npm global install locations and supports the `agent-sync.cmd` shim created by npm. If the CLI is installed somewhere else, set `agentSync.cliPath` to the command or absolute path.
 
-The History view toolbar includes Pull, Push, Sync, Privacy, Conflicts, IR, Clone, Watch, TUI, Refresh, and Clear actions. Pull and Push run the sidecar CLI commands for the current workspace and refresh the history table after completion. Sync shows queue state, Privacy runs a session secret scan, Conflicts lists sidecar conflict quarantine records, IR inspects a selected bundle as Conversation IR, Clone and Watch cover local Codex `model_provider` sync, and TUI opens `agent-sync tui` in an integrated terminal. The Command Palette also exposes background sync, queue flush, daemon status, repair-local, privacy redaction preview, and readable tool export.
+The History view toolbar includes Pull, Push, Sync, Privacy, Conflicts, IR, Clone, Register, Watch, TUI, Refresh, and Clear actions. Pull and Push run the sidecar CLI commands for the current workspace and refresh the history table after completion. Sync shows queue state, Privacy runs a session secret scan, Conflicts lists sidecar conflict quarantine records, IR inspects a selected bundle as Conversation IR, Clone/Register/Watch cover local Codex `model_provider` sync and UI index registration, and TUI opens `agent-sync tui` in an integrated terminal. The Command Palette also exposes background sync, queue flush, daemon status, register-local, repair-local, privacy redaction preview, and readable tool export.
 
 Marketplace:
 

@@ -52,6 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
   registerCliAction(context, output, cli, "agentSync.privacyScan", "Privacy Scan", ["privacy", "scan"]);
   registerCliAction(context, output, cli, "agentSync.privacyRedactDryRun", "Privacy Redaction Preview", ["privacy", "redact", "--dry-run"]);
   registerCliAction(context, output, cli, "agentSync.conflictsList", "Conflicts", ["conflicts", "list"]);
+  registerCliAction(context, output, cli, "agentSync.registerLocal", "Register Local Codex Clones", ["register-local"]);
   registerCliAction(context, output, cli, "agentSync.repairLocal", "Repair Local Codex Registration", ["repair-local"]);
 
   context.subscriptions.push(vscode.commands.registerCommand("agentSync.toolInspect", async () => {

@@ -35,6 +35,7 @@ import {
   checkLocalTransferWatch,
   normalizeWatchOptions,
   runLocalRepair,
+  runLocalRegister,
   runLocalTransfer
 } from "./local-transfer.js";
 import {
@@ -118,6 +119,7 @@ export async function main(argv) {
     scan: () => scanCommand(gitRoot, options),
     "clone-local": () => localTransferCommand(gitRoot, args, options),
     "watch-local": () => localTransferWatchCommand(gitRoot, options),
+    "register-local": () => localRegisterCommand(gitRoot, options),
     "repair-local": () => localRepairCommand(gitRoot, options),
     tui: () => tuiCommand(gitRoot),
     "install-hooks": () => installHooksCommand(gitRoot),
@@ -157,6 +159,7 @@ Usage:
   git agent-sync scan [--json]
   git agent-sync clone-local [target-provider] [--dry-run] [--no-register] [--json]
   git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
+  git agent-sync register-local [--dry-run] [--json]
   git agent-sync repair-local [--dry-run] [--json]
   git agent-sync tui
   git agent-sync restore <bundle-id>|--index <n>|--i <n>|--all|[filters] [index] [--no-adapt] [--no-register]
@@ -279,6 +282,10 @@ The cloned rollout stays inside ~/.codex/sessions, records cloned_from/original_
 
 Watches ~/.codex/config.toml for model_provider changes and clones current-project Codex sessions to the active provider.
 Defaults to an interval of ${DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS} seconds.`,
+    "register-local": `Usage:
+  git agent-sync register-local [--dry-run] [--json]
+
+Registers Agent-Sync local Codex provider clones in this machine's Codex UI indexes without rewriting rollout files.`,
     "repair-local": `Usage:
   git agent-sync repair-local [--dry-run] [--json]
 
@@ -503,6 +510,12 @@ function localTransferCommand(gitRoot, args, options) {
 function localRepairCommand(gitRoot, options) {
   const config = readConfigWithBundle(gitRoot);
   const result = runLocalRepair(gitRoot, config, options);
+  printLocalTransferResult(result, options);
+}
+
+function localRegisterCommand(gitRoot, options) {
+  const config = readConfigWithBundle(gitRoot);
+  const result = runLocalRegister(gitRoot, config, options);
   printLocalTransferResult(result, options);
 }
 
@@ -1059,6 +1072,19 @@ function readConfigWithBundle(gitRoot) {
 function printLocalTransferResult(result, options: Record<string, any> = {}) {
   if (options.json) {
     console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (result.mode === "register") {
+    console.log("agent-sync: register local Codex provider clone sessions");
+    console.log(`registered: ${result.stats.registered}, dry-run: ${result.stats.dry_run}, skipped: ${result.stats.skipped_unmarked + result.stats.skipped_foreign}, errors: ${result.stats.error}`);
+    for (const item of result.results) {
+      if (item.action === "registered" || item.action === "dry_run") {
+        console.log(`[${item.action}] ${item.path}`);
+      } else if (item.action === "error") {
+        console.log(`[error] ${item.path}: ${item.message}`);
+      }
+    }
     return;
   }
 

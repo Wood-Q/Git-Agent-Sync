@@ -4,8 +4,10 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { registerRestoredCodexSession } from "../dist/codex-session.js";
-import { checkLocalTransferWatch, runLocalRepair, runLocalTransfer } from "../dist/local-transfer.js";
+import { checkLocalTransferWatch, runLocalRegister, runLocalRepair, runLocalTransfer } from "../dist/local-transfer.js";
 
+const repoRoot = process.cwd();
+const cli = join(repoRoot, "bin", "git-agent-sync.js");
 const base = mkdtempSync(join(tmpdir(), "agent-sync-local-transfer-"));
 const projectRoot = join(base, "project");
 const codexHome = join(base, "codex");
@@ -25,6 +27,7 @@ process.env.AGENT_SYNC_CODEX_DIR = codexRoot;
 process.env.AGENT_SYNC_CLAUDE_DIR = join(base, "claude", "projects");
 
 const config = {
+  version: 1,
   projectId: "project",
   projectName: "Project",
   projectRoot,
@@ -32,6 +35,8 @@ const config = {
   storePath: join(base, "store"),
   agents: ["codex", "claude"]
 };
+mkdirSync(join(projectRoot, ".agent-sync"), { recursive: true });
+writeFileSync(join(projectRoot, ".agent-sync", "config.json"), JSON.stringify(config, null, 2));
 
 const sourceId = "11111111-1111-4111-8111-111111111111";
 const codexSessionDir = join(codexRoot, "2026", "05", "23");
@@ -73,6 +78,18 @@ assert.equal(cloneAgain.results[0].registered.registered, true);
 const repairResult = runLocalRepair(projectRoot, config);
 assert.equal(repairResult.stats.repaired >= 1, true);
 assert.equal(repairResult.results.some((item) => item.registered?.registered), true);
+
+const registerResult = runLocalRegister(projectRoot, config);
+assert.equal(registerResult.mode, "register");
+assert.equal(registerResult.stats.registered >= 1, true);
+assert.equal(registerResult.results.some((item) => item.action === "registered" && item.registered?.registered), true);
+
+const cliRegister = JSON.parse(agent(["register-local", "--json"]));
+assert.equal(cliRegister.mode, "register");
+assert.equal(cliRegister.stats.registered >= 1, true);
+const cliRegisterDryRun = JSON.parse(agent(["register-local", "--dry-run", "--json"]));
+assert.equal(cliRegisterDryRun.mode, "register");
+assert.equal(cliRegisterDryRun.stats.dry_run >= 1, true);
 
 writeFileSync(join(codexHome, "config.toml"), "model_provider = \"openrouter\"\n");
 const watchEvent = checkLocalTransferWatch(projectRoot, config, {
@@ -116,4 +133,16 @@ function makeCodexSession({ id, cwd, title, provider }) {
 
 function parseJsonl(value) {
   return value.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+}
+
+function agent(args) {
+  return execFileSync(process.execPath, [cli, ...args], {
+    cwd: projectRoot,
+    env: {
+      ...process.env,
+      AGENT_SYNC_CODEX_DIR: codexRoot,
+      AGENT_SYNC_CLAUDE_DIR: join(base, "claude", "projects")
+    },
+    encoding: "utf8"
+  });
 }

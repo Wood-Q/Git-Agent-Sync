@@ -47,6 +47,8 @@ export class HistoryView {
           vscode.commands.executeCommand("agentSync.toolInspect");
         } else if (message?.command === "localClone") {
           vscode.commands.executeCommand("agentSync.localClone");
+        } else if (message?.command === "registerLocal") {
+          vscode.commands.executeCommand("agentSync.registerLocal");
         } else if (message?.command === "watchLocalCopy") {
           vscode.commands.executeCommand("agentSync.watchLocalCopy");
         } else if (message?.command === "openTui") {
@@ -311,6 +313,7 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     <button type="button" id="conflictsList" title="List sidecar conflict quarantine records">Conflicts</button>
     <button type="button" id="toolInspect" title="Inspect selected bundle as Conversation IR">IR</button>
     <button type="button" id="localClone" title="Clone Codex sessions to current provider">Clone</button>
+    <button type="button" id="registerLocal" title="Register local Codex provider clones">Register</button>
     <button type="button" id="watchLocalCopy" title="Watch Codex provider changes">Watch</button>
     <button type="button" id="openTui" title="Open Agent Sync TUI">TUI</button>
     <button type="button" id="refresh">Refresh</button>
@@ -422,6 +425,9 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     });
     document.getElementById('localClone').addEventListener('click', () => {
       vscode.postMessage({ command: 'localClone' });
+    });
+    document.getElementById('registerLocal').addEventListener('click', () => {
+      vscode.postMessage({ command: 'registerLocal' });
     });
     document.getElementById('watchLocalCopy').addEventListener('click', () => {
       vscode.postMessage({ command: 'watchLocalCopy' });

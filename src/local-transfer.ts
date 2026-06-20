@@ -1,5 +1,5 @@
 import { basename, join } from "node:path";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { getAgentRoot, scanSessions } from "./agents.js";
 import { extractCodexSessionMetadata, registerRestoredCodexSession, resolveCodexHome } from "./codex-session.js";
 import { normalizePath, sha256, walk, writeFileAtomic } from "./utils.js";
@@ -106,6 +106,25 @@ export function runLocalRepair(gitRoot, config, rawOptions: Record<string, any> 
     scannedAt: new Date().toISOString(),
     stats,
     results
+  };
+}
+
+export function runLocalRegister(gitRoot, config, rawOptions: Record<string, any> = {}) {
+  const repaired = runLocalRepair(gitRoot, config, rawOptions);
+  return {
+    ...repaired,
+    mode: "register",
+    stats: {
+      registered: repaired.stats.repaired,
+      dry_run: repaired.stats.dry_run,
+      skipped_foreign: repaired.stats.skipped_foreign,
+      skipped_unmarked: repaired.stats.skipped_unmarked,
+      error: repaired.stats.error
+    },
+    results: repaired.results.map((item) => ({
+      ...item,
+      action: item.action === "repaired" ? "registered" : item.action
+    }))
   };
 }
 
@@ -357,7 +376,16 @@ function isCurrentProjectClone(config, payload) {
   if (!cwd) {
     return false;
   }
-  return normalizePath(cwd) === normalizePath(config.projectRoot);
+  return comparablePath(cwd) === comparablePath(config.projectRoot);
+}
+
+function comparablePath(path: string) {
+  const normalized = normalizePath(path);
+  try {
+    return normalizePath(realpathSync.native(normalized));
+  } catch {
+    return normalized;
+  }
 }
 
 function createTransferResult(action: string, match, targetPath, message: string, registered = null) {

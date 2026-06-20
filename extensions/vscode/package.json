@@ -31,6 +31,7 @@
     "onCommand:agentSync.privacyScan",
     "onCommand:agentSync.privacyRedactDryRun",
     "onCommand:agentSync.conflictsList",
+    "onCommand:agentSync.registerLocal",
     "onCommand:agentSync.repairLocal",
     "onCommand:agentSync.toolInspect",
     "onCommand:agentSync.toolExportReadable",
@@ -103,6 +104,11 @@
         "command": "agentSync.conflictsList",
         "title": "Agent Sync: List Conflicts",
         "icon": "$(warning)"
+      },
+      {
+        "command": "agentSync.registerLocal",
+        "title": "Agent Sync: Register Local Codex Clones",
+        "icon": "$(plug)"
       },
       {
         "command": "agentSync.repairLocal",
