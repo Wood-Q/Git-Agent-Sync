@@ -1,6 +1,8 @@
 export type CliOptions = Record<string, string | boolean | undefined> & {
   all?: boolean;
+  background?: boolean;
   current?: boolean;
+  flush?: boolean;
   help?: boolean;
   json?: boolean;
   latest?: boolean;
@@ -59,6 +61,10 @@ export function parseArgs(rawArgs: string[]) {
       options.maxCount = arg.slice(1);
     } else if (arg === "--all") {
       options.all = true;
+    } else if (arg === "--background") {
+      options.background = true;
+    } else if (arg === "--flush") {
+      options.flush = true;
     } else if (arg === "--latest") {
       options.latest = true;
     } else if (arg === "--current") {

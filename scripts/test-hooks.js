@@ -21,6 +21,7 @@ run(process.execPath, [cli, "install-hooks"], project);
 const hookPath = join(project, ".git", "hooks", "pre-push");
 assert.equal(existsSync(hookPath), true);
 assert.match(readFileSync(hookPath, "utf8"), /AGENT_SYNC_HOOK=pre-push/);
+assert.match(readFileSync(hookPath, "utf8"), /sync --background/);
 runHook(hookPath, project);
 
 run(process.execPath, [cli, "uninstall-hooks"], project);
@@ -41,6 +42,7 @@ const customHook = join(customHooks, "pre-push");
 assert.equal(existsSync(customHook), true, "install must write to core.hooksPath");
 assert.equal(existsSync(hookPath), false, "install must not write to .git/hooks when core.hooksPath is set");
 assert.match(readFileSync(customHook, "utf8"), /AGENT_SYNC_HOOK=pre-push/);
+assert.match(readFileSync(customHook, "utf8"), /sync --background/);
 run(process.execPath, [cli, "uninstall-hooks"], project);
 assert.equal(existsSync(customHook), false, "uninstall must remove the hook at core.hooksPath");
 run("git", ["config", "--unset", "core.hooksPath"], project);

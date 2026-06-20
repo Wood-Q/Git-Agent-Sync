@@ -93,7 +93,11 @@ Agent session 文件里可能记录创建会话时的 shell、工作目录和项
 .agent-sync/last-scan.json
 .agent-sync/scan-cache.json
 .agent-sync/archive-cache.json
+.agent-sync/queue/
+.agent-sync/daemon-state.json
 ```
+
+`queue/` 会保存后台同步任务的 `pending`、`running`、`done`、`failed` 状态。`daemon-state.json` 记录本机后台 worker 最近一次启动、停止和 flush 状态；这些都是本机运行状态，不进入业务 Git 历史。
 
 `.agent-sync-store/` 是一个独立的 sidecar Git 仓库：
 

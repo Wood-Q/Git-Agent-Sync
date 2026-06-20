@@ -36,6 +36,16 @@ import {
   normalizeWatchOptions,
   runLocalTransfer
 } from "./local-transfer.js";
+import {
+  enqueueSyncJob,
+  flushSyncQueue,
+  formatSyncQueueStatus,
+  getSyncQueueStatus,
+  runDaemonLoop,
+  startBackgroundSync,
+  startDaemonProcess,
+  stopDaemon
+} from "./daemon.js";
 import { writeEventStoreSnapshot } from "./event-store.js";
 import { restoreCommand } from "./restore.js";
 import { runTui } from "./tui.js";
@@ -83,6 +93,8 @@ export async function main(argv) {
     show: () => showCommand(gitRoot, args, options),
     push: () => pushCommand(gitRoot, options),
     pull: () => pullCommand(gitRoot),
+    sync: () => syncCommand(gitRoot, args, options),
+    daemon: () => daemonCommand(gitRoot, args, options),
     scan: () => scanCommand(gitRoot, options),
     "clone-local": () => localTransferCommand(gitRoot, args, options),
     "watch-local": () => localTransferWatchCommand(gitRoot, options),
@@ -116,6 +128,8 @@ Usage:
   git agent-sync show <bundle-id>|[filters] <index> [--json]
   git agent-sync push [--m <message>]
   git agent-sync pull
+  git agent-sync sync [status|--background|--flush] [--json]
+  git agent-sync daemon <start|status|stop> [--once] [--interval <seconds>] [--json]
   git agent-sync scan [--json]
   git agent-sync clone-local [target-provider] [--dry-run] [--json]
   git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
@@ -198,6 +212,18 @@ Aligns with: git push. The sidecar commit records the current project HEAD commi
 
 Fast-forwards the sidecar repo from its remote.
 Run log or restore after pull to inspect or recover sessions.`,
+    sync: `Usage:
+  git agent-sync sync status [--json]
+  git agent-sync sync --background [--json]
+  git agent-sync sync --flush [--json]
+
+Queues or flushes sidecar sync jobs without blocking normal project work.`,
+    daemon: `Usage:
+  git agent-sync daemon start [--once] [--interval <seconds>] [--json]
+  git agent-sync daemon status [--json]
+  git agent-sync daemon stop [--json]
+
+Starts, inspects, or stops the local Agent-Sync background worker.`,
     "clone-local": `Usage:
   git agent-sync clone-local [target-provider] [--dry-run] [--json]
 
@@ -460,6 +486,80 @@ function pullCommand(gitRoot) {
   }
 }
 
+async function syncCommand(gitRoot, args, options) {
+  const action = args[0] || "";
+  if (action === "status" || (options.json && !options.background && !options.flush)) {
+    printQueueStatus(gitRoot, options);
+    return;
+  }
+  if (action && !["background", "flush"].includes(action)) {
+    throw new Error(`unknown sync action "${action}". Run "git agent-sync sync --help".`);
+  }
+
+  const config = readConfigWithBundle(gitRoot);
+  if (options.flush || action === "flush") {
+    const result = flushSyncQueue(gitRoot);
+    printSyncResult(result, options);
+    return;
+  }
+
+  const job = enqueueSyncJob(gitRoot, config, {
+    action: "push",
+    reason: options.background || action === "background" ? "background-sync" : "manual-sync"
+  });
+  let worker = null;
+  if (options.background || action === "background") {
+    worker = startBackgroundSync(gitRoot);
+  }
+  const result = { version: 1, job, worker };
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  console.log(`agent-sync: queued sync job ${job.id}.`);
+  if (worker) {
+    console.log(`agent-sync: started background worker pid ${worker.pid}.`);
+  } else {
+    console.log("agent-sync: run git agent-sync sync --flush to process the queue.");
+  }
+}
+
+async function daemonCommand(gitRoot, args, options) {
+  const action = args[0] || "status";
+  if (action === "status") {
+    printQueueStatus(gitRoot, options);
+    return;
+  }
+  if (action === "stop") {
+    const result = stopDaemon(gitRoot);
+    printDaemonResult(result, options);
+    return;
+  }
+  if (action === "start") {
+    if (options.once) {
+      const result = await runDaemonLoop(gitRoot, {
+        once: true,
+        intervalSeconds: parseDaemonInterval(options)
+      });
+      printDaemonResult({ mode: "foreground-once", result }, options);
+      return;
+    }
+    const result = startDaemonProcess(gitRoot, {
+      intervalSeconds: parseDaemonInterval(options)
+    });
+    printDaemonResult(result, options);
+    return;
+  }
+  if (action === "run") {
+    const result = await runDaemonLoop(gitRoot, {
+      intervalSeconds: parseDaemonInterval(options)
+    });
+    printDaemonResult(result, options);
+    return;
+  }
+  throw new Error(`unknown daemon action "${action}". Run "git agent-sync daemon --help".`);
+}
+
 function installHooksCommand(gitRoot) {
   const hookPath = resolveHookPath(gitRoot);
   mkdirSync(dirname(hookPath), { recursive: true });
@@ -484,11 +584,11 @@ if [ -z "$STORE_PATH" ] || [ ! -d "$STORE_PATH/.git" ]; then
 fi
 
 if command -v git-agent-sync >/dev/null 2>&1; then
-  git-agent-sync push
+  git-agent-sync sync --background >/dev/null 2>&1 || true
 elif command -v agent-sync >/dev/null 2>&1; then
-  agent-sync push
+  agent-sync sync --background >/dev/null 2>&1 || true
 else
-  echo "agent-sync: git-agent-sync not found; skipping session sync" >&2
+  echo "agent-sync: git-agent-sync not found; skipping background session sync" >&2
 fi
 `;
   writeFileSync(hookPath, hook, { mode: 0o755 });
@@ -767,6 +867,53 @@ function printLocalTransferWatchEvent(event, options: Record<string, any> = {}) 
   const label = event.changed ? `provider changed: ${event.previousProvider} -> ${event.provider}` : `initial provider sync: ${event.provider}`;
   console.log(`agent-sync: ${label} at ${event.checkedAt}`);
   printLocalTransferResult(event.result, options);
+}
+
+function printQueueStatus(gitRoot, options) {
+  const status = getSyncQueueStatus(gitRoot);
+  if (options.json) {
+    console.log(JSON.stringify(status, null, 2));
+    return;
+  }
+  console.log(formatSyncQueueStatus(status));
+}
+
+function printSyncResult(result, options) {
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  if (result.locked) {
+    console.log(`agent-sync: ${result.message}`);
+    return;
+  }
+  console.log(`agent-sync: processed ${result.processed} sync job(s), ${result.succeeded} succeeded, ${result.retried} queued for retry, ${result.failed} failed.`);
+}
+
+function printDaemonResult(result, options) {
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  if (result.mode === "background") {
+    console.log(`agent-sync: daemon started with pid ${result.pid}.`);
+  } else if (result.mode === "foreground-once") {
+    console.log("agent-sync: daemon flushed the queue once.");
+  } else if (result.status) {
+    console.log(`agent-sync: daemon ${result.status}.`);
+  } else {
+    console.log("agent-sync: daemon command complete.");
+  }
+}
+
+function parseDaemonInterval(options) {
+  if (!options.interval) {
+    return undefined;
+  }
+  if (!/^\d+$/.test(String(options.interval)) || Number(options.interval) < 1) {
+    throw new Error("daemon --interval must be a positive number of seconds");
+  }
+  return Number(options.interval);
 }
 
 function sleep(ms) {

@@ -83,6 +83,17 @@ git agent-sync install-hooks
 git push
 ```
 
+The hook queues a background sync job instead of running the sidecar push inline. You can also manage the queue directly:
+
+```bash
+git agent-sync sync --background
+git agent-sync sync status
+git agent-sync sync --flush
+git agent-sync daemon start
+git agent-sync daemon status
+git agent-sync daemon stop
+```
+
 Remove the hook with:
 
 ```bash
@@ -108,6 +119,10 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync scan [--json]` | Scan matching local Codex / Claude sessions |
 | `git agent-sync push [--m <message>]` | Snapshot matched sessions into the sidecar store and push the sidecar remote |
 | `git agent-sync pull` | Pull sidecar snapshots for this project |
+| `git agent-sync sync --background` | Queue a sidecar sync job and start a background worker |
+| `git agent-sync sync status` | Show queued, running, completed, and failed sync jobs |
+| `git agent-sync sync --flush` | Process queued sync jobs in the current terminal |
+| `git agent-sync daemon <start\|status\|stop>` | Manage the local background sync worker |
 | `git agent-sync clone-local [target-provider]` | Clone local current-project Codex sessions to a Codex `model_provider` |
 | `git agent-sync watch-local [--interval <seconds>]` | Watch Codex `model_provider` changes and clone sessions to the active provider |
 | `git agent-sync tui` | Open an interactive terminal menu for common Agent-Sync operations |

@@ -85,6 +85,17 @@ git agent-sync install-hooks
 git push
 ```
 
+hook 会把同步任务放入后台队列，而不是在 `git push` 过程中直接执行 sidecar push。也可以手动管理队列：
+
+```bash
+git agent-sync sync --background
+git agent-sync sync status
+git agent-sync sync --flush
+git agent-sync daemon start
+git agent-sync daemon status
+git agent-sync daemon stop
+```
+
 移除 hook：
 
 ```bash
@@ -110,6 +121,10 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 | `git agent-sync scan [--json]` | 扫描匹配当前项目的 Codex / Claude session |
 | `git agent-sync push [--m <message>]` | 写入会话快照并推送 sidecar remote |
 | `git agent-sync pull` | 拉取当前项目可用的 sidecar 快照 |
+| `git agent-sync sync --background` | 入队 sidecar 同步任务并启动后台 worker |
+| `git agent-sync sync status` | 查看 pending、running、done、failed 同步任务 |
+| `git agent-sync sync --flush` | 在当前终端处理队列中的同步任务 |
+| `git agent-sync daemon <start\|status\|stop>` | 管理本地后台同步 worker |
 | `git agent-sync clone-local [target-provider]` | 把本机当前项目的 Codex 会话克隆到指定或当前 Codex `model_provider` |
 | `git agent-sync watch-local [--interval <seconds>]` | 监视 Codex `model_provider` 变化，并自动克隆到当前 provider |
 | `git agent-sync tui` | 打开交互式终端菜单，集中执行常用 Agent-Sync 操作 |

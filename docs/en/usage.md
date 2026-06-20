@@ -125,13 +125,24 @@ Install a pre-push hook in each project where you want automatic session sync:
 git agent-sync install-hooks
 ```
 
-After that, normal project pushes run `git-agent-sync push` first:
+After that, normal project pushes enqueue a background Agent-Sync job:
 
 ```bash
 git push
 ```
 
-The hook exits successfully without syncing when `.agent-sync/config.json` or the sidecar Git repo is missing, so it does not block normal project pushes before `init` has been completed.
+The hook queues a local sync job and starts a background worker instead of running the potentially slow sidecar push inside `git push`. It exits successfully without syncing when `.agent-sync/config.json` or the sidecar Git repo is missing, so it does not block normal project pushes before `init` has been completed.
+
+You can also manage the queue manually:
+
+```bash
+git agent-sync sync --background
+git agent-sync sync status
+git agent-sync sync --flush
+git agent-sync daemon start
+git agent-sync daemon status
+git agent-sync daemon stop
+```
 
 Remove the hook with:
 

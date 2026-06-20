@@ -93,7 +93,11 @@ Both directories are added to the project `.gitignore`.
 .agent-sync/last-scan.json
 .agent-sync/scan-cache.json
 .agent-sync/archive-cache.json
+.agent-sync/queue/
+.agent-sync/daemon-state.json
 ```
+
+`queue/` stores background sync jobs in `pending`, `running`, `done`, and `failed` states. `daemon-state.json` records the local worker's latest start, stop, and flush state; these are local runtime files and are not committed to the business Git history.
 
 `.agent-sync-store/` is an independent Git repository:
 

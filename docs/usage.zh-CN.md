@@ -131,7 +131,18 @@ git agent-sync install-hooks
 git push
 ```
 
-hook 会先运行 `git-agent-sync push`。如果当前项目缺少 `.agent-sync/config.json`，或者 sidecar Git 仓库还不存在，hook 会直接成功退出，不会阻塞业务仓库自己的 `git push`。
+hook 会把同步任务放入本地队列，并启动后台 worker，而不是在 `git push` 过程中直接执行耗时的 sidecar push。如果当前项目缺少 `.agent-sync/config.json`，或者 sidecar Git 仓库还不存在，hook 会直接成功退出，不会阻塞业务仓库自己的 `git push`。
+
+也可以手动管理队列和后台 worker：
+
+```bash
+git agent-sync sync --background
+git agent-sync sync status
+git agent-sync sync --flush
+git agent-sync daemon start
+git agent-sync daemon status
+git agent-sync daemon stop
+```
 
 移除 hook：
 
