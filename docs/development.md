@@ -47,6 +47,7 @@ The suite includes:
 - `npm run test:archive-cache`: archived Codex session sets are reused until archive state changes.
 - `npm run test:store-promisor`: sidecar sparse checkout keeps its promisor remote and `blob:none` filter configuration.
 - `npm run test:e2e`: two temporary project clones plus a bare sidecar remote, covering `push`, `pull`, `log --current`, `log --branch`, `log --commit`, `restore`, `doctor`, and verification that `.agent-sync-store` is not tracked by the business repo.
+- `npm run test:vscode`: VS Code adapter CLI path, Windows shim lookup, error wrapping, History Webview actions, and command-line display.
 
 ## Release Checks
 

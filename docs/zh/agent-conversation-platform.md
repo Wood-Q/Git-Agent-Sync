@@ -563,7 +563,7 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 
 - `npm run test:local-transfer`
 - `npm run test:tui`
-- VS Code smoke compile
+- `npm run test:vscode`
 - docs build 通过
 
 ### Phase 1：对象化 sidecar store
@@ -680,7 +680,7 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 - **跨工具 export smoke**：导出 readable session 后能在目标 viewer 中打开。
 - **VS Code adapter 测试**：CLI path、Windows shim、错误展示、进度状态。
 
-当前测试矩阵已包含 `test:store-merge`，覆盖两个业务 clone 共享同一个 sidecar base 后，本地 sidecar commit 与远端 sidecar commit 分叉、随后自动 fetch/merge/rebuild/retry push 的路径。`test:conflicts` 覆盖冲突隔离记录的 list/show/diff/resolve、dry-run、active/all 过滤，以及 resolved 状态在事件索引重建后的保留。`test:privacy` 覆盖默认 secret 规则、redact 写入 sidecar 副本、原始本机会话不被改写、`allowPatterns` 对误报 fixture 的扫描/脱敏跳过，以及 `privacy allow-pattern-local` 的幂等写入。
+当前测试矩阵已包含 `test:store-merge`，覆盖两个业务 clone 共享同一个 sidecar base 后，本地 sidecar commit 与远端 sidecar commit 分叉、随后自动 fetch/merge/rebuild/retry push 的路径。`test:conflicts` 覆盖冲突隔离记录的 list/show/diff/resolve、dry-run、active/all 过滤，以及 resolved 状态在事件索引重建后的保留。`test:privacy` 覆盖默认 secret 规则、redact 写入 sidecar 副本、原始本机会话不被改写、`allowPatterns` 对误报 fixture 的扫描/脱敏跳过，以及 `privacy allow-pattern-local` 的幂等写入。`test:vscode` 覆盖 VS Code adapter 的 CLI path、Windows shim 搜索、错误展示、History Webview 操作入口和命令行展示，并已接入根 `npm run test`。
 
 ## 12. 风险与决策
 

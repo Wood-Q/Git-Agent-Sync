@@ -47,6 +47,7 @@ npm run test
 - `npm run test:archive-cache`：验证 Codex 归档集合会复用缓存，并在归档状态变化时刷新
 - `npm run test:store-promisor`：验证 sidecar sparse checkout 会保留 promisor remote 和 `blob:none` filter 配置
 - `npm run test:e2e`：用两个临时业务 clone 和一个 bare sidecar remote 覆盖 `push`、`pull`、`log --current`、`log --branch`、`log --commit`、`restore`、`doctor`，并验证 `.agent-sync-store` 不会被业务仓库跟踪
+- `npm run test:vscode`：验证 VS Code adapter 的 CLI path、Windows shim 查找、错误包装、History Webview 操作入口和命令行展示
 
 ## 发版检查
 

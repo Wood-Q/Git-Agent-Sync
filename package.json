@@ -23,7 +23,7 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "smoke": "node ./bin/git-agent-sync.js --help",
-    "test": "npm run check && npm run smoke && npm run test:bindings && npm run test:codex-session && npm run test:claude-session && npm run test:dependencies && npm run test:local-transfer && npm run test:event-store && npm run test:conflicts && npm run test:store-merge && npm run test:daemon && npm run test:privacy && npm run test:conversation-ir && npm run test:tui && npm run test:scan-cache && npm run test:archive-cache && npm run test:hooks && npm run test:store-promisor && npm run test:e2e",
+    "test": "npm run check && npm run smoke && npm run test:bindings && npm run test:codex-session && npm run test:claude-session && npm run test:dependencies && npm run test:local-transfer && npm run test:event-store && npm run test:conflicts && npm run test:store-merge && npm run test:daemon && npm run test:privacy && npm run test:conversation-ir && npm run test:tui && npm run test:scan-cache && npm run test:archive-cache && npm run test:hooks && npm run test:store-promisor && npm run test:e2e && npm run test:vscode",
     "test:bindings": "node ./scripts/test-bindings.js",
     "test:codex-session": "node ./scripts/test-codex-session.js",
     "test:claude-session": "node ./scripts/test-claude-session.js",
@@ -41,6 +41,7 @@
     "test:hooks": "node ./scripts/test-hooks.js",
     "test:store-promisor": "node ./scripts/test-store-promisor.js",
     "test:e2e": "node ./scripts/test-e2e.js",
+    "test:vscode": "npm --prefix extensions/vscode test",
     "prepare": "npm run build"
   },
   "keywords": [

@@ -45,7 +45,10 @@ cd ~/Agent-Sync
 npm install
 npm link
 git agent-sync --help
+npm run test
 ```
+
+完整测试会覆盖 CLI、daemon、privacy、TUI、E2E 和 VS Code adapter。
 
 ## 基础使用
 

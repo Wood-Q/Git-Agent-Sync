@@ -45,7 +45,10 @@ cd ~/Agent-Sync
 npm install
 npm link
 git agent-sync --help
+npm run test
 ```
+
+The full test suite includes CLI, daemon, privacy, TUI, E2E, and VS Code adapter coverage.
 
 ## Basic Workflow
 
