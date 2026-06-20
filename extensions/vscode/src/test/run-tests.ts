@@ -73,6 +73,7 @@ async function main() {
   assert.match(buildCliCommandLine(["register-local"]), /register-local/);
   assert.match(buildCliCommandLine(["clean-local"]), /clean-local/);
   assert.match(buildCliCommandLine(["tool", "inspect", "--session", "bundle-1"]), /tool inspect/);
+  assert.match(buildCliCommandLine(["show", "bundle-1"]), /show bundle-1/);
 
   const html = renderHistoryHtml({ cspSource: "vscode-resource:" }, [{
     title: "Restore <this>",
@@ -91,6 +92,7 @@ async function main() {
   assert.match(html, /id="privacyScan"/);
   assert.match(html, /id="conflictsList"/);
   assert.match(html, /id="toolInspect"/);
+  assert.match(html, /id="search"/);
   assert.match(html, /id="localClone"/);
   assert.match(html, /id="registerLocal"/);
   assert.match(html, /id="cleanLocal"/);
@@ -102,6 +104,7 @@ async function main() {
   assert.match(html, /command: 'privacyScan'/);
   assert.match(html, /command: 'conflictsList'/);
   assert.match(html, /command: 'toolInspect'/);
+  assert.match(html, /command: 'showBundle'/);
   assert.match(html, /command: 'localClone'/);
   assert.match(html, /command: 'registerLocal'/);
   assert.match(html, /command: 'cleanLocal'/);
@@ -109,12 +112,14 @@ async function main() {
   assert.match(html, /command: 'openTui'/);
   assert.match(html, /data-filter-column="author"/);
   assert.match(html, /data-filter-column="branch"/);
+  assert.match(html, /data-search="restore &lt;this&gt;/);
   assert.match(html, /data-author="Agent Sync Test"/);
   assert.match(html, /data-branch="main"/);
   assert.match(html, /class="cellText"/);
   assert.match(html, /sync message with a deliberately long explanation that should be clippe…/);
   assert.match(html, /title="sync message with a deliberately long explanation that should be clipped before it can dominate the history table row layout"/);
   assert.match(html, /Restore &lt;this&gt;/);
+  assert.match(html, /data-show-bundle="bundle-1"/);
   assert.match(html, /data-restore-index="1"/);
 
   console.log("agent-sync vscode extension tests passed");

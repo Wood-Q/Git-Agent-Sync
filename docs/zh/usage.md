@@ -15,7 +15,7 @@ VS Code 插件已经发布到 Marketplace：
 - Marketplace：[Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - 扩展 ID：`mokio.agent-sync-vscode`
 
-插件会从 `agentSync.cliPath` 调用 CLI，默认命令是 `agent-sync`。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。History 视图顶部工具栏可以对当前 workspace 执行 pull、push、查看同步状态、隐私扫描、列出 sidecar 冲突、Conversation IR 检查、本机 provider clone / register / clean、打开 TUI、刷新、清空筛选和恢复会话；Command Palette 还提供后台同步、队列 flush、daemon 状态、register-local、repair-local、clean-local 预览、隐私脱敏预览和 readable tool export。
+插件会从 `agentSync.cliPath` 调用 CLI，默认命令是 `agent-sync`。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。History 视图顶部工具栏可以对当前 workspace 执行 pull、push、查看同步状态、隐私扫描、列出 sidecar 冲突、Conversation IR 检查、本机 provider clone / register / clean、打开 TUI、刷新、搜索或清空筛选、show bundle 详情和恢复会话；Command Palette 还提供后台同步、队列 flush、daemon 状态、register-local、repair-local、clean-local 预览、隐私脱敏预览、show bundle 和 readable tool export。
 
 本地开发阶段：
 

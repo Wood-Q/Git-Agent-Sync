@@ -26,7 +26,7 @@ Agent-Sync 的长期目标是成为 agent conversation processing platform：
 - **本机 provider 同步**：`clone-local` 会把当前项目的 Codex 会话克隆到指定或当前 `model_provider`；`watch-local` 会监听 provider 变化后触发克隆；`register-local` / `repair-local` 会把 Agent-Sync 本机 provider 克隆注册进 Codex UI 索引；`clean-local` 会预览或删除当前项目由 Agent-Sync 生成的 provider clone。
 - **冲突隔离与 review**：事件重放发现同一 agent session id 对应多个对象 hash 时，会写入 `conflicts/` 隔离记录；`conflicts list/show/resolve` 可以查看并用非破坏性的元数据标记解决。
 - **TUI 入口**：`git agent-sync tui` 提供交互式终端菜单，降低常用操作的记忆成本。
-- **VS Code 入口**：扩展可以调用 CLI 执行 push、pull、restore、sync status/background/flush、privacy scan/redact dry-run、conflicts list、Conversation IR inspect/export、打开 TUI、触发本机 provider clone/register/watch/repair/clean。
+- **VS Code 入口**：扩展可以调用 CLI 执行 push、pull、restore、show bundle、sync status/background/flush、privacy scan/redact dry-run、conflicts list、Conversation IR inspect/export、打开 TUI、触发本机 provider clone/register/watch/repair/clean。
 
 当前最大的边界也很明确：
 
@@ -530,7 +530,7 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 - **Provider Controls**：显示当前 Codex provider，提供 `clone-local`、`watch-local`、`repair-local`。
 - **Tool Conversion View**：用统一结构展示 Codex / Claude 消息和工具调用，支持导出。
 
-当前 VS Code 实现保持“只调用 CLI”的边界：History toolbar 和 Command Palette 已接入 pull、push、sync status/background/flush、daemon status、privacy scan/redact dry-run、conflicts list、tool inspect/export readable、clone-local、register-local、watch-local、repair-local、clean-local 预览、TUI 和 restore。
+当前 VS Code 实现保持“只调用 CLI”的边界：History toolbar 和 Command Palette 已接入 pull、push、sync status/background/flush、daemon status、privacy scan/redact dry-run、conflicts list、tool inspect/export readable、show bundle、clone-local、register-local、watch-local、repair-local、clean-local 预览、TUI 和 restore；History Webview 支持自由搜索、列过滤、行级 show / restore。
 
 体验要求：
 

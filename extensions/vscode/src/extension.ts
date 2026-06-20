@@ -70,6 +70,17 @@ export function activate(context: vscode.ExtensionContext) {
     });
   }));
 
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.showBundle", async (bundleId?: string) => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      const selectedBundleId = bundleId || await pickBundleId(cli, cwd);
+      if (!selectedBundleId) {
+        return;
+      }
+      await runCliAction(cli, output, cwd, "Show Bundle", ["show", selectedBundleId]);
+    });
+  }));
+
   context.subscriptions.push(vscode.commands.registerCommand("agentSync.localClone", async () => {
     await withErrorHandling(output, async () => {
       const cwd = getWorkspaceRoot();
@@ -197,6 +208,12 @@ async function pickBinding(bindings: AgentSyncBinding[], title: string) {
     title,
     placeHolder: "Select a synced session"
   }).then((picked) => picked?.binding || null);
+}
+
+async function pickBundleId(cli: AgentSyncCli, cwd: string): Promise<string | null> {
+  const bindings = await cli.log(cwd);
+  const picked = await pickBinding(bindings, "Show Agent-Sync Bundle");
+  return picked?.bundleId || null;
 }
 
 function summarizeCliOutput(label: string, stdout: string) {

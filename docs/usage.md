@@ -15,7 +15,7 @@ VS Code extension:
 - Marketplace: [Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - Extension ID: `mokio.agent-sync-vscode`
 
-The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. The History view toolbar can pull, push, inspect sync status, run privacy scan, list sidecar conflicts, inspect Conversation IR, clone/register/clean local provider sessions, open the TUI, refresh, clear filters, and restore sessions for the current workspace; the Command Palette also exposes background sync, queue flush, daemon status, register-local, repair-local, clean-local preview, privacy redaction preview, and readable tool export.
+The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. The History view toolbar can pull, push, inspect sync status, run privacy scan, list sidecar conflicts, inspect Conversation IR, clone/register/clean local provider sessions, open the TUI, refresh, search or clear filters, show bundle details, and restore sessions for the current workspace; the Command Palette also exposes background sync, queue flush, daemon status, register-local, repair-local, clean-local preview, privacy redaction preview, show bundle, and readable tool export.
 
 For local development:
 

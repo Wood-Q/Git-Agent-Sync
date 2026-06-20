@@ -36,6 +36,7 @@
     "onCommand:agentSync.cleanLocal",
     "onCommand:agentSync.toolInspect",
     "onCommand:agentSync.toolExportReadable",
+    "onCommand:agentSync.showBundle",
     "onCommand:agentSync.localClone",
     "onCommand:agentSync.watchLocalCopy",
     "onCommand:agentSync.openTui"
@@ -130,6 +131,11 @@
         "command": "agentSync.toolExportReadable",
         "title": "Agent Sync: Export Readable Claude JSONL",
         "icon": "$(export)"
+      },
+      {
+        "command": "agentSync.showBundle",
+        "title": "Agent Sync: Show Bundle",
+        "icon": "$(file-code)"
       },
       {
         "command": "agentSync.localClone",
