@@ -23,7 +23,7 @@
 - 支持跨机器、跨操作系统恢复时做项目路径适配
 - 为每次会话快照记录业务项目 branch、`HEAD` commit、dirty 状态和同步说明
 - 支持按 latest/current/branch/commit/bundle id/log index 浏览和恢复会话
-- 提供 React Ink TUI，集中处理 Dashboard、同步队列、会话历史、本机 provider、工具转换、隐私 review、冲突检查和设置流程
+- 提供 React Ink TUI，集中处理 Dashboard、同步队列、会话历史、本机 provider、工具转换、隐私 review、冲突检查和设置流程，并支持搜索、帮助、等价 CLI 展示和高风险动作确认
 
 ## 安装
 

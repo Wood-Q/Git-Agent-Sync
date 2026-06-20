@@ -496,7 +496,7 @@ git agent-sync import-local
 
 TUI 适合使用 React Ink。目标不是把 CLI 命令包一层菜单，而是提供“可视化选择 + 风险确认 + 批量操作”。
 
-当前实现已经把 `git agent-sync tui` 切换为 React Ink 操作台：左侧是视图导航，右侧是动作列表，底部显示运行状态、prompt 和命令输出摘要；非 TTY 环境会输出同一套动作的文本菜单，方便测试和脚本环境查看。Local Provider 视图已接入 `clone-local`、`register-local`、`repair-local`、`clean-local` 预览和 `watch-local`；Conflicts 视图已接入 `conflicts list/show/resolve --strategy keep-all`，作为后续 richer diff/review UI 的 CLI 一致入口。
+当前实现已经把 `git agent-sync tui` 切换为 React Ink 操作台：左侧是视图导航，右侧是动作列表，底部显示运行状态、prompt 和命令输出摘要；动作行显示等价 CLI，支持 `/` 搜索和 `?` 帮助，restore / push / conflict resolve / hook 这类高风险动作会二次确认；非 TTY 环境会输出同一套动作和命令的文本菜单，方便测试和脚本环境查看。Local Provider 视图已接入 `clone-local`、`register-local`、`repair-local`、`clean-local` 预览和 `watch-local`；Conflicts 视图已接入 `conflicts list/show/resolve --strategy keep-all`，作为后续 richer diff/review UI 的 CLI 一致入口。
 
 信息架构：
 

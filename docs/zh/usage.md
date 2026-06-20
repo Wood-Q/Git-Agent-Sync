@@ -122,7 +122,7 @@ git agent-sync tui
 
 TUI 可以执行 status、最新 log、pull、push、按编号 restore、`clone-local`、`register-local`、`repair-local`、`clean-local` 预览、本机 watch，以及冲突 list/show/resolve。VS Code History 视图里也有 TUI 按钮，会在集成终端打开同一个菜单。
 
-这个终端 UI 使用 React Ink 构建。操作会分成 Dashboard、Sync Queue、Session History、Local Provider、Tool Convert、Privacy Review、Conflicts 和 Settings 视图。方向键移动，Tab 或右方向键切换视图，Enter 执行当前动作；需要 restore index 或 bundle id 时会在底部提示输入。长时间运行的 provider watch 会交给普通 CLI 命令继续执行。
+这个终端 UI 使用 React Ink 构建。操作会分成 Dashboard、Sync Queue、Session History、Local Provider、Tool Convert、Privacy Review、Conflicts 和 Settings 视图。方向键移动，Tab 或右方向键切换视图，`/` 搜索动作，`?` 打开帮助，Enter 执行当前动作；每个动作都会显示等价 CLI，restore、push、冲突解决和 hook 操作会在执行前二次确认。长时间运行的 provider watch 会交给普通 CLI 命令继续执行。
 
 ## Conversation IR 与工具导出
 
