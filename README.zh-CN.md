@@ -109,7 +109,7 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 
 项目归属判断很保守。Codex 会话优先使用 Codex state 和 JSONL 里的 `cwd`、Git remote、branch、commit、`rollout_path` 等结构化信息。Claude Code 会话使用 JSONL 的 `cwd`、Git 字段，以及 tool-use input 里的 `cwd` / `workdir`。正文里提到项目名，不会被当作归属证明。
 
-每次 `push` 会把通过校验的 session 文件复制到 sidecar store，并追加一条 Git context binding，记录业务仓库当时的 branch、`HEAD` commit、dirty 状态、bundle id、会话标题和同步说明。`pull` 拉取 sidecar store，`restore` 再把选中的会话写回当前机器的 Codex / Claude Code 会话目录，并在需要时适配源机器路径。切换 Codex API 来源时，`clone-local` 和 `watch-local` 可以不经过 sidecar remote，把当前项目的 Codex 会话克隆到当前 `model_provider`。
+每次 `push` 会把通过校验的 session 文件复制到 sidecar store，并追加一条 Git context binding，记录业务仓库当时的 branch、`HEAD` commit、dirty 状态、bundle id、会话标题和同步说明。`pull` 拉取 sidecar store，`restore` 再把选中的会话写回当前机器的 Codex / Claude Code 会话目录，并在需要时适配源机器路径。如果事件重放发现同一个 agent session id 对应多个对象 hash，Agent-Sync 会写入非破坏性的冲突隔离记录，可以用 `conflicts` 查看并标记解决。切换 Codex API 来源时，`clone-local` 和 `watch-local` 可以不经过 sidecar remote，把当前项目的 Codex 会话克隆到当前 `model_provider`。
 
 完整设计细节见：[概念说明](docs/concepts.zh-CN.md) 和 [工具执行链路](docs/execution-flow.zh-CN.md)。
 
@@ -128,6 +128,9 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 | `git agent-sync daemon <start\|status\|stop>` | 管理本地后台同步 worker |
 | `git agent-sync privacy scan` | 扫描当前项目会话里的常见密钥 |
 | `git agent-sync push --privacy redact` | 命中密钥时写入脱敏后的 sidecar 副本 |
+| `git agent-sync conflicts list` | 列出 active 的 sidecar 冲突隔离记录 |
+| `git agent-sync conflicts show <id\|index>` | 查看某条隔离冲突的对象和事件详情 |
+| `git agent-sync conflicts resolve <id\|index> --strategy keep-all` | 在不删除任一对象的前提下标记冲突已解决 |
 | `git agent-sync tool inspect --session <bundle-id>` | 用 Conversation IR 汇总一个 sidecar bundle |
 | `git agent-sync tool convert --session <bundle-id> --to ir` | 把 Codex 或 Claude bundle 转成 Agent-Sync Conversation IR |
 | `git agent-sync tool export --session <bundle-id> --to <codex\|claude> --mode readable` | 从 IR 导出可阅读的跨工具 JSONL |

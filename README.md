@@ -107,7 +107,7 @@ Agent-Sync treats agent conversations like Git-adjacent project artifacts, not a
 
 Project ownership is intentionally conservative. Codex sessions are matched with Codex state and JSONL project metadata such as `cwd`, Git remote, branch, commit, and rollout path. Claude Code sessions are matched with JSONL fields such as `cwd`, Git metadata, and tool-use `cwd` / `workdir`. Transcript text alone is never used as proof that a session belongs to the current project.
 
-Each `push` copies accepted session files into the sidecar store and appends a Git-context binding that records the current business repo branch, `HEAD` commit, dirty state, bundle id, titles, and sync message. `pull` fetches the sidecar store, and `restore` writes selected sessions back into the current machine's Codex or Claude Code session directory, adapting source-machine paths when needed. For local-only Codex provider switches, `clone-local` and `watch-local` can clone current-project Codex sessions to the active `model_provider` without using the sidecar remote.
+Each `push` copies accepted session files into the sidecar store and appends a Git-context binding that records the current business repo branch, `HEAD` commit, dirty state, bundle id, titles, and sync message. `pull` fetches the sidecar store, and `restore` writes selected sessions back into the current machine's Codex or Claude Code session directory, adapting source-machine paths when needed. If event replay detects the same agent session id with multiple object hashes, Agent-Sync writes a non-destructive conflict quarantine record that you can inspect and mark resolved with `conflicts`. For local-only Codex provider switches, `clone-local` and `watch-local` can clone current-project Codex sessions to the active `model_provider` without using the sidecar remote.
 
 Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](docs/execution-flow.md).
 
@@ -126,6 +126,9 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync daemon <start\|status\|stop>` | Manage the local background sync worker |
 | `git agent-sync privacy scan` | Scan current-project sessions for common secrets |
 | `git agent-sync push --privacy redact` | Write redacted sidecar copies when secrets are found |
+| `git agent-sync conflicts list` | List active sidecar conflict quarantine records |
+| `git agent-sync conflicts show <id\|index>` | Inspect a quarantined sidecar conflict |
+| `git agent-sync conflicts resolve <id\|index> --strategy keep-all` | Mark a conflict resolved without deleting either object |
 | `git agent-sync tool inspect --session <bundle-id>` | Summarize a sidecar bundle as Conversation IR |
 | `git agent-sync tool convert --session <bundle-id> --to ir` | Convert a Codex or Claude bundle to Agent-Sync Conversation IR |
 | `git agent-sync tool export --session <bundle-id> --to <codex\|claude> --mode readable` | Export readable cross-tool JSONL from the IR |

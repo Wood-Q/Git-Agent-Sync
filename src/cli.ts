@@ -77,6 +77,12 @@ import {
 import { normalizePath, readJson, unique, writeJson } from "./utils.js";
 import { getCodexArchiveInfo, isArchivedCodexSessionPath, summarizeCodexArchiveInfo } from "./codex-archive.js";
 import { convertSessionToIr, exportIrReadable } from "./conversation-ir.js";
+import {
+  CONFLICT_RESOLUTION_STRATEGIES,
+  listConflicts,
+  resolveConflict,
+  showConflict
+} from "./conflicts.js";
 
 export async function main(argv) {
   const { command, args, options } = parseArgs(argv.slice(2));
@@ -108,6 +114,7 @@ export async function main(argv) {
     daemon: () => daemonCommand(gitRoot, args, options),
     privacy: () => privacyCommand(gitRoot, args, options),
     tool: () => toolCommand(gitRoot, args, options),
+    conflicts: () => conflictsCommand(gitRoot, args, options),
     scan: () => scanCommand(gitRoot, options),
     "clone-local": () => localTransferCommand(gitRoot, args, options),
     "watch-local": () => localTransferWatchCommand(gitRoot, options),
@@ -146,6 +153,7 @@ Usage:
   git agent-sync daemon <start|status|stop> [--once] [--interval <seconds>] [--json]
   git agent-sync privacy <scan|redact> [--dry-run] [--json]
   git agent-sync tool <inspect|convert|export> --session <bundle-id> [--to ir|codex|claude] [--json]
+  git agent-sync conflicts <list|show|resolve> [id|index] [--strategy keep-all|keep-latest|keep-local|keep-remote] [--all] [--json]
   git agent-sync scan [--json]
   git agent-sync clone-local [target-provider] [--dry-run] [--no-register] [--json]
   git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
@@ -253,6 +261,13 @@ Scans current-project agent sessions with the local redaction policy.`,
   git agent-sync tool export --session <bundle-id> --to <codex|claude> [--mode readable]
 
 Converts a sidecar bundle into Agent-Sync Conversation IR or readable cross-tool JSONL.`,
+    conflicts: `Usage:
+  git agent-sync conflicts list [--all] [--json]
+  git agent-sync conflicts show <id|index> [--all] [--json]
+  git agent-sync conflicts resolve <id|index> [--strategy keep-all|keep-latest|keep-local|keep-remote] [--notes <text>] [--dry-run] [--json]
+
+Reviews sidecar conflict quarantine records without deleting any session objects.
+Resolve marks the conflict metadata as handled; run git agent-sync push afterwards to publish the sidecar metadata.`,
     "clone-local": `Usage:
   git agent-sync clone-local [target-provider] [--dry-run] [--no-register] [--json]
 
@@ -430,6 +445,50 @@ function toolCommand(gitRoot, args, options) {
   console.log(`title:  ${ir.conversation.title || binding.title || binding.bundleId}`);
   console.log(`events: ${ir.events.length}`);
   console.log(`tools:  ${ir.events.filter((event) => event.type === "tool_call").length} call(s), ${ir.events.filter((event) => event.type === "tool_result").length} result(s)`);
+}
+
+function conflictsCommand(gitRoot, args, options) {
+  const action = args[0] || "list";
+  if (!["list", "show", "resolve"].includes(action)) {
+    throw new Error(`unknown conflicts action "${action}". Run "git agent-sync conflicts --help".`);
+  }
+  const config = readConfigWithBundle(gitRoot);
+
+  if (action === "list") {
+    const conflicts = listConflicts(config, { all: options.all });
+    if (options.json) {
+      console.log(JSON.stringify(conflicts, null, 2));
+      return;
+    }
+    printConflictList(conflicts, options);
+    return;
+  }
+
+  if (action === "show") {
+    const conflict = showConflict(config, args[1], { all: options.all });
+    if (options.json) {
+      console.log(JSON.stringify(conflict.raw, null, 2));
+      return;
+    }
+    printConflictDetail(conflict);
+    return;
+  }
+
+  const conflict = resolveConflict(config, args[1], {
+    all: options.all,
+    dryRun: options.dryRun,
+    notes: options.notes,
+    strategy: options.strategy
+  });
+  if (options.json) {
+    console.log(JSON.stringify(conflict, null, 2));
+    return;
+  }
+  const prefix = conflict.dryRun ? "would mark" : "marked";
+  console.log(`agent-sync: ${prefix} conflict ${conflict.id} resolved with ${conflict.resolution?.strategy || "keep-all"}.`);
+  if (!conflict.dryRun) {
+    console.log("agent-sync: run git agent-sync push to publish this sidecar conflict metadata.");
+  }
 }
 
 function localTransferCommand(gitRoot, args, options) {
@@ -1125,6 +1184,46 @@ function printPrivacyReport(report, options: Record<string, any> = {}) {
   }
   if (report.findings.length > 50) {
     console.log(`... ${report.findings.length - 50} more finding(s)`);
+  }
+}
+
+function printConflictList(conflicts, options: Record<string, any> = {}) {
+  const scope = options.all ? "all" : "active";
+  console.log(`conflicts: ${conflicts.length} ${scope} conflict(s)`);
+  if (!conflicts.length) {
+    console.log(options.all ? "agent-sync: no conflicts found." : "agent-sync: no active conflicts found.");
+    return;
+  }
+  for (const conflict of conflicts) {
+    console.log(`${conflict.index}. ${conflict.id} ${conflict.agent}/${conflict.sessionId} ${conflict.status} ${conflict.objectHashes.length} object(s), ${conflict.eventCount} event(s)`);
+    console.log(`   show:    git agent-sync conflicts show ${conflict.index}`);
+    console.log(`   resolve: git agent-sync conflicts resolve ${conflict.index} --strategy keep-all`);
+  }
+}
+
+function printConflictDetail(conflict) {
+  console.log(`id:       ${conflict.id}`);
+  console.log(`status:   ${conflict.status}`);
+  console.log(`type:     ${conflict.type}`);
+  console.log(`agent:    ${conflict.agent}`);
+  console.log(`session:  ${conflict.sessionId}`);
+  console.log(`path:     ${conflict.relativePath}`);
+  console.log(`objects:  ${conflict.objectHashes.length}`);
+  for (const hash of conflict.objectHashes) {
+    console.log(`  - ${hash}`);
+  }
+  console.log(`events:   ${conflict.eventCount}`);
+  for (const event of conflict.events) {
+    console.log(`  - ${event.syncedAt || "unknown"} ${event.machineId || "unknown"} ${event.bundleId || "unknown"} ${event.objectHash || "unknown"}`);
+  }
+  if (conflict.resolution) {
+    console.log(`resolved: ${conflict.resolvedAt || "unknown"} (${conflict.resolution.strategy || "unknown"})`);
+    if (conflict.resolution.notes) {
+      console.log(`notes:    ${conflict.resolution.notes}`);
+    }
+  } else {
+    console.log(`resolve:  git agent-sync conflicts resolve ${conflict.id} --strategy keep-all`);
+    console.log(`strategies: ${CONFLICT_RESOLUTION_STRATEGIES.join(", ")}`);
   }
 }
 

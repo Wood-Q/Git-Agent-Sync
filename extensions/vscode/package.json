@@ -30,6 +30,7 @@
     "onCommand:agentSync.daemonStatus",
     "onCommand:agentSync.privacyScan",
     "onCommand:agentSync.privacyRedactDryRun",
+    "onCommand:agentSync.conflictsList",
     "onCommand:agentSync.repairLocal",
     "onCommand:agentSync.toolInspect",
     "onCommand:agentSync.toolExportReadable",
@@ -97,6 +98,11 @@
         "command": "agentSync.privacyRedactDryRun",
         "title": "Agent Sync: Preview Privacy Redaction",
         "icon": "$(eye)"
+      },
+      {
+        "command": "agentSync.conflictsList",
+        "title": "Agent Sync: List Conflicts",
+        "icon": "$(warning)"
       },
       {
         "command": "agentSync.repairLocal",

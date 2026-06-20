@@ -28,6 +28,8 @@ export type CliOptions = Record<string, string | boolean | undefined> & {
   remote?: string;
   session?: string;
   store?: string;
+  strategy?: string;
+  notes?: string;
   title?: string;
   to?: string;
 };
@@ -121,6 +123,14 @@ export function parseArgs(rawArgs: string[]) {
       options.session = arg.slice("--session=".length);
     } else if (arg === "--session") {
       options.session = rawArgs[++i];
+    } else if (arg.startsWith("--strategy=")) {
+      options.strategy = arg.slice("--strategy=".length);
+    } else if (arg === "--strategy") {
+      options.strategy = rawArgs[++i];
+    } else if (arg.startsWith("--notes=")) {
+      options.notes = arg.slice("--notes=".length);
+    } else if (arg === "--notes") {
+      options.notes = rawArgs[++i];
     } else if (arg.startsWith("--interval=")) {
       options.interval = arg.slice("--interval=".length);
     } else if (arg === "--interval") {

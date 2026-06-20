@@ -15,7 +15,7 @@ VS Code 插件已经发布到 Marketplace：
 - Marketplace：[Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - 扩展 ID：`mokio.agent-sync-vscode`
 
-插件会从 `agentSync.cliPath` 调用 CLI，默认命令是 `agent-sync`。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。History 视图顶部工具栏可以对当前 workspace 执行 pull、push、查看同步状态、隐私扫描、Conversation IR 检查、本机 provider clone、打开 TUI、刷新、清空筛选和恢复会话；Command Palette 还提供后台同步、队列 flush、daemon 状态、repair-local、隐私脱敏预览和 readable tool export。
+插件会从 `agentSync.cliPath` 调用 CLI，默认命令是 `agent-sync`。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。History 视图顶部工具栏可以对当前 workspace 执行 pull、push、查看同步状态、隐私扫描、列出 sidecar 冲突、Conversation IR 检查、本机 provider clone、打开 TUI、刷新、清空筛选和恢复会话；Command Palette 还提供后台同步、队列 flush、daemon 状态、repair-local、隐私脱敏预览和 readable tool export。
 
 本地开发阶段：
 
@@ -117,7 +117,7 @@ git agent-sync watch-local
 git agent-sync tui
 ```
 
-TUI 可以执行 status、最新 log、pull、push、按编号 restore、`clone-local`、`repair-local` 和本机 watch。VS Code History 视图里也有 TUI 按钮，会在集成终端打开同一个菜单。
+TUI 可以执行 status、最新 log、pull、push、按编号 restore、`clone-local`、`repair-local`、本机 watch，以及冲突 list/show/resolve。VS Code History 视图里也有 TUI 按钮，会在集成终端打开同一个菜单。
 
 这个终端 UI 使用 React Ink 构建。操作会分成 Dashboard、Sync Queue、Session History、Local Provider、Tool Convert、Privacy Review、Conflicts 和 Settings 视图。方向键移动，Tab 或右方向键切换视图，Enter 执行当前动作；需要 restore index 或 bundle id 时会在底部提示输入。长时间运行的 provider watch 会交给普通 CLI 命令继续执行。
 
@@ -150,6 +150,16 @@ git push
 hook 会把同步任务放入本地队列，并启动后台 worker，而不是在 `git push` 过程中直接执行耗时的 sidecar push。如果当前项目缺少 `.agent-sync/config.json`，或者 sidecar Git 仓库还不存在，hook 会直接成功退出，不会阻塞业务仓库自己的 `git push`。
 
 当两台机器从同一个 sidecar base 分别提交并推送时，如果 sidecar push 遇到 non-fast-forward 拒绝，Agent-Sync 会自动 fetch `origin/main`，合并对象/事件分片，重建事件索引，然后再次 push。完全 unrelated 的 sidecar 历史仍会明确停止，不会猜测合并。
+
+如果事件重放发现同一个 agent session id 对应多个对象 hash，原始对象会保持不变，Agent-Sync 会写入冲突隔离记录：
+
+```bash
+git agent-sync conflicts list
+git agent-sync conflicts show 1
+git agent-sync conflicts resolve 1 --strategy keep-all
+```
+
+`conflicts list` 默认只显示 active 记录；加 `--all` 可以看到已解决历史。`resolve` 只会用选择的策略（`keep-all`、`keep-latest`、`keep-local`、`keep-remote`）和可选 `--notes` 更新冲突元数据，不会删除任一对象。需要发布这条 sidecar 元数据时，再运行 `git agent-sync push`。
 
 也可以手动管理队列和后台 worker：
 

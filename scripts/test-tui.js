@@ -15,6 +15,7 @@ assert.match(menu, /Watch Codex provider changes/);
 assert.match(menu, /Tool Convert/);
 assert.match(menu, /Privacy Review/);
 assert.match(menu, /Conflicts/);
+assert.match(menu, /List active conflicts/);
 
 assert.equal(getTuiViews().some((view) => view.id === "tool" && view.title === "Tool Convert"), true);
 assert.equal(getTuiViews().some((view) => view.id === "conflicts" && view.title === "Conflicts"), true);
@@ -23,6 +24,8 @@ assert.equal(getTuiChoices().some((choice) => choice.key === "5" && choice.promp
 assert.deepEqual(resolveTuiChoice("6").args, ["clone-local"]);
 assert.deepEqual(resolveTuiChoice("w").args, ["watch-local"]);
 assert.deepEqual(resolveTuiChoice("i").args, ["tool", "inspect", "--session"]);
+assert.deepEqual(resolveTuiChoice("g", "conflicts").args, ["conflicts", "list"]);
+assert.deepEqual(resolveTuiChoice("j", "conflicts").args, ["conflicts", "resolve", "--strategy", "keep-all"]);
 assert.equal(resolveTuiChoice("q").exits, true);
 assert.equal(resolveTuiChoice("missing"), null);
 

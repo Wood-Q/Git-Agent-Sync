@@ -44,7 +44,7 @@ const TUI_VIEWS: TuiView[] = [
   { id: "local", title: "Local Provider", subtitle: "Local-only Codex provider cloning and registration" },
   { id: "tool", title: "Tool Convert", subtitle: "Inspect bundles through Conversation IR" },
   { id: "privacy", title: "Privacy Review", subtitle: "Scan or redact before sidecar push" },
-  { id: "conflicts", title: "Conflicts", subtitle: "Inspect sidecar health and failed sync state" },
+  { id: "conflicts", title: "Conflicts", subtitle: "Review sidecar conflict quarantine and resolution state" },
   { id: "ops", title: "Settings", subtitle: "Doctor checks and hook management" }
 ];
 
@@ -141,9 +141,31 @@ const MENU_CHOICES: TuiChoice[] = [
   { key: "y", view: "privacy", badge: "DRY", label: "Preview redaction", description: "Show what redaction would change without writing files.", args: ["privacy", "redact", "--dry-run"] },
   { key: "R", view: "privacy", badge: "REDACT", label: "Push with redaction", description: "Write redacted sidecar copies and push.", args: ["push", "--privacy", "redact"] },
   { key: "A", view: "privacy", badge: "ALLOW", label: "Push with explicit allow", description: "Bypass privacy blocking for this push.", args: ["push", "--privacy", "allow"] },
-  { key: "g", view: "conflicts", badge: "CHECK", label: "Check sidecar health", description: "Inspect store, sparse checkout, manifest, and bindings.", args: ["doctor"] },
-  { key: "m", view: "conflicts", badge: "QUEUE", label: "Show failed sync jobs", description: "Review failed queue entries before retrying a sync.", args: ["sync", "status"] },
-  { key: "j", view: "conflicts", badge: "FLUSH", label: "Retry queued work", description: "Flush pending jobs after reviewing failures.", args: ["sync", "--flush"] },
+  { key: "g", view: "conflicts", badge: "LIST", label: "List active conflicts", description: "Show quarantined session object conflicts.", args: ["conflicts", "list"] },
+  {
+    key: "m",
+    view: "conflicts",
+    badge: "SHOW",
+    label: "Show conflict details",
+    description: "Inspect object hashes, event shards, machines, and bundles.",
+    args: ["conflicts", "show"],
+    prompt: {
+      label: "Conflict id or index",
+      placeholder: "Enter a conflict id or visible list index"
+    }
+  },
+  {
+    key: "j",
+    view: "conflicts",
+    badge: "RESOLVE",
+    label: "Resolve conflict by keeping all",
+    description: "Mark the conflict handled without deleting either object.",
+    args: ["conflicts", "resolve", "--strategy", "keep-all"],
+    prompt: {
+      label: "Conflict id or index",
+      placeholder: "Enter a conflict id or visible list index"
+    }
+  },
   { key: "x", view: "ops", badge: "DOCTOR", label: "Run doctor", description: "Check config, sidecar store, sparse checkout, and bindings.", args: ["doctor"] },
   { key: "H", view: "ops", badge: "HOOKS", label: "Install pre-push hook", description: "Queue background Agent-Sync jobs during git push.", args: ["install-hooks"] },
   { key: "U", view: "ops", badge: "HOOKS", label: "Uninstall pre-push hook", description: "Remove the Agent-Sync managed hook.", args: ["uninstall-hooks"] },
@@ -204,9 +226,9 @@ export function renderTuiMenu(config) {
     "  R  Push with redaction",
     "",
     "Conflicts",
-    "  g  Check sidecar health",
-    "  m  Show failed sync jobs",
-    "  j  Retry queued work",
+    "  g  List active conflicts",
+    "  m  Show conflict details",
+    "  j  Resolve conflict by keeping all",
     "",
     "  q  Quit"
   ];

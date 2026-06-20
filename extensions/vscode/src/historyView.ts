@@ -41,6 +41,8 @@ export class HistoryView {
           vscode.commands.executeCommand("agentSync.syncStatus");
         } else if (message?.command === "privacyScan") {
           vscode.commands.executeCommand("agentSync.privacyScan");
+        } else if (message?.command === "conflictsList") {
+          vscode.commands.executeCommand("agentSync.conflictsList");
         } else if (message?.command === "toolInspect") {
           vscode.commands.executeCommand("agentSync.toolInspect");
         } else if (message?.command === "localClone") {
@@ -306,6 +308,7 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     <button type="button" id="push" title="Push local sessions">Push</button>
     <button type="button" id="syncStatus" title="Show sync queue status">Sync</button>
     <button type="button" id="privacyScan" title="Scan sessions for secrets">Privacy</button>
+    <button type="button" id="conflictsList" title="List sidecar conflict quarantine records">Conflicts</button>
     <button type="button" id="toolInspect" title="Inspect selected bundle as Conversation IR">IR</button>
     <button type="button" id="localClone" title="Clone Codex sessions to current provider">Clone</button>
     <button type="button" id="watchLocalCopy" title="Watch Codex provider changes">Watch</button>
@@ -410,6 +413,9 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     });
     document.getElementById('privacyScan').addEventListener('click', () => {
       vscode.postMessage({ command: 'privacyScan' });
+    });
+    document.getElementById('conflictsList').addEventListener('click', () => {
+      vscode.postMessage({ command: 'conflictsList' });
     });
     document.getElementById('toolInspect').addEventListener('click', () => {
       vscode.postMessage({ command: 'toolInspect' });

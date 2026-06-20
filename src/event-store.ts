@@ -312,9 +312,47 @@ function writeEventConflicts(config, conflicts) {
   return conflicts.map((conflict) => {
     const fileName = `${sanitizePathPart(conflict.agent)}-${sanitizePathPart(conflict.sessionId)}-${conflict.id}.json`;
     const path = join(config.storePath, "conflicts", config.projectId, fileName);
-    writeJson(path, conflict);
+    writeJson(path, mergeExistingConflictState(path, conflict));
     return toSlash(relative(config.storePath, path));
   });
+}
+
+function mergeExistingConflictState(path, conflict) {
+  const existing = readExistingConflict(path);
+  if (!existing || !sameStringSet(existing.objectHashes, conflict.objectHashes)) {
+    return {
+      ...conflict,
+      status: "open"
+    };
+  }
+  const merged: Record<string, any> = {
+    ...conflict,
+    status: existing.status || "open"
+  };
+  if (existing.resolvedAt) {
+    merged.resolvedAt = existing.resolvedAt;
+  }
+  if (existing.resolution) {
+    merged.resolution = existing.resolution;
+  }
+  return merged;
+}
+
+function readExistingConflict(path) {
+  if (!existsSync(path)) {
+    return null;
+  }
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function sameStringSet(left = [], right = []) {
+  const leftValues = [...left].map(String).sort();
+  const rightValues = [...right].map(String).sort();
+  return leftValues.length === rightValues.length && leftValues.every((value, index) => value === rightValues[index]);
 }
 
 function eventToMatch(event) {

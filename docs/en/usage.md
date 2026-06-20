@@ -15,7 +15,7 @@ VS Code extension:
 - Marketplace: [Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - Extension ID: `mokio.agent-sync-vscode`
 
-The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. The History view toolbar can pull, push, inspect sync status, run privacy scan, inspect Conversation IR, clone local provider sessions, open the TUI, refresh, clear filters, and restore sessions for the current workspace; the Command Palette also exposes background sync, queue flush, daemon status, repair-local, privacy redaction preview, and readable tool export.
+The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. The History view toolbar can pull, push, inspect sync status, run privacy scan, list sidecar conflicts, inspect Conversation IR, clone local provider sessions, open the TUI, refresh, clear filters, and restore sessions for the current workspace; the Command Palette also exposes background sync, queue flush, daemon status, repair-local, privacy redaction preview, and readable tool export.
 
 For local development:
 
@@ -117,7 +117,7 @@ Open the terminal menu when you want the common workflows in one place:
 git agent-sync tui
 ```
 
-The TUI can run status, latest log, pull, push, restore by index, `clone-local`, `repair-local`, and local watch actions. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
+The TUI can run status, latest log, pull, push, restore by index, `clone-local`, `repair-local`, local watch actions, and conflict list/show/resolve commands. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
 
 The terminal UI is built with React Ink. It groups actions into Dashboard, Sync Queue, Session History, Local Provider, Tool Convert, Privacy Review, Conflicts, and Settings views. Use arrow keys to move, Tab or the right arrow to switch views, Enter to run the selected action, and prompts for restore indexes or bundle ids. Long-running provider watch hands off to the normal CLI command.
 
@@ -150,6 +150,16 @@ git push
 The hook queues a local sync job and starts a background worker instead of running the potentially slow sidecar push inside `git push`. It exits successfully without syncing when `.agent-sync/config.json` or the sidecar Git repo is missing, so it does not block normal project pushes before `init` has been completed.
 
 When two machines push sidecar commits from the same base, Agent-Sync retries non-fast-forward sidecar pushes by fetching `origin/main`, merging the object/event shards, rebuilding event indexes, and pushing again. Unrelated sidecar histories still stop with an explicit error instead of guessing.
+
+If event replay finds the same agent session id with multiple object hashes, the original objects stay intact and Agent-Sync writes a conflict quarantine record:
+
+```bash
+git agent-sync conflicts list
+git agent-sync conflicts show 1
+git agent-sync conflicts resolve 1 --strategy keep-all
+```
+
+`conflicts list` shows active records by default; add `--all` to include resolved history. `resolve` only updates conflict metadata with the chosen strategy (`keep-all`, `keep-latest`, `keep-local`, or `keep-remote`) and optional `--notes`; it does not delete either object. Run `git agent-sync push` afterwards when you want to publish the sidecar metadata.
 
 You can also manage the queue manually:
 
