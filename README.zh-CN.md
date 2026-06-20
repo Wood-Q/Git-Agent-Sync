@@ -127,6 +127,9 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 | `git agent-sync daemon <start\|status\|stop>` | 管理本地后台同步 worker |
 | `git agent-sync privacy scan` | 扫描当前项目会话里的常见密钥 |
 | `git agent-sync push --privacy redact` | 命中密钥时写入脱敏后的 sidecar 副本 |
+| `git agent-sync tool inspect --session <bundle-id>` | 用 Conversation IR 汇总一个 sidecar bundle |
+| `git agent-sync tool convert --session <bundle-id> --to ir` | 把 Codex 或 Claude bundle 转成 Agent-Sync Conversation IR |
+| `git agent-sync tool export --session <bundle-id> --to <codex\|claude> --mode readable` | 从 IR 导出可阅读的跨工具 JSONL |
 | `git agent-sync clone-local [target-provider]` | 把本机当前项目的 Codex 会话克隆到指定或当前 Codex `model_provider` |
 | `git agent-sync watch-local [--interval <seconds>]` | 监视 Codex `model_provider` 变化，并自动克隆到当前 provider |
 | `git agent-sync repair-local` | 修复本机 Codex provider 克隆会话的 UI 注册 |

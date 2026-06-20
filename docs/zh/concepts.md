@@ -128,6 +128,19 @@ Agent session 文件里可能记录创建会话时的 shell、工作目录和项
 
 配置了 sidecar remote 时，`pull` 会启用 sparse checkout：本地 `.agent-sync-store/` 会展开对象、事件、当前项目的会话 bundle，以及其他项目的轻量 `manifest.json` 用于识别兼容项目。sidecar remote 也会保持 Git promisor remote 和 `blob:none` filter 配置，因此提交时可以安全引用仍留在远端的非当前项目 blob，而不必把它们全部展开到本机。
 
+## Conversation IR
+
+Agent-Sync 用 Conversation IR 作为跨工具查看的统一模型。Codex 或 Claude 的原始 JSONL 仍然作为 sidecar store 中保真的 bundle 保存；IR 是 `git agent-sync tool inspect`、`tool convert` 和 `tool export` 按需派生出来的结构。
+
+IR 明确分成几块：
+
+- `conversation` 保存统一后的 id、来源 agent、标题和时间。
+- `project` 保存 binding 上下文里的当前项目身份、cwd、branch、commit 和 dirty 状态。
+- `events` 保存统一后的消息、工具调用和工具结果，同时保留每条原始 vendor event 作为 provenance。
+- `dependencies` 保存识别出的 skill、MCP/plugin 线索，以及未来判断能否继续 handoff 时需要检查的依赖。
+
+`tool convert --to ir --json` 会输出完整 IR。`tool export --to <codex|claude> --mode readable` 会输出另一个 UI 可以展示或归档的 JSONL 视图。这个 readable export 和真正可继续对话的 resumable handoff 是分开的：只有当目标工具能接受必要 schema、索引、provider/runtime 上下文和依赖时，Agent-Sync 才会把 handoff 标记成 resumable。
+
 ## 隐私边界
 
 `push` 默认使用 `--privacy review`。在写入 sidecar commit 前，Agent-Sync 会用内置规则扫描当前项目匹配到的会话，默认识别 OpenAI / Anthropic / GitHub token、AWS access key、private key、Bearer token 和常见 `api_key` / `token` / `secret` / `password` 赋值。命中后不会静默上传；用户可以先运行 `git agent-sync privacy scan` 查看命中项，或者显式使用 `git agent-sync push --privacy redact` 写入脱敏后的 sidecar 副本。

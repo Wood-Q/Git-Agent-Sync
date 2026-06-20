@@ -76,6 +76,7 @@ import {
 } from "./store.js";
 import { normalizePath, readJson, unique, writeJson } from "./utils.js";
 import { getCodexArchiveInfo, isArchivedCodexSessionPath, summarizeCodexArchiveInfo } from "./codex-archive.js";
+import { convertSessionToIr, exportIrReadable } from "./conversation-ir.js";
 
 export async function main(argv) {
   const { command, args, options } = parseArgs(argv.slice(2));
@@ -106,6 +107,7 @@ export async function main(argv) {
     sync: () => syncCommand(gitRoot, args, options),
     daemon: () => daemonCommand(gitRoot, args, options),
     privacy: () => privacyCommand(gitRoot, args, options),
+    tool: () => toolCommand(gitRoot, args, options),
     scan: () => scanCommand(gitRoot, options),
     "clone-local": () => localTransferCommand(gitRoot, args, options),
     "watch-local": () => localTransferWatchCommand(gitRoot, options),
@@ -143,6 +145,7 @@ Usage:
   git agent-sync sync [status|--background|--flush] [--json]
   git agent-sync daemon <start|status|stop> [--once] [--interval <seconds>] [--json]
   git agent-sync privacy <scan|redact> [--dry-run] [--json]
+  git agent-sync tool <inspect|convert|export> --session <bundle-id> [--to ir|codex|claude] [--json]
   git agent-sync scan [--json]
   git agent-sync clone-local [target-provider] [--dry-run] [--no-register] [--json]
   git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
@@ -244,6 +247,12 @@ Starts, inspects, or stops the local Agent-Sync background worker.`,
   git agent-sync privacy redact [--dry-run] [--json]
 
 Scans current-project agent sessions with the local redaction policy.`,
+    tool: `Usage:
+  git agent-sync tool inspect --session <bundle-id> [--json]
+  git agent-sync tool convert --session <bundle-id> [--to ir] [--json]
+  git agent-sync tool export --session <bundle-id> --to <codex|claude> [--mode readable]
+
+Converts a sidecar bundle into Agent-Sync Conversation IR or readable cross-tool JSONL.`,
     "clone-local": `Usage:
   git agent-sync clone-local [target-provider] [--dry-run] [--no-register] [--json]
 
@@ -376,6 +385,51 @@ function privacyCommand(gitRoot, args, options) {
     return;
   }
   printPrivacyReport(report, { dryRun: options.dryRun, action });
+}
+
+function toolCommand(gitRoot, args, options) {
+  const action = args[0] || "inspect";
+  if (!["inspect", "convert", "export"].includes(action)) {
+    throw new Error(`unknown tool action "${action}". Run "git agent-sync tool --help".`);
+  }
+  const config = readConfigWithBundle(gitRoot);
+  const bundleId = options.session || args[1];
+  const binding = findBindingByBundleId(config, bundleId);
+  if (!binding) {
+    throw new Error(`no bundle found for "${bundleId || ""}"`);
+  }
+  const sourcePath = join(config.storePath, binding.storeRelativePath);
+  const content = readFileSync(sourcePath, "utf8");
+  const ir = convertSessionToIr(binding.agent, content, {
+    ...binding,
+    sourcePath,
+    projectRoot: config.projectRoot,
+    projectIdentity: config.projectIdentity
+  });
+
+  if (action === "export") {
+    const exported = exportIrReadable(ir, {
+      to: options.to || "ir",
+      mode: options.mode || "readable"
+    });
+    if (options.json) {
+      console.log(JSON.stringify({ ok: true, format: "jsonl", content: exported }, null, 2));
+    } else {
+      process.stdout.write(exported);
+    }
+    return;
+  }
+
+  if (options.json || action === "convert") {
+    console.log(JSON.stringify(ir, null, 2));
+    return;
+  }
+
+  console.log(`bundle: ${binding.bundleId}`);
+  console.log(`agent:  ${binding.agent}`);
+  console.log(`title:  ${ir.conversation.title || binding.title || binding.bundleId}`);
+  console.log(`events: ${ir.events.length}`);
+  console.log(`tools:  ${ir.events.filter((event) => event.type === "tool_call").length} call(s), ${ir.events.filter((event) => event.type === "tool_result").length} result(s)`);
 }
 
 function localTransferCommand(gitRoot, args, options) {

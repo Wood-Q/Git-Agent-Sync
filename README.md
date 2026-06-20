@@ -125,6 +125,9 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync daemon <start\|status\|stop>` | Manage the local background sync worker |
 | `git agent-sync privacy scan` | Scan current-project sessions for common secrets |
 | `git agent-sync push --privacy redact` | Write redacted sidecar copies when secrets are found |
+| `git agent-sync tool inspect --session <bundle-id>` | Summarize a sidecar bundle as Conversation IR |
+| `git agent-sync tool convert --session <bundle-id> --to ir` | Convert a Codex or Claude bundle to Agent-Sync Conversation IR |
+| `git agent-sync tool export --session <bundle-id> --to <codex\|claude> --mode readable` | Export readable cross-tool JSONL from the IR |
 | `git agent-sync clone-local [target-provider]` | Clone local current-project Codex sessions to a Codex `model_provider` |
 | `git agent-sync watch-local [--interval <seconds>]` | Watch Codex `model_provider` changes and clone sessions to the active provider |
 | `git agent-sync repair-local` | Repair local Codex UI registration for provider clones |

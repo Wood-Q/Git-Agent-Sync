@@ -119,6 +119,18 @@ git agent-sync tui
 
 The TUI can run status, latest log, pull, push, restore by index, local clone/copy, and local watch actions. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
 
+## Conversation IR and Tool Export
+
+Use `tool` commands when you want to inspect a synced Codex or Claude bundle through one normalized conversation model:
+
+```bash
+git agent-sync tool inspect --session <bundle-id>
+git agent-sync tool convert --session <bundle-id> --to ir --json
+git agent-sync tool export --session <bundle-id> --to claude --mode readable
+```
+
+`inspect` prints a short summary of the source agent, title, event count, and tool-call count. `convert` emits Agent-Sync Conversation IR, preserving the original vendor JSONL under provenance/vendor fields while normalizing messages, tool calls, tool results, project identity, runtime provider, and dependency hints. `export --mode readable` writes JSONL that another surface can display or archive; it is intentionally not marked as a resumable Codex or Claude handoff.
+
 ## Automatic Push
 
 Install a pre-push hook in each project where you want automatic session sync:
