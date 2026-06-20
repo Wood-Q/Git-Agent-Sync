@@ -95,7 +95,7 @@ Agent-Sync treats agent conversations like Git-adjacent project artifacts, not a
 
 Project ownership is intentionally conservative. Codex sessions are matched with Codex state and JSONL project metadata such as `cwd`, Git remote, branch, commit, and rollout path. Claude Code sessions are matched with JSONL fields such as `cwd`, Git metadata, and tool-use `cwd` / `workdir`. Transcript text alone is never used as proof that a session belongs to the current project.
 
-Each `push` copies accepted session files into the sidecar store and appends a Git-context binding that records the current business repo branch, `HEAD` commit, dirty state, bundle id, titles, and sync message. `pull` fetches the sidecar store, and `restore` writes selected sessions back into the current machine's Codex or Claude Code session directory, adapting source-machine paths when needed.
+Each `push` copies accepted session files into the sidecar store and appends a Git-context binding that records the current business repo branch, `HEAD` commit, dirty state, bundle id, titles, and sync message. `pull` fetches the sidecar store, and `restore` writes selected sessions back into the current machine's Codex or Claude Code session directory, adapting source-machine paths when needed. For local-only handoff, `clone`, `copy`, and `watch` can create current-project sessions across Codex and Claude without using the sidecar remote.
 
 Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](docs/execution-flow.md).
 
@@ -108,6 +108,9 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync scan [--json]` | Scan matching local Codex / Claude sessions |
 | `git agent-sync push [--m <message>]` | Snapshot matched sessions into the sidecar store and push the sidecar remote |
 | `git agent-sync pull` | Pull sidecar snapshots for this project |
+| `git agent-sync clone --from <agent> --to <agent>` | Clone local current-project sessions across Codex and Claude with new stable target ids |
+| `git agent-sync copy --from <agent> --to <agent>` | Copy local current-project sessions across Codex and Claude, updating Agent-Sync-created copies |
+| `git agent-sync watch --from <agent> --to <agent> [--mode clone\|copy]` | Watch local sessions and rerun cross-provider clone/copy when source sessions change |
 | `git agent-sync log [--oneline] [-n <count>\|-<count>] [--json]` | Browse restorable session history |
 | `git agent-sync log --latest [--oneline] [-n <count>\|-<count>] [--json]` | Browse sessions from the latest sync batch |
 | `git agent-sync log --current [--json]` | Browse sessions bound to the current business repo commit |

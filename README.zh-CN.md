@@ -97,7 +97,7 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 
 项目归属判断很保守。Codex 会话优先使用 Codex state 和 JSONL 里的 `cwd`、Git remote、branch、commit、`rollout_path` 等结构化信息。Claude Code 会话使用 JSONL 的 `cwd`、Git 字段，以及 tool-use input 里的 `cwd` / `workdir`。正文里提到项目名，不会被当作归属证明。
 
-每次 `push` 会把通过校验的 session 文件复制到 sidecar store，并追加一条 Git context binding，记录业务仓库当时的 branch、`HEAD` commit、dirty 状态、bundle id、会话标题和同步说明。`pull` 拉取 sidecar store，`restore` 再把选中的会话写回当前机器的 Codex / Claude Code 会话目录，并在需要时适配源机器路径。
+每次 `push` 会把通过校验的 session 文件复制到 sidecar store，并追加一条 Git context binding，记录业务仓库当时的 branch、`HEAD` commit、dirty 状态、bundle id、会话标题和同步说明。`pull` 拉取 sidecar store，`restore` 再把选中的会话写回当前机器的 Codex / Claude Code 会话目录，并在需要时适配源机器路径。本机内交接时，`clone`、`copy` 和 `watch` 可以不经过 sidecar remote，直接在 Codex 与 Claude 之间创建当前项目会话。
 
 完整设计细节见：[概念说明](docs/concepts.zh-CN.md) 和 [工具执行链路](docs/execution-flow.zh-CN.md)。
 
@@ -110,6 +110,9 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 | `git agent-sync scan [--json]` | 扫描匹配当前项目的 Codex / Claude session |
 | `git agent-sync push [--m <message>]` | 写入会话快照并推送 sidecar remote |
 | `git agent-sync pull` | 拉取当前项目可用的 sidecar 快照 |
+| `git agent-sync clone --from <agent> --to <agent>` | 在 Codex 与 Claude 之间 clone 本机当前项目会话，并生成稳定的新目标 id |
+| `git agent-sync copy --from <agent> --to <agent>` | 在 Codex 与 Claude 之间复制本机当前项目会话，并更新 Agent-Sync 创建的目标副本 |
+| `git agent-sync watch --from <agent> --to <agent> [--mode clone\|copy]` | 监视本机会话变化，并自动执行跨 provider clone/copy |
 | `git agent-sync log [--oneline] [-n <count>\|-<count>] [--json]` | 浏览可恢复会话历史 |
 | `git agent-sync log --latest [--oneline] [-n <count>\|-<count>] [--json]` | 浏览最近一次同步批次 |
 | `git agent-sync log --current [--json]` | 浏览当前业务 commit 对应会话 |

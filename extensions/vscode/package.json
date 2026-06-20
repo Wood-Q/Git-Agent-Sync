@@ -23,7 +23,10 @@
     "onCommand:agentSync.restore",
     "onCommand:agentSync.refreshHistory",
     "onCommand:agentSync.pull",
-    "onCommand:agentSync.push"
+    "onCommand:agentSync.push",
+    "onCommand:agentSync.localClone",
+    "onCommand:agentSync.localCopy",
+    "onCommand:agentSync.watchLocalCopy"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -55,6 +58,21 @@
         "command": "agentSync.push",
         "title": "Agent Sync: Push",
         "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "agentSync.localClone",
+        "title": "Agent Sync: Clone Local Provider Sessions",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "agentSync.localCopy",
+        "title": "Agent Sync: Copy Local Provider Sessions",
+        "icon": "$(files)"
+      },
+      {
+        "command": "agentSync.watchLocalCopy",
+        "title": "Agent Sync: Watch Local Provider Copy",
+        "icon": "$(eye)"
       }
     ],
     "configuration": {

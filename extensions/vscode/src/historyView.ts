@@ -37,6 +37,12 @@ export class HistoryView {
           vscode.commands.executeCommand("agentSync.pull");
         } else if (message?.command === "push") {
           vscode.commands.executeCommand("agentSync.push");
+        } else if (message?.command === "localClone") {
+          vscode.commands.executeCommand("agentSync.localClone");
+        } else if (message?.command === "localCopy") {
+          vscode.commands.executeCommand("agentSync.localCopy");
+        } else if (message?.command === "watchLocalCopy") {
+          vscode.commands.executeCommand("agentSync.watchLocalCopy");
         }
       });
     }
@@ -292,6 +298,9 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     <div class="count"><span id="visibleCount">${bindings.length}</span> / ${bindings.length}</div>
     <button type="button" id="pull" title="Pull sidecar sessions">Pull</button>
     <button type="button" id="push" title="Push local sessions">Push</button>
+    <button type="button" id="localClone" title="Clone local sessions across providers">Clone</button>
+    <button type="button" id="localCopy" title="Copy local sessions across providers">Copy</button>
+    <button type="button" id="watchLocalCopy" title="Watch local provider copy">Watch</button>
     <button type="button" id="refresh">Refresh</button>
     <button type="button" id="clear">Clear</button>
   </div>
@@ -386,6 +395,15 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     });
     document.getElementById('push').addEventListener('click', () => {
       vscode.postMessage({ command: 'push' });
+    });
+    document.getElementById('localClone').addEventListener('click', () => {
+      vscode.postMessage({ command: 'localClone' });
+    });
+    document.getElementById('localCopy').addEventListener('click', () => {
+      vscode.postMessage({ command: 'localCopy' });
+    });
+    document.getElementById('watchLocalCopy').addEventListener('click', () => {
+      vscode.postMessage({ command: 'watchLocalCopy' });
     });
     document.getElementById('clear').addEventListener('click', () => {
       Object.keys(filters).forEach((key) => delete filters[key]);

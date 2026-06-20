@@ -30,6 +30,12 @@ import {
   writeGitignoreEntry
 } from "./config.js";
 import { getGitContext, getGitRoot, getGitValue, getProjectIdentity, runGit } from "./git.js";
+import {
+  DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS,
+  checkLocalTransferWatch,
+  normalizeWatchOptions,
+  runLocalTransfer
+} from "./local-transfer.js";
 import { restoreCommand } from "./restore.js";
 import {
   adoptExistingProjectBundle,
@@ -76,6 +82,9 @@ export async function main(argv) {
     push: () => pushCommand(gitRoot, options),
     pull: () => pullCommand(gitRoot),
     scan: () => scanCommand(gitRoot, options),
+    clone: () => localTransferCommand(gitRoot, "clone", options),
+    copy: () => localTransferCommand(gitRoot, "copy", options),
+    watch: () => localTransferWatchCommand(gitRoot, options),
     "install-hooks": () => installHooksCommand(gitRoot),
     "uninstall-hooks": () => uninstallHooksCommand(gitRoot),
     restore: () => restoreCommand(gitRoot, args, options, readConfigWithBundle(gitRoot)),
@@ -106,6 +115,9 @@ Usage:
   git agent-sync push [--m <message>]
   git agent-sync pull
   git agent-sync scan [--json]
+  git agent-sync clone --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
+  git agent-sync copy --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
+  git agent-sync watch --from <codex|claude> --to <codex|claude> [--mode clone|copy] [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
   git agent-sync restore <bundle-id>|--index <n>|--i <n>|--all|[filters] [index] [--no-adapt] [--no-register]
   git agent-sync install-hooks
   git agent-sync uninstall-hooks
@@ -123,6 +135,7 @@ Git-style behavior:
 MVP behavior:
   - Detects Codex sessions in ~/.codex/sessions/**/*.jsonl
   - Detects Claude Code sessions in ~/.claude/projects/**/*.jsonl
+  - Can clone/copy matched local sessions between Codex and Claude
   - Stores matched session files in a sidecar Git repo
   - Does not add agent sessions to your project Git history
 `);
@@ -183,6 +196,21 @@ Aligns with: git push. The sidecar commit records the current project HEAD commi
 
 Fast-forwards the sidecar repo from its remote.
 Run log or restore after pull to inspect or recover sessions.`,
+    clone: `Usage:
+  git agent-sync clone --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
+
+Clones current-project local sessions from one agent provider into the other.
+Clone mode creates a stable new target session id and skips when that clone already exists.`,
+    copy: `Usage:
+  git agent-sync copy --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
+
+Copies current-project local sessions from one agent provider into the other.
+Copy mode preserves the source session id when possible and updates an existing Agent-Sync-created target copy.`,
+    watch: `Usage:
+  git agent-sync watch --from <codex|claude> --to <codex|claude> [--mode clone|copy] [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
+
+Watches local source sessions and automatically runs cross-provider clone/copy when matched source sessions change.
+Defaults to --mode copy and an interval of ${DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS} seconds.`,
     restore: `Usage:
   git agent-sync restore <bundle-id> [--no-adapt] [--no-register]
   git agent-sync restore --index <n> [--no-adapt] [--no-register]
@@ -276,6 +304,35 @@ function statusCommand(gitRoot, options) {
 
 function scanCommand(gitRoot, options) {
   return statusCommand(gitRoot, options);
+}
+
+function localTransferCommand(gitRoot, mode, options) {
+  const config = readConfigWithBundle(gitRoot);
+  const result = runLocalTransfer(gitRoot, config, {
+    ...options,
+    mode
+  });
+  printLocalTransferResult(result, options);
+}
+
+async function localTransferWatchCommand(gitRoot, options) {
+  const config = readConfigWithBundle(gitRoot);
+  const watchOptions = normalizeWatchOptions(options);
+  let previousSignature = "";
+
+  if (!options.json && !watchOptions.once) {
+    console.log(`agent-sync: watching ${watchOptions.from} -> ${watchOptions.to} (${watchOptions.mode}) every ${watchOptions.intervalSeconds}s. Press Ctrl+C to stop.`);
+  }
+
+  while (true) {
+    const event = checkLocalTransferWatch(gitRoot, config, watchOptions, previousSignature);
+    previousSignature = event.signature;
+    printLocalTransferWatchEvent(event, options);
+    if (watchOptions.once) {
+      return;
+    }
+    await sleep(watchOptions.intervalSeconds * 1000);
+  }
 }
 
 function logCommand(gitRoot, options) {
@@ -658,6 +715,44 @@ function readConfigWithBundle(gitRoot) {
   const config = readConfig(gitRoot);
   adoptExistingProjectBundle(config);
   return config;
+}
+
+function printLocalTransferResult(result, options: Record<string, any> = {}) {
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  console.log(`agent-sync: ${result.mode} ${result.from} -> ${result.to}`);
+  console.log(`candidates: ${result.candidates}`);
+  console.log(`created: ${result.stats.cloned + result.stats.copied}, updated: ${result.stats.updated}, skipped: ${result.stats.skipped_exists + result.stats.skipped_generated + result.stats.skipped_collision}`);
+  for (const item of result.results) {
+    if (item.action === "cloned" || item.action === "copied" || item.action === "updated") {
+      console.log(`[${item.action}] ${item.targetPath}`);
+    } else if (item.action === "skipped_collision") {
+      console.log(`[skip] ${item.sourceBundleId}: ${item.message}`);
+    }
+  }
+  if (result.dryRun) {
+    console.log("agent-sync: dry run, no local session files were written.");
+  }
+}
+
+function printLocalTransferWatchEvent(event, options: Record<string, any> = {}) {
+  if (options.json) {
+    console.log(JSON.stringify(event, null, 2));
+    return;
+  }
+  if (!event.result) {
+    return;
+  }
+  const label = event.changed ? "change detected" : "initial sync";
+  console.log(`agent-sync: ${label} at ${event.checkedAt}`);
+  printLocalTransferResult(event.result, options);
+}
+
+function sleep(ms) {
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 }
 
 function printScan(scan, config) {

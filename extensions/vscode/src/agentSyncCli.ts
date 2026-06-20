@@ -49,6 +49,17 @@ export interface RestoreResponse {
   results: RestoreResult[];
 }
 
+export type LocalTransferAgent = "codex" | "claude";
+export type LocalTransferMode = "clone" | "copy";
+
+export interface LocalTransferResponse {
+  mode: LocalTransferMode;
+  from: LocalTransferAgent;
+  to: LocalTransferAgent;
+  candidates: number;
+  stats: Record<string, number>;
+}
+
 export class AgentSyncCliError extends Error {
   constructor(
     message: string,
@@ -79,6 +90,11 @@ export class AgentSyncCli {
 
   async push(cwd: string): Promise<string> {
     return this.run(cwd, ["push"]);
+  }
+
+  async localTransfer(cwd: string, mode: LocalTransferMode, from: LocalTransferAgent, to: LocalTransferAgent): Promise<LocalTransferResponse> {
+    const stdout = await this.run(cwd, [mode, "--from", from, "--to", to, "--json"]);
+    return parseJson<LocalTransferResponse>(stdout, `agent-sync ${mode} --json`);
   }
 
   async run(cwd: string, args: string[]): Promise<string> {
@@ -139,6 +155,11 @@ export function resolveCliInvocation(): CliInvocation {
     env,
     shell: shouldUseShell(command)
   };
+}
+
+export function buildCliCommandLine(args: string[]): string {
+  const invocation = resolveCliInvocation();
+  return [invocation.command, ...args].map(quoteForDisplay).join(" ");
 }
 
 export function defaultLogFilter(): AgentSyncLogFilter {

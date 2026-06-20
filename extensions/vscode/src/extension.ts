@@ -1,5 +1,14 @@
 import * as vscode from "vscode";
-import { AgentSyncBinding, AgentSyncCli, AgentSyncCliError, RestoreResponse } from "./agentSyncCli";
+import {
+  AgentSyncBinding,
+  AgentSyncCli,
+  AgentSyncCliError,
+  LocalTransferAgent,
+  LocalTransferMode,
+  LocalTransferResponse,
+  RestoreResponse,
+  buildCliCommandLine
+} from "./agentSyncCli";
 import { HistoryView } from "./historyView";
 
 export function activate(context: vscode.ExtensionContext) {
@@ -38,6 +47,27 @@ export function activate(context: vscode.ExtensionContext) {
     });
   }));
 
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.localClone", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runLocalTransferFromPick(cli, output, cwd, "clone");
+    });
+  }));
+
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.localCopy", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runLocalTransferFromPick(cli, output, cwd, "copy");
+    });
+  }));
+
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.watchLocalCopy", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await startLocalWatchTerminal(cwd);
+    });
+  }));
+
   context.subscriptions.push(vscode.commands.registerCommand("agentSync.restore", async () => {
     await withErrorHandling(output, async () => {
       const cwd = getWorkspaceRoot();
@@ -72,6 +102,65 @@ async function syncSidecarAndRefresh(cli: AgentSyncCli, historyView: HistoryView
     historyView.refresh(bindings);
   });
   vscode.window.showInformationMessage(`Agent Sync: ${direction} complete.`);
+}
+
+async function runLocalTransferFromPick(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string, mode: LocalTransferMode) {
+  const pair = await pickTransferPair(`Agent Sync: ${capitalize(mode)} Local Sessions`);
+  if (!pair) {
+    return;
+  }
+  const result = await vscode.window.withProgress({
+    location: vscode.ProgressLocation.Notification,
+    title: `Agent Sync: ${capitalize(mode)} ${pair.from} -> ${pair.to}`,
+    cancellable: false
+  }, () => cli.localTransfer(cwd, mode, pair.from, pair.to));
+  const summary = summarizeLocalTransfer(result);
+  vscode.window.showInformationMessage(summary, "Show Output").then((selection) => {
+    if (selection === "Show Output") {
+      output.show();
+    }
+  });
+}
+
+async function startLocalWatchTerminal(cwd: string) {
+  const pair = await pickTransferPair("Agent Sync: Watch Local Copy");
+  if (!pair) {
+    return;
+  }
+  const terminal = vscode.window.createTerminal({
+    name: `Agent Sync Watch ${pair.from}->${pair.to}`,
+    cwd
+  });
+  terminal.show();
+  terminal.sendText(buildCliCommandLine(["watch", "--from", pair.from, "--to", pair.to, "--mode", "copy"]));
+}
+
+async function pickTransferPair(title: string): Promise<{ from: LocalTransferAgent; to: LocalTransferAgent } | null> {
+  const picked = await vscode.window.showQuickPick([
+    {
+      label: "Codex -> Claude",
+      description: "Create local Claude sessions from current-project Codex sessions",
+      from: "codex" as const,
+      to: "claude" as const
+    },
+    {
+      label: "Claude -> Codex",
+      description: "Create local Codex sessions from current-project Claude sessions",
+      from: "claude" as const,
+      to: "codex" as const
+    }
+  ], {
+    title,
+    placeHolder: "Select a local provider direction"
+  });
+  return picked ? { from: picked.from, to: picked.to } : null;
+}
+
+function summarizeLocalTransfer(result: LocalTransferResponse): string {
+  const created = (result.stats.cloned || 0) + (result.stats.copied || 0);
+  const updated = result.stats.updated || 0;
+  const skipped = (result.stats.skipped_exists || 0) + (result.stats.skipped_generated || 0) + (result.stats.skipped_collision || 0);
+  return `Agent Sync: ${result.mode} ${result.from} -> ${result.to}: ${created} created, ${updated} updated, ${skipped} skipped.`;
 }
 
 async function restoreFromPick(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string, bindings: AgentSyncBinding[]) {
@@ -165,4 +254,8 @@ function formatDate(value: string): string {
     return value;
   }
   return date.toLocaleString();
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }

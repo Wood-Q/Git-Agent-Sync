@@ -8,7 +8,7 @@ import {
   extractSessionDependencies,
   getMissingSkillWarnings,
   normalizeDependencies
-} from "../src/dependencies.js";
+} from "../dist/dependencies.js";
 
 const base = mkdtempSync(join(tmpdir(), "agent-sync-dependencies-"));
 const codexSkills = join(base, "codex-skills");
