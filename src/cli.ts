@@ -127,7 +127,7 @@ export async function main(argv) {
     "register-local": () => localRegisterCommand(gitRoot, options),
     "repair-local": () => localRepairCommand(gitRoot, options),
     "clean-local": () => localCleanCommand(gitRoot, options),
-    tui: () => tuiCommand(gitRoot),
+    tui: () => tuiCommand(gitRoot, options),
     "install-hooks": () => installHooksCommand(gitRoot),
     "uninstall-hooks": () => uninstallHooksCommand(gitRoot),
     restore: () => restoreCommand(gitRoot, args, options, readConfigWithBundle(gitRoot)),
@@ -168,7 +168,7 @@ Usage:
   git agent-sync register-local [--dry-run] [--json]
   git agent-sync repair-local [--dry-run] [--json]
   git agent-sync clean-local [--force] [--json]
-  git agent-sync tui
+  git agent-sync tui [--cn]
   git agent-sync restore <bundle-id>|--index <n>|--i <n>|--all|[filters] [index] [--no-adapt] [--no-register]
   git agent-sync install-hooks
   git agent-sync uninstall-hooks
@@ -308,9 +308,10 @@ Repairs local Codex UI registration for Agent-Sync provider clones without rewri
 Previews Agent-Sync local Codex provider clone cleanup by default.
 Use --force to remove only current-project rollout files created by clone-local.`,
     tui: `Usage:
-  git agent-sync tui
+  git agent-sync tui [--cn]
 
-Opens an interactive terminal menu for status, log, pull, push, restore, local Codex provider clone, and local watch operations.`,
+Opens an interactive terminal menu for status, log, pull, push, restore, local Codex provider clone, and local watch operations.
+Use --cn for the Chinese interface.`,
     restore: `Usage:
   git agent-sync restore <bundle-id> [--no-adapt] [--no-register]
   git agent-sync restore --index <n> [--no-adapt] [--no-register]
@@ -577,9 +578,9 @@ async function localTransferWatchCommand(gitRoot, options) {
   }
 }
 
-async function tuiCommand(gitRoot) {
+async function tuiCommand(gitRoot, options) {
   const config = readConfigWithBundle(gitRoot);
-  await runTui(gitRoot, config);
+  await runTui(gitRoot, config, { cn: options.cn });
 }
 
 function logCommand(gitRoot, options) {

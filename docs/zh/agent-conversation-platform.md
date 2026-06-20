@@ -25,7 +25,7 @@ Agent-Sync 的长期目标是成为 agent conversation processing platform：
 - **Codex UI 注册**：恢复 Codex 会话时会写入本机 `state_5.sqlite` 和 `session_index.jsonl`，让 Codex 插件 / App 能看到恢复后的会话。
 - **本机 provider 同步**：`clone-local` 会把当前项目的 Codex 会话克隆到指定或当前 `model_provider`；`watch-local` 会监听 provider 变化后触发克隆；`register-local` / `repair-local` 会把 Agent-Sync 本机 provider 克隆注册进 Codex UI 索引；`clean-local` 会预览或删除当前项目由 Agent-Sync 生成的 provider clone。
 - **冲突隔离与 review**：事件重放发现同一 agent session id 对应多个对象 hash 时，会写入 `conflicts/` 隔离记录；`conflicts list/show/diff/resolve` 可以查看、安全对比摘要，并用非破坏性的元数据标记解决。
-- **TUI 入口**：`git agent-sync tui` 提供交互式终端菜单，降低常用操作的记忆成本。
+- **TUI 入口**：`git agent-sync tui` 提供交互式终端菜单，`git agent-sync tui --cn` 提供同一套动作的中文界面，降低常用操作的记忆成本。
 - **VS Code 入口**：扩展可以调用 CLI 执行 push、pull、restore、show bundle、sync status/background/flush、privacy scan/redact dry-run/allow-pattern-local、conflicts list/diff/resolve、Conversation IR inspect/export、打开 TUI、触发本机 provider clone/register/watch/repair/clean。
 
 当前最大的边界也很明确：
@@ -484,7 +484,7 @@ git agent-sync clean-local
 git agent-sync tool inspect
 git agent-sync tool convert
 git agent-sync tool export
-git agent-sync tui
+git agent-sync tui [--cn]
 ```
 
 未来扩展：
@@ -506,7 +506,7 @@ git agent-sync import-local
 
 TUI 适合使用 React Ink。目标不是把 CLI 命令包一层菜单，而是提供“可视化选择 + 风险确认 + 批量操作”。
 
-当前实现已经把 `git agent-sync tui` 切换为 React Ink 操作台：左侧是视图导航，右侧是动作列表，底部显示运行状态、prompt 和命令输出摘要；动作行显示等价 CLI，支持 `/` 搜索和 `?` 帮助，restore / push / privacy allow-pattern-local / conflict resolve / hook 这类高风险动作会二次确认；非 TTY 环境会输出同一套动作和命令的文本菜单，方便测试和脚本环境查看。Local Provider 视图已接入 `clone-local`、`register-local`、`repair-local`、`clean-local` 预览和 `watch-local`；Privacy Review 视图已接入 scan、redact dry-run、push redact、explicit allow 和 allow-pattern-local；Conflicts 视图已接入 `conflicts list/show/diff` 和 keep-all / keep-latest / keep-local / keep-remote 解决策略，作为后续内容级 review UI 的 CLI 一致入口。
+当前实现已经把 `git agent-sync tui` 切换为 React Ink 操作台，并支持 `git agent-sync tui --cn` 中文界面：左侧是视图导航，右侧是动作列表，底部显示运行状态、prompt 和命令输出摘要；动作行显示等价 CLI，支持 `/` 搜索和 `?` 帮助，restore / push / privacy allow-pattern-local / conflict resolve / hook 这类高风险动作会二次确认；非 TTY 环境会输出同一套动作和命令的文本菜单，方便测试和脚本环境查看。Local Provider 视图已接入 `clone-local`、`register-local`、`repair-local`、`clean-local` 预览和 `watch-local`；Privacy Review 视图已接入 scan、redact dry-run、push redact、explicit allow 和 allow-pattern-local；Conflicts 视图已接入 `conflicts list/show/diff` 和 keep-all / keep-latest / keep-local / keep-remote 解决策略，作为后续内容级 review UI 的 CLI 一致入口。
 
 信息架构：
 

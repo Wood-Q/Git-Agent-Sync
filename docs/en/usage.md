@@ -118,11 +118,12 @@ Open the terminal menu when you want the common workflows in one place:
 
 ```bash
 git agent-sync tui
+git agent-sync tui --cn
 ```
 
 The TUI can run status, latest log, pull, push, restore by index, sync queue status/flush/retry/cancel, `clone-local`, `register-local`, `repair-local`, `clean-local` preview, local watch actions, and conflict list/show/diff/resolve commands. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
 
-The terminal UI is built with React Ink. It groups actions into Dashboard, Sync Queue, Session History, Local Provider, Tool Convert, Privacy Review, Conflicts, and Settings views. Use arrow keys to move, Tab or the right arrow to switch views, `/` to search actions, `?` for help, and Enter to run the selected action. Each action shows its equivalent CLI command, and restore/push/privacy allow-pattern-local/conflict-resolution/hook actions ask for confirmation before running. Long-running provider watch hands off to the normal CLI command.
+The terminal UI is built with React Ink. It groups actions into Dashboard, Sync Queue, Session History, Local Provider, Tool Convert, Privacy Review, Conflicts, and Settings views. Use `--cn` to launch the Chinese interface. Use arrow keys to move, Tab or the right arrow to switch views, `/` to search actions, `?` for help, and Enter to run the selected action. Each action shows its equivalent CLI command, and restore/push/privacy allow-pattern-local/conflict-resolution/hook actions ask for confirmation before running. Long-running provider watch hands off to the normal CLI command.
 
 ## Conversation IR and Tool Export
 

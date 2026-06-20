@@ -16,6 +16,7 @@ export type CliOptions = Record<string, string | boolean | undefined> & {
   branch?: string;
   bundle?: string;
   commit?: string;
+  cn?: boolean;
   date?: string;
   dryRun?: boolean;
   force?: boolean;
@@ -74,6 +75,8 @@ export function parseArgs(rawArgs: string[]) {
       options.latest = true;
     } else if (arg === "--current") {
       options.current = true;
+    } else if (arg === "--cn") {
+      options.cn = true;
     } else if (arg.startsWith("--agent=")) {
       options.agent = arg.slice("--agent=".length);
     } else if (arg === "--agent") {

@@ -7,6 +7,7 @@ import { Box, Text, render, useApp, useInput } from "ink";
 type TuiPrompt = {
   label: string;
   placeholder: string;
+  token?: string;
 };
 
 type TuiChoice = {
@@ -35,8 +36,295 @@ type TuiCommandResult = number | {
 };
 
 type TuiRunner = (args: string[], cwd: string) => TuiCommandResult | Promise<TuiCommandResult>;
+type TuiLocale = "en" | "cn";
 
 const h = React.createElement;
+
+const CN_VIEW_TEXT = {
+  dashboard: { title: "总览", subtitle: "项目扫描、sidecar 同步和快速恢复" },
+  queue: { title: "同步队列", subtitle: "后台任务、daemon 状态和 flush 控制" },
+  history: { title: "会话历史", subtitle: "浏览 bindings，并按可见编号恢复" },
+  local: { title: "本机 Provider", subtitle: "只在本机执行的 Codex provider 克隆和注册" },
+  tool: { title: "工具转换", subtitle: "通过 Conversation IR 检查 bundle" },
+  privacy: { title: "隐私检查", subtitle: "sidecar push 前扫描或脱敏" },
+  conflicts: { title: "冲突处理", subtitle: "查看 sidecar 冲突隔离区和解决状态" },
+  ops: { title: "设置", subtitle: "doctor 检查和 hook 管理" }
+};
+
+const CN_CHOICE_TEXT = {
+  "dashboard:1": { badge: "扫描", label: "状态 / 扫描本机会话", description: "刷新当前项目的会话匹配状态。" },
+  "dashboard:2": { badge: "日志", label: "查看最新 sidecar 会话", description: "显示最近同步的对话。" },
+  "dashboard:3": { badge: "拉取", label: "拉取 sidecar 会话", description: "获取并准备可恢复的 sidecar bundle。" },
+  "dashboard:4": { badge: "推送", label: "推送 sidecar 会话", description: "带隐私 review 快照当前项目会话。", confirm: "要把当前项目的 agent 会话推送到 sidecar store 吗？" },
+  "dashboard:5": {
+    badge: "恢复",
+    label: "按默认日志编号恢复",
+    description: "恢复 agent-sync log 中显示的编号项。",
+    prompt: { label: "恢复编号", placeholder: "输入 agent-sync log 中显示的编号" },
+    confirm: "要把这个会话恢复到本机 agent 历史吗？"
+  },
+  "queue:8": { badge: "队列", label: "查看同步队列状态", description: "查看 pending、running、done、failed 和 cancelled 任务。" },
+  "queue:9": { badge: "队列", label: "加入后台同步队列", description: "把 sidecar push 入队并启动 worker。" },
+  "queue:f": { badge: "执行", label: "立即 flush 队列", description: "在当前终端处理队列任务。" },
+  "queue:u": {
+    badge: "重试",
+    label: "重试失败队列任务",
+    description: "把 failed 或 cancelled 同步任务放回 pending。",
+    prompt: { label: "任务 id 或 all", placeholder: "输入任务 id 前缀或 all" }
+  },
+  "queue:K": {
+    badge: "取消",
+    label: "取消 pending 队列任务",
+    description: "把匹配的 pending 任务移到 cancelled，不中断 running 任务。",
+    prompt: { label: "任务 id 或 all", placeholder: "输入任务 id 前缀或 all" },
+    confirm: "要取消匹配的 pending 同步任务吗？"
+  },
+  "queue:d": { badge: "守护", label: "查看 daemon 状态", description: "读取本机 worker 状态文件。" },
+  "queue:b": { badge: "守护", label: "启动 daemon", description: "启动后台 worker 循环。" },
+  "queue:k": { badge: "守护", label: "停止 daemon", description: "请求本机 worker 停止。" },
+  "history:l": { badge: "日志", label: "查看最新 bindings", description: "用稳定编号浏览最近一次同步批次。" },
+  "history:c": { badge: "HEAD", label: "查看当前 commit bindings", description: "浏览绑定到当前 commit 的会话。" },
+  "history:s": {
+    badge: "详情",
+    label: "查看 bundle 详情",
+    description: "只检查一个 sidecar bundle，不恢复。",
+    prompt: { label: "Bundle id", placeholder: "粘贴 log 中的 bundle id" }
+  },
+  "history:r": {
+    badge: "恢复",
+    label: "按日志编号恢复",
+    description: "把选中的历史项恢复到本机。",
+    prompt: { label: "恢复编号", placeholder: "输入可见日志编号" },
+    confirm: "要把这个会话恢复到本机 agent 历史吗？"
+  },
+  "local:6": { badge: "本机", label: "克隆 Codex 会话到当前 provider", description: "把当前项目 Codex 会话复制到活跃 provider 下。" },
+  "local:n": { badge: "索引", label: "注册本机 provider 克隆", description: "把 Agent-Sync provider 克隆加入本机 Codex 索引。" },
+  "local:7": { badge: "修复", label: "修复本机 Codex UI 注册", description: "重新注册 Agent-Sync provider 克隆。" },
+  "local:z": { badge: "清理", label: "预览本机克隆清理", description: "列出 clean-local --force 会删除的 provider 克隆。" },
+  "local:o": { badge: "监听", label: "检查一次 provider 变化", description: "执行一次本机 provider watch 检查。" },
+  "local:w": { badge: "监听", label: "监听 Codex provider 变化", description: "交给长时间运行的本机 watch 命令。" },
+  "tool:i": {
+    badge: "IR",
+    label: "用 IR 摘要检查 bundle",
+    description: "汇总来源 agent、标题、事件和工具调用。",
+    prompt: { label: "Bundle id", placeholder: "粘贴已同步的 bundle id" }
+  },
+  "tool:v": {
+    badge: "IR",
+    label: "转换 bundle 为 Conversation IR",
+    description: "输出统一消息、工具调用、provenance 和依赖。",
+    prompt: { label: "Bundle id", placeholder: "粘贴已同步的 bundle id" }
+  },
+  "tool:e": {
+    badge: "可读",
+    label: "导出可读 Claude JSONL",
+    description: "从 IR 写出跨工具可读 JSONL。",
+    prompt: { label: "Bundle id", placeholder: "粘贴已同步的 bundle id" }
+  },
+  "privacy:p": { badge: "扫描", label: "隐私扫描", description: "查找常见 token、private key 和 secret 赋值。" },
+  "privacy:y": { badge: "预览", label: "预览脱敏", description: "只显示脱敏会改什么，不写文件。" },
+  "privacy:P": {
+    badge: "允许",
+    label: "添加隐私 allow pattern",
+    description: "把确认过的误报正则写入 .agent-sync/privacy.json。",
+    prompt: { label: "Name=regex", placeholder: "documented_example=sk-example-[a-z]+" },
+    confirm: "要把这条隐私 allow pattern 加到本地策略吗？"
+  },
+  "privacy:R": { badge: "脱敏", label: "脱敏后推送", description: "写入脱敏 sidecar 副本并 push。", confirm: "要写入脱敏 sidecar 副本并推送吗？" },
+  "privacy:A": { badge: "放行", label: "显式放行后推送", description: "本次 push 绕过隐私阻断。", confirm: "要绕过隐私阻断，不脱敏直接推送吗？" },
+  "conflicts:g": { badge: "列表", label: "列出 active 冲突", description: "显示隔离的 session object 冲突。" },
+  "conflicts:m": {
+    badge: "详情",
+    label: "查看冲突详情",
+    description: "检查 object hash、event shard、机器和 bundle 信息。",
+    prompt: { label: "冲突 id 或编号", placeholder: "输入冲突 id 或可见列表编号" }
+  },
+  "conflicts:D": {
+    badge: "DIFF",
+    label: "查看冲突 diff 摘要",
+    description: "比较隔离对象大小和首个差异行，不打印原始内容。",
+    prompt: { label: "冲突 id 或编号", placeholder: "输入冲突 id 或可见列表编号" }
+  },
+  "conflicts:j": {
+    badge: "解决",
+    label: "保留全部并标记冲突已解决",
+    description: "只标记冲突已处理，不删除任何对象。",
+    prompt: { label: "冲突 id 或编号", placeholder: "输入冲突 id 或可见列表编号" },
+    confirm: "要在不删除对象的情况下标记这个冲突已解决吗？"
+  },
+  "conflicts:J": {
+    badge: "最新",
+    label: "保留 latest 并标记冲突已解决",
+    description: "把 latest object 标记为偏好的解决元数据。",
+    prompt: { label: "冲突 id 或编号", placeholder: "输入冲突 id 或可见列表编号" },
+    confirm: "要用 keep-latest 标记这个冲突已解决吗？"
+  },
+  "conflicts:O": {
+    badge: "本机",
+    label: "保留 local 并标记冲突已解决",
+    description: "把 local object 标记为偏好的解决元数据。",
+    prompt: { label: "冲突 id 或编号", placeholder: "输入冲突 id 或可见列表编号" },
+    confirm: "要用 keep-local 标记这个冲突已解决吗？"
+  },
+  "conflicts:E": {
+    badge: "远端",
+    label: "保留 remote 并标记冲突已解决",
+    description: "把 remote object 标记为偏好的解决元数据。",
+    prompt: { label: "冲突 id 或编号", placeholder: "输入冲突 id 或可见列表编号" },
+    confirm: "要用 keep-remote 标记这个冲突已解决吗？"
+  },
+  "ops:x": { badge: "检查", label: "运行 doctor", description: "检查配置、sidecar store、sparse checkout 和 bindings。" },
+  "ops:H": { badge: "HOOK", label: "安装 pre-push hook", description: "git push 时把 Agent-Sync 任务加入后台队列。", confirm: "要在这个仓库安装 Agent-Sync 管理的 pre-push hook 吗？" },
+  "ops:U": { badge: "HOOK", label: "卸载 pre-push hook", description: "移除 Agent-Sync 管理的 hook。", confirm: "要从这个仓库移除 Agent-Sync 管理的 pre-push hook 吗？" },
+  "dashboard:q": { badge: "退出", label: "退出", description: "关闭 TUI。" }
+};
+
+const EN_COPY = {
+  menuTitle(projectName) {
+    return `Agent Sync TUI - ${projectName || "project"}`;
+  },
+  projectRoot: "Project root",
+  store: "Store",
+  shortcuts: "Shortcuts",
+  shortcutLines: ["  /  Search actions", "  ?  Toggle help", "  q  Quit"],
+  views: "Views",
+  footerIdle: "Arrows select, / searches, ? help, Enter runs, Tab switches views, q exits.",
+  searchInline(query) {
+    return `Search: ${query || "(type to filter)"}`;
+  },
+  noActions(query) {
+    return query ? `No actions match "${query}".` : "No actions in this view.";
+  },
+  helpLines: [
+    "Keyboard",
+    "  Left/Right or Tab switches views",
+    "  Up/Down moves through actions",
+    "  Enter runs the selected action",
+    "  / filters actions in the current view",
+    "  ? toggles this help",
+    "  y/n answers confirmation prompts",
+    "  q exits"
+  ],
+  ready: "Ready",
+  actionCancelled: "Action cancelled",
+  confirmHint: "Press y to confirm or n to cancel",
+  searchCleared: "Search cleared",
+  searchClosed: "Search closed",
+  filteredBy(query) {
+    return `Filtered by "${query}"`;
+  },
+  promptCancelled: "Prompt cancelled",
+  valueRequired(label) {
+    return `${label || "Value"} is required`;
+  },
+  searchActions: "Search actions",
+  confirmationRequired: "Confirmation required",
+  confirmationOutput(confirm, command) {
+    return `${confirm}\n${command}\nPress y to confirm or n to cancel.`;
+  },
+  runningCommand(args) {
+    return `Running git agent-sync ${args.join(" ")}`;
+  },
+  handingOff: "Handing off to long-running command",
+  commandCompleted: "Command completed",
+  commandExited(status) {
+    return `Command exited with status ${status}`;
+  },
+  commandFailed: "Command failed",
+  emptyOutput: "(command completed without output)",
+  running: "Running",
+  confirm: "Confirm",
+  status: "Status",
+  search: "Search",
+  searchPlaceholder: "type to filter actions",
+  selectAction: "Select an action",
+  unknownSelection: "Unknown selection.",
+  bye: "Bye.",
+  commandLabel: "Command",
+  confirmQuestion(confirm) {
+    return `${confirm} Type y to continue: `;
+  },
+  cancelled: "Cancelled.",
+  pressEnter: "Press Enter to return to the menu.",
+  commandExitedLine(status) {
+    return `Command exited with status ${status}.`;
+  },
+  confirmSuffix: " [confirm]"
+};
+
+const CN_COPY = {
+  ...EN_COPY,
+  menuTitle(projectName) {
+    return `Agent Sync 中文 TUI - ${projectName || "项目"}`;
+  },
+  projectRoot: "项目根目录",
+  store: "Sidecar 仓库",
+  shortcuts: "快捷键",
+  shortcutLines: ["  /  搜索动作", "  ?  打开/关闭帮助", "  q  退出"],
+  views: "视图",
+  footerIdle: "方向键选择，/ 搜索，? 帮助，Enter 执行，Tab 切换视图，q 退出。",
+  searchInline(query) {
+    return `搜索：${query || "输入关键词筛选"}`;
+  },
+  noActions(query) {
+    return query ? `没有动作匹配“${query}”。` : "这个视图里没有动作。";
+  },
+  helpLines: [
+    "键盘",
+    "  左/右方向键或 Tab 切换视图",
+    "  上/下方向键移动动作",
+    "  Enter 执行当前动作",
+    "  / 筛选当前视图动作",
+    "  ? 打开或关闭帮助",
+    "  y/n 回答确认提示",
+    "  q 退出"
+  ],
+  ready: "就绪",
+  actionCancelled: "操作已取消",
+  confirmHint: "按 y 确认，按 n 取消",
+  searchCleared: "搜索已清空",
+  searchClosed: "搜索已关闭",
+  filteredBy(query) {
+    return `已按“${query}”筛选`;
+  },
+  promptCancelled: "输入已取消",
+  valueRequired(label) {
+    return `${label || "值"}不能为空`;
+  },
+  searchActions: "搜索动作",
+  confirmationRequired: "需要确认",
+  confirmationOutput(confirm, command) {
+    return `${confirm}\n${command}\n按 y 确认，按 n 取消。`;
+  },
+  runningCommand(args) {
+    return `正在运行 git agent-sync ${args.join(" ")}`;
+  },
+  handingOff: "已交给长时间运行命令",
+  commandCompleted: "命令已完成",
+  commandExited(status) {
+    return `命令退出，状态码 ${status}`;
+  },
+  commandFailed: "命令失败",
+  emptyOutput: "（命令完成，无输出）",
+  running: "运行中",
+  confirm: "确认",
+  status: "状态",
+  search: "搜索",
+  searchPlaceholder: "输入关键词筛选动作",
+  selectAction: "选择一个动作",
+  unknownSelection: "未知选择。",
+  bye: "再见。",
+  commandLabel: "命令",
+  confirmQuestion(confirm) {
+    return `${confirm} 输入 y 继续：`;
+  },
+  cancelled: "已取消。",
+  pressEnter: "按 Enter 返回菜单。",
+  commandExitedLine(status) {
+    return `命令退出，状态码 ${status}。`;
+  },
+  confirmSuffix: " [需确认]"
+};
 
 const TUI_VIEWS: TuiView[] = [
   { id: "dashboard", title: "Dashboard", subtitle: "Project scan, sidecar sync, and quick recovery" },
@@ -267,17 +555,19 @@ const MENU_CHOICES: TuiChoice[] = [
   { key: "q", view: "dashboard", badge: "EXIT", label: "Quit", description: "Close the TUI.", args: [], exits: true }
 ];
 
-export function getTuiChoices() {
-  return MENU_CHOICES.map(cloneChoice);
+export function getTuiChoices(options: Record<string, any> = {}) {
+  const locale = normalizeTuiLocale(options);
+  return MENU_CHOICES.map((choice) => localizeChoice(choice, locale));
 }
 
-export function getTuiViews() {
-  return TUI_VIEWS.map((view) => ({ ...view }));
+export function getTuiViews(options: Record<string, any> = {}) {
+  const locale = normalizeTuiLocale(options);
+  return TUI_VIEWS.map((view) => localizeView(view, locale));
 }
 
-export function resolveTuiChoice(value: string, viewId = "") {
+export function resolveTuiChoice(value: string, viewId = "", options: Record<string, any> = {}) {
   const key = String(value || "").trim();
-  const choices = getTuiChoices();
+  const choices = getTuiChoices(options);
   return choices.find((choice) => choice.key === key && (!viewId || choice.view === viewId)) ||
     choices.find((choice) => choice.key === key) ||
     null;
@@ -310,52 +600,57 @@ export function formatTuiCommand(choice: TuiChoice, prompted = "") {
   return `git agent-sync ${args.map(quoteArg).join(" ")}`;
 }
 
-export function renderTuiMenu(config) {
-  const title = `Agent Sync TUI - ${config.projectName || "project"}`;
+export function renderTuiMenu(config, options: Record<string, any> = {}) {
+  const locale = normalizeTuiLocale(options);
+  const copy = getTuiCopy(locale);
+  const views = getTuiViews({ locale });
+  const choices = getTuiChoices({ locale });
+  const title = copy.menuTitle(config.projectName);
   const lines = [
     title,
     "=".repeat(title.length),
-    `Project root: ${config.projectRoot}`,
-    `Store: ${config.storePath}`,
+    `${copy.projectRoot}: ${config.projectRoot}`,
+    `${copy.store}: ${config.storePath}`,
     ""
   ];
-  for (const view of TUI_VIEWS) {
-    const choices = MENU_CHOICES.filter((choice) => choice.view === view.id && !choice.exits);
-    if (!choices.length) {
+  for (const view of views) {
+    const viewChoices = choices.filter((choice) => choice.view === view.id && !choice.exits);
+    if (!viewChoices.length) {
       continue;
     }
     lines.push(view.title);
-    for (const choice of choices) {
+    for (const choice of viewChoices) {
       lines.push(`  ${choice.key.padEnd(2)} ${choice.label}`);
-      lines.push(`     ${formatTuiCommand(choice)}${choice.confirm ? " [confirm]" : ""}`);
+      lines.push(`     ${formatTuiCommand(choice)}${choice.confirm ? copy.confirmSuffix : ""}`);
     }
     lines.push("");
   }
-  lines.push("Shortcuts");
-  lines.push("  /  Search actions");
-  lines.push("  ?  Toggle help");
-  lines.push("  q  Quit");
+  lines.push(copy.shortcuts);
+  lines.push(...copy.shortcutLines);
   return lines.join("\n");
 }
 
 export async function runTui(gitRoot, config, options: Record<string, any> = {}) {
+  const locale = normalizeTuiLocale(options);
   if (options.io) {
-    await runPromptTui(gitRoot, config, options);
+    await runPromptTui(gitRoot, config, { ...options, locale });
     return;
   }
 
   if (!options.forceInk && (!defaultInput.isTTY || !defaultOutput.isTTY)) {
-    console.log(renderTuiMenu(config));
+    console.log(renderTuiMenu(config, { locale }));
     return;
   }
 
   const runner = options.runner || ((args: string[], cwd: string) => runCliCommand(args, cwd));
-  const instance = render(h(AgentSyncTuiApp, { gitRoot, config, runner }));
+  const instance = render(h(AgentSyncTuiApp, { gitRoot, config, runner, locale }));
   await instance.waitUntilExit();
 }
 
-function AgentSyncTuiApp({ gitRoot, config, runner }: { gitRoot: string; config: Record<string, any>; runner: TuiRunner }) {
+function AgentSyncTuiApp({ gitRoot, config, runner, locale }: { gitRoot: string; config: Record<string, any>; runner: TuiRunner; locale: TuiLocale }) {
   const { exit } = useApp();
+  const copy = getTuiCopy(locale);
+  const views = useMemo(() => getTuiViews({ locale }), [locale]);
   const [activeViewIndex, setActiveViewIndex] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [promptChoice, setPromptChoice] = useState<TuiChoice | null>(null);
@@ -365,10 +660,10 @@ function AgentSyncTuiApp({ gitRoot, config, runner }: { gitRoot: string; config:
   const [searchQuery, setSearchQuery] = useState("");
   const [showHelp, setShowHelp] = useState(false);
   const [running, setRunning] = useState(false);
-  const [status, setStatus] = useState("Ready");
+  const [status, setStatus] = useState(copy.ready);
   const [output, setOutput] = useState("");
-  const activeView = TUI_VIEWS[activeViewIndex];
-  const baseChoices = useMemo(() => getChoicesForView(activeView.id), [activeView.id]);
+  const activeView = views[activeViewIndex];
+  const baseChoices = useMemo(() => getChoicesForView(activeView.id, locale), [activeView.id, locale]);
   const choices = useMemo(() => filterTuiChoices(baseChoices, searchQuery), [baseChoices, searchQuery]);
   const selectedChoice = choices[Math.min(selectedIndex, Math.max(choices.length - 1, 0))];
 
@@ -385,10 +680,10 @@ function AgentSyncTuiApp({ gitRoot, config, runner }: { gitRoot: string; config:
         void executeChoice(request.choice, request.promptValue, true);
       } else if (normalized === "n" || key.escape) {
         setConfirmRequest(null);
-        setStatus("Action cancelled");
+        setStatus(copy.actionCancelled);
         setOutput("");
       } else {
-        setStatus("Press y to confirm or n to cancel");
+        setStatus(copy.confirmHint);
       }
       return;
     }
@@ -397,10 +692,10 @@ function AgentSyncTuiApp({ gitRoot, config, runner }: { gitRoot: string; config:
         setSearchMode(false);
         setSearchQuery("");
         setSelectedIndex(0);
-        setStatus("Search cleared");
+        setStatus(copy.searchCleared);
       } else if (key.return) {
         setSearchMode(false);
-        setStatus(searchQuery ? `Filtered by "${searchQuery}"` : "Search closed");
+        setStatus(searchQuery ? copy.filteredBy(searchQuery) : copy.searchClosed);
       } else if (key.backspace || key.delete) {
         setSearchQuery((value) => value.slice(0, -1));
         setSelectedIndex(0);
@@ -414,11 +709,11 @@ function AgentSyncTuiApp({ gitRoot, config, runner }: { gitRoot: string; config:
       if (key.escape) {
         setPromptChoice(null);
         setPromptValue("");
-        setStatus("Prompt cancelled");
+        setStatus(copy.promptCancelled);
       } else if (key.return) {
         const value = promptValue.trim();
         if (!value) {
-          setStatus(`${promptChoice.prompt?.label || "Value"} is required`);
+          setStatus(copy.valueRequired(promptChoice.prompt?.label));
           return;
         }
         setPromptChoice(null);
@@ -440,7 +735,7 @@ function AgentSyncTuiApp({ gitRoot, config, runner }: { gitRoot: string; config:
       setSearchMode(true);
       setSearchQuery("");
       setSelectedIndex(0);
-      setStatus("Search actions");
+      setStatus(copy.searchActions);
       return;
     }
     if (input === "q") {
@@ -448,12 +743,12 @@ function AgentSyncTuiApp({ gitRoot, config, runner }: { gitRoot: string; config:
       return;
     }
     if (key.leftArrow) {
-      setActiveViewIndex((index) => wrap(index - 1, TUI_VIEWS.length));
+      setActiveViewIndex((index) => wrap(index - 1, views.length));
       setSelectedIndex(0);
       return;
     }
     if (key.rightArrow || key.tab) {
-      setActiveViewIndex((index) => wrap(index + 1, TUI_VIEWS.length));
+      setActiveViewIndex((index) => wrap(index + 1, views.length));
       setSelectedIndex(0);
       return;
     }
@@ -470,7 +765,7 @@ function AgentSyncTuiApp({ gitRoot, config, runner }: { gitRoot: string; config:
       return;
     }
     if (input) {
-      const quickChoice = resolveTuiChoice(input, activeView.id);
+      const quickChoice = resolveTuiChoice(input, activeView.id, { locale });
       if (quickChoice) {
         void executeChoice(quickChoice);
       }
@@ -491,16 +786,16 @@ function AgentSyncTuiApp({ gitRoot, config, runner }: { gitRoot: string; config:
     const args = buildChoiceArgs(choice, promptValue);
     if (choice.confirm && !confirmed) {
       setConfirmRequest({ choice, promptValue });
-      setStatus("Confirmation required");
-      setOutput(`${choice.confirm}\n${formatTuiCommand(choice, promptValue)}\nPress y to confirm or n to cancel.`);
+      setStatus(copy.confirmationRequired);
+      setOutput(copy.confirmationOutput(choice.confirm, formatTuiCommand(choice, promptValue)));
       return;
     }
     setRunning(true);
-    setStatus(`Running git agent-sync ${args.join(" ")}`);
+    setStatus(copy.runningCommand(args));
     setOutput("");
     try {
       if (choice.handoff) {
-        setStatus("Handing off to long-running command");
+        setStatus(copy.handingOff);
         exit();
         setTimeout(() => {
           runCliCommand(args, gitRoot, { inherit: true });
@@ -509,10 +804,10 @@ function AgentSyncTuiApp({ gitRoot, config, runner }: { gitRoot: string; config:
       }
       const result = normalizeCommandResult(await runner(args, gitRoot));
       const text = compactOutput([result.stdout, result.stderr].filter(Boolean).join("\n"));
-      setOutput(text || "(command completed without output)");
-      setStatus(result.status === 0 ? "Command completed" : `Command exited with status ${result.status}`);
+      setOutput(text || copy.emptyOutput);
+      setStatus(result.status === 0 ? copy.commandCompleted : copy.commandExited(result.status));
     } catch (error) {
-      setStatus("Command failed");
+      setStatus(copy.commandFailed);
       setOutput(error instanceof Error ? error.message : String(error));
     } finally {
       setRunning(false);
@@ -520,31 +815,31 @@ function AgentSyncTuiApp({ gitRoot, config, runner }: { gitRoot: string; config:
   }
 
   return h(Box, { flexDirection: "column", gap: 1 },
-    h(Header, { config }),
+    h(Header, { config, copy }),
     h(Box, { flexDirection: "row", gap: 2 },
-      h(ViewRail, { activeViewIndex }),
-      h(ActionPanel, { view: activeView, choices, selectedIndex, running, searchMode, searchQuery })
+      h(ViewRail, { activeViewIndex, views, copy }),
+      h(ActionPanel, { view: activeView, choices, selectedIndex, running, searchMode, searchQuery, copy })
     ),
-    showHelp ? h(HelpPanel) : null,
-    h(StatusPanel, { status, output, promptChoice, promptValue, confirmRequest, searchMode, searchQuery, running })
+    showHelp ? h(HelpPanel, { copy }) : null,
+    h(StatusPanel, { status, output, promptChoice, promptValue, confirmRequest, searchMode, searchQuery, running, copy })
   );
 }
 
-function Header({ config }: { config: Record<string, any> }) {
+function Header({ config, copy }: { config: Record<string, any>; copy: any }) {
   return h(Box, { borderStyle: "round", borderColor: "cyan", paddingX: 1, flexDirection: "column" },
     h(Box, { justifyContent: "space-between" },
       h(Text, { color: "cyan", bold: true }, "Agent Sync"),
       h(Text, { color: "gray" }, config.projectName || "project")
     ),
-    h(Text, { color: "white" }, trimMiddle(config.projectRoot || "", 84)),
-    h(Text, { color: "gray" }, trimMiddle(config.storePath || "", 84))
+    h(Text, { color: "white" }, `${copy.projectRoot}: ${trimMiddle(config.projectRoot || "", 84)}`),
+    h(Text, { color: "gray" }, `${copy.store}: ${trimMiddle(config.storePath || "", 84)}`)
   );
 }
 
-function ViewRail({ activeViewIndex }: { activeViewIndex: number }) {
+function ViewRail({ activeViewIndex, views, copy }: { activeViewIndex: number; views: TuiView[]; copy: any }) {
   return h(Box, { borderStyle: "round", borderColor: "gray", paddingX: 1, flexDirection: "column", width: 26 },
-    h(Text, { color: "gray" }, "Views"),
-    ...TUI_VIEWS.map((view, index) => h(Text, {
+    h(Text, { color: "gray" }, copy.views),
+    ...views.map((view, index) => h(Text, {
       key: view.id,
       color: index === activeViewIndex ? "cyan" : "white",
       bold: index === activeViewIndex
@@ -558,7 +853,8 @@ function ActionPanel({
   selectedIndex,
   running,
   searchMode,
-  searchQuery
+  searchQuery,
+  copy
 }: {
   view: TuiView;
   choices: TuiChoice[];
@@ -566,13 +862,14 @@ function ActionPanel({
   running: boolean;
   searchMode: boolean;
   searchQuery: string;
+  copy: any;
 }) {
   return h(Box, { borderStyle: "round", borderColor: "cyan", paddingX: 1, flexDirection: "column", flexGrow: 1 },
     h(Box, { flexDirection: "column", marginBottom: 1 },
       h(Text, { color: "cyan", bold: true }, view.title),
       h(Text, { color: "gray" }, view.subtitle)
     ),
-    choices.length ? null : h(Text, { color: "gray" }, searchQuery ? `No actions match "${searchQuery}".` : "No actions in this view."),
+    choices.length ? null : h(Text, { color: "gray" }, copy.noActions(searchQuery)),
     ...choices.map((choice, index) => h(ActionRow, {
       key: `${choice.view}:${choice.key}`,
       choice,
@@ -580,7 +877,7 @@ function ActionPanel({
       disabled: running
     })),
     h(Box, { marginTop: 1 },
-      h(Text, { color: searchMode ? "yellow" : "gray" }, searchMode ? `Search: ${searchQuery || "(type to filter)"}` : "Arrows select, / searches, ? help, Enter runs, Tab switches views, q exits.")
+      h(Text, { color: searchMode ? "yellow" : "gray" }, searchMode ? copy.searchInline(searchQuery) : copy.footerIdle)
     )
   );
 }
@@ -603,17 +900,8 @@ function ActionRow({ choice, selected, disabled }: { choice: TuiChoice; selected
   );
 }
 
-function HelpPanel() {
-  const lines = [
-    "Keyboard",
-    "  Left/Right or Tab switches views",
-    "  Up/Down moves through actions",
-    "  Enter runs the selected action",
-    "  / filters actions in the current view",
-    "  ? toggles this help",
-    "  y/n answers confirmation prompts",
-    "  q exits"
-  ];
+function HelpPanel({ copy }: { copy: any }) {
+  const lines = copy.helpLines;
   return h(Box, { borderStyle: "round", borderColor: "gray", paddingX: 1, flexDirection: "column" },
     ...lines.map((line, index) => h(Text, { key: String(index), color: index === 0 ? "cyan" : "gray", bold: index === 0 }, line))
   );
@@ -627,7 +915,8 @@ function StatusPanel({
   confirmRequest,
   searchMode,
   searchQuery,
-  running
+  running,
+  copy
 }: {
   status: string;
   output: string;
@@ -637,15 +926,16 @@ function StatusPanel({
   searchMode: boolean;
   searchQuery: string;
   running: boolean;
+  copy: any;
 }) {
   return h(Box, { borderStyle: "round", borderColor: running ? "yellow" : confirmRequest ? "red" : "gray", paddingX: 1, flexDirection: "column" },
     h(Box, {},
-      h(Text, { color: running ? "yellow" : confirmRequest ? "red" : "green", bold: true }, running ? "Running" : confirmRequest ? "Confirm" : "Status"),
+      h(Text, { color: running ? "yellow" : confirmRequest ? "red" : "green", bold: true }, running ? copy.running : confirmRequest ? copy.confirm : copy.status),
       h(Text, { color: "white" }, `  ${status}`)
     ),
     searchMode ? h(Box, {},
-      h(Text, { color: "cyan" }, "Search: "),
-      h(Text, { color: searchQuery ? "white" : "gray" }, searchQuery || "type to filter actions")
+      h(Text, { color: "cyan" }, `${copy.search}: `),
+      h(Text, { color: searchQuery ? "white" : "gray" }, searchQuery || copy.searchPlaceholder)
     ) : null,
     promptChoice ? h(Box, {},
       h(Text, { color: "cyan" }, `${promptChoice.prompt?.label}: `),
@@ -660,19 +950,21 @@ function StatusPanel({
 async function runPromptTui(gitRoot, config, options: Record<string, any> = {}) {
   const io = options.io || createInterface({ input: defaultInput, output: defaultOutput });
   const runner = options.runner || ((args: string[], cwd: string) => runCliCommand(args, cwd));
+  const locale = normalizeTuiLocale(options);
+  const copy = getTuiCopy(locale);
   const shouldClose = !options.io;
   try {
     while (true) {
       console.log("");
-      console.log(renderTuiMenu(config));
-      const answer = await io.question("\nSelect an action: ");
-      const choice = resolveTuiChoice(answer);
+      console.log(renderTuiMenu(config, { locale }));
+      const answer = await io.question(`\n${copy.selectAction}: `);
+      const choice = resolveTuiChoice(answer, "", { locale });
       if (!choice) {
-        console.log("Unknown selection.");
+        console.log(copy.unknownSelection);
         continue;
       }
       if (choice.exits) {
-        console.log("Bye.");
+        console.log(copy.bye);
         return;
       }
 
@@ -680,26 +972,26 @@ async function runPromptTui(gitRoot, config, options: Record<string, any> = {}) 
       if (choice.prompt) {
         prompted = String(await io.question(`${choice.prompt.label}: `)).trim();
         if (!prompted) {
-          console.log(`${choice.prompt.label} is required.`);
+          console.log(copy.valueRequired(choice.prompt.label));
           continue;
         }
       }
 
-      console.log(`Command: ${formatTuiCommand(choice, prompted)}`);
+      console.log(`${copy.commandLabel}: ${formatTuiCommand(choice, prompted)}`);
       if (choice.confirm) {
-        const confirmation = String(await io.question(`${choice.confirm} Type y to continue: `)).trim();
+        const confirmation = String(await io.question(copy.confirmQuestion(choice.confirm))).trim();
         if (!isConfirmAccepted(confirmation)) {
-          console.log("Cancelled.");
+          console.log(copy.cancelled);
           continue;
         }
       }
 
       const result = normalizeCommandResult(await runner(buildChoiceArgs(choice, prompted), gitRoot));
       if (result.status !== 0) {
-        console.log(`Command exited with status ${result.status}.`);
+        console.log(copy.commandExitedLine(result.status));
       }
       if (!isWatchChoice(choice)) {
-        await io.question("\nPress Enter to return to the menu.");
+        await io.question(`\n${copy.pressEnter}`);
       } else {
         return;
       }
@@ -711,8 +1003,45 @@ async function runPromptTui(gitRoot, config, options: Record<string, any> = {}) 
   }
 }
 
-function getChoicesForView(viewId: string) {
-  return MENU_CHOICES.filter((choice) => choice.view === viewId || choice.exits).map(cloneChoice);
+function getChoicesForView(viewId: string, locale: TuiLocale) {
+  return MENU_CHOICES.filter((choice) => choice.view === viewId || choice.exits).map((choice) => localizeChoice(choice, locale));
+}
+
+function normalizeTuiLocale(options: Record<string, any> = {}): TuiLocale {
+  return options.locale === "cn" || options.cn ? "cn" : "en";
+}
+
+function getTuiCopy(locale: TuiLocale) {
+  return locale === "cn" ? CN_COPY : EN_COPY;
+}
+
+function localizeView(view: TuiView, locale: TuiLocale) {
+  if (locale !== "cn") {
+    return { ...view };
+  }
+  return {
+    ...view,
+    ...(CN_VIEW_TEXT[view.id] || {})
+  };
+}
+
+function localizeChoice(choice: TuiChoice, locale: TuiLocale) {
+  const cloned = cloneChoice(choice);
+  if (cloned.prompt) {
+    cloned.prompt.token = promptToken(choice.prompt);
+  }
+  if (locale !== "cn") {
+    return cloned;
+  }
+  const override = CN_CHOICE_TEXT[`${choice.view}:${choice.key}`] || {};
+  return {
+    ...cloned,
+    ...override,
+    args: cloned.args,
+    prompt: cloned.prompt || override.prompt
+      ? { ...(cloned.prompt || {}), ...(override.prompt || {}) }
+      : undefined
+  };
 }
 
 function buildChoiceArgs(choice: TuiChoice, prompted = "") {
@@ -722,6 +1051,9 @@ function buildChoiceArgs(choice: TuiChoice, prompted = "") {
 function promptToken(prompt?: TuiPrompt) {
   if (!prompt) {
     return "";
+  }
+  if (prompt.token) {
+    return prompt.token;
   }
   const token = prompt.label
     .toLowerCase()
