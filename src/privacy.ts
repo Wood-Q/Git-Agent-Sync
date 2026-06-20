@@ -36,6 +36,28 @@ export function loadPrivacyPolicy(gitRoot) {
   return normalizePolicy(JSON.parse(readFileSync(path, "utf8")));
 }
 
+export function addPrivacyAllowPattern(gitRoot, nameOrRule, pattern = "") {
+  const rule = parseAllowPatternRule(nameOrRule, pattern);
+  validateAllowPattern(rule);
+  const path = join(gitRoot, PRIVACY_POLICY_FILE);
+  const rawPolicy = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : { version: 1 };
+  const allowPatterns = Array.isArray(rawPolicy.allowPatterns) ? rawPolicy.allowPatterns : [];
+  const existing = allowPatterns.map(normalizeAllowRuleInput).find((candidate) => candidate.name === rule.name);
+  if (existing) {
+    if (existing.pattern === rule.pattern && existing.flags === rule.flags) {
+      return createAllowPatternResult(path, rule, false, allowPatterns.length);
+    }
+    throw new Error(`privacy allow pattern "${rule.name}" already exists with a different pattern`);
+  }
+  const nextPolicy = {
+    ...rawPolicy,
+    version: rawPolicy.version || 1,
+    allowPatterns: [...allowPatterns, rule]
+  };
+  writeJson(path, nextPolicy);
+  return createAllowPatternResult(path, rule, true, nextPolicy.allowPatterns.length);
+}
+
 export function scanPrivacyMatches(matches, policy = normalizePolicy({})) {
   const compiled = compileRules(policy);
   const allowRules = compileAllowRules(policy);
@@ -197,6 +219,68 @@ function normalizeAllowRule(rule, index) {
     name: rule.name || `allow_${index + 1}`,
     pattern: rule.pattern,
     flags: rule.flags || "g"
+  };
+}
+
+function parseAllowPatternRule(nameOrRule, pattern = "") {
+  const rawNameOrRule = String(nameOrRule || "").trim();
+  const rawPattern = String(pattern || "").trim();
+  if (rawPattern) {
+    return {
+      name: normalizeAllowPatternName(rawNameOrRule),
+      pattern: rawPattern,
+      flags: "g"
+    };
+  }
+  const separator = rawNameOrRule.indexOf("=");
+  if (separator <= 0) {
+    throw new Error("privacy allow-pattern-local requires <name>=<regex> or <name> <regex>");
+  }
+  return {
+    name: normalizeAllowPatternName(rawNameOrRule.slice(0, separator)),
+    pattern: rawNameOrRule.slice(separator + 1).trim(),
+    flags: "g"
+  };
+}
+
+function normalizeAllowRuleInput(rule) {
+  if (typeof rule === "string") {
+    return {
+      name: "",
+      pattern: rule,
+      flags: "g"
+    };
+  }
+  return {
+    name: String(rule?.name || "").trim(),
+    pattern: String(rule?.pattern || "").trim(),
+    flags: String(rule?.flags || "g").trim() || "g"
+  };
+}
+
+function normalizeAllowPatternName(name) {
+  const normalized = String(name || "").trim().replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+  if (!normalized) {
+    throw new Error("privacy allow-pattern-local requires a rule name");
+  }
+  return normalized;
+}
+
+function validateAllowPattern(rule) {
+  if (!rule.pattern) {
+    throw new Error("privacy allow-pattern-local requires a regex pattern");
+  }
+  new RegExp(rule.pattern, normalizeFlags(rule.flags));
+}
+
+function createAllowPatternResult(path, rule, changed, totalAllowPatterns) {
+  return {
+    version: 1,
+    action: "allow-pattern-local",
+    changed,
+    path,
+    rule,
+    totalAllowPatterns
   };
 }
 

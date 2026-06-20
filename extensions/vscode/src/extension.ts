@@ -53,6 +53,12 @@ export function activate(context: vscode.ExtensionContext) {
   registerCliAction(context, output, cli, "agentSync.daemonStatus", "Daemon Status", ["daemon", "status"]);
   registerCliAction(context, output, cli, "agentSync.privacyScan", "Privacy Scan", ["privacy", "scan"]);
   registerCliAction(context, output, cli, "agentSync.privacyRedactDryRun", "Privacy Redaction Preview", ["privacy", "redact", "--dry-run"]);
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.privacyAllowPattern", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runPrivacyAllowPattern(cli, output, cwd);
+    });
+  }));
   registerCliAction(context, output, cli, "agentSync.conflictsList", "Conflicts", ["conflicts", "list"]);
   registerCliAction(context, output, cli, "agentSync.registerLocal", "Register Local Codex Clones", ["register-local"]);
   registerCliAction(context, output, cli, "agentSync.repairLocal", "Repair Local Codex Registration", ["repair-local"]);
@@ -182,6 +188,28 @@ async function runCliAction(cli: AgentSyncCli, output: vscode.OutputChannel, cwd
       output.show();
     }
   });
+}
+
+async function runPrivacyAllowPattern(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string) {
+  const value = await vscode.window.showInputBox({
+    title: "Agent Sync: Add Privacy Allow Pattern",
+    prompt: "Enter a reviewed false-positive allow rule as name=regex.",
+    placeHolder: "documented_example=sk-example-[a-z]+",
+    validateInput(input) {
+      const trimmed = input.trim();
+      if (!trimmed) {
+        return "Enter name=regex.";
+      }
+      if (!trimmed.includes("=")) {
+        return "Use name=regex so the policy entry is explainable.";
+      }
+      return null;
+    }
+  });
+  if (!value?.trim()) {
+    return;
+  }
+  await runCliAction(cli, output, cwd, "Add Privacy Allow Pattern", ["privacy", "allow-pattern-local", value.trim()]);
 }
 
 async function runToolCommand(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string, mode: "inspect" | "export-readable") {

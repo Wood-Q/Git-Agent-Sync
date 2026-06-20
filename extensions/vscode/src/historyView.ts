@@ -41,6 +41,8 @@ export class HistoryView {
           vscode.commands.executeCommand("agentSync.syncStatus");
         } else if (message?.command === "privacyScan") {
           vscode.commands.executeCommand("agentSync.privacyScan");
+        } else if (message?.command === "privacyAllowPattern") {
+          vscode.commands.executeCommand("agentSync.privacyAllowPattern");
         } else if (message?.command === "conflictsList") {
           vscode.commands.executeCommand("agentSync.conflictsList");
         } else if (message?.command === "toolInspect") {
@@ -320,6 +322,7 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     <button type="button" id="push" title="Push local sessions">Push</button>
     <button type="button" id="syncStatus" title="Show sync queue status">Sync</button>
     <button type="button" id="privacyScan" title="Scan sessions for secrets">Privacy</button>
+    <button type="button" id="privacyAllowPattern" title="Add a reviewed false-positive privacy allow pattern">Allow</button>
     <button type="button" id="conflictsList" title="List sidecar conflict quarantine records">Conflicts</button>
     <button type="button" id="toolInspect" title="Inspect selected bundle as Conversation IR">IR</button>
     <button type="button" id="localClone" title="Clone Codex sessions to current provider">Clone</button>
@@ -432,6 +435,9 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     });
     document.getElementById('privacyScan').addEventListener('click', () => {
       vscode.postMessage({ command: 'privacyScan' });
+    });
+    document.getElementById('privacyAllowPattern').addEventListener('click', () => {
+      vscode.postMessage({ command: 'privacyAllowPattern' });
     });
     document.getElementById('conflictsList').addEventListener('click', () => {
       vscode.postMessage({ command: 'conflictsList' });

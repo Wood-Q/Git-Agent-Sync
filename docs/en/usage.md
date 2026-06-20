@@ -15,7 +15,7 @@ VS Code extension:
 - Marketplace: [Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - Extension ID: `mokio.agent-sync-vscode`
 
-The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. The History view toolbar can pull, push, inspect sync status, run privacy scan, list sidecar conflicts, inspect Conversation IR, clone/register/clean local provider sessions, open the TUI, refresh, search or clear filters, show bundle details, and restore sessions for the current workspace; the Command Palette also exposes background sync, queue flush/retry/cancel, daemon status, register-local, repair-local, clean-local preview, privacy redaction preview, show bundle, and readable tool export.
+The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. The History view toolbar can pull, push, inspect sync status, run privacy scan, add privacy allow patterns, list sidecar conflicts, inspect Conversation IR, clone/register/clean local provider sessions, open the TUI, refresh, search or clear filters, show bundle details, and restore sessions for the current workspace; the Command Palette also exposes background sync, queue flush/retry/cancel, daemon status, register-local, repair-local, clean-local preview, privacy redaction preview, privacy allow pattern, show bundle, and readable tool export.
 
 For local development:
 
@@ -122,7 +122,7 @@ git agent-sync tui
 
 The TUI can run status, latest log, pull, push, restore by index, sync queue status/flush/retry/cancel, `clone-local`, `register-local`, `repair-local`, `clean-local` preview, local watch actions, and conflict list/show/resolve commands. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
 
-The terminal UI is built with React Ink. It groups actions into Dashboard, Sync Queue, Session History, Local Provider, Tool Convert, Privacy Review, Conflicts, and Settings views. Use arrow keys to move, Tab or the right arrow to switch views, `/` to search actions, `?` for help, and Enter to run the selected action. Each action shows its equivalent CLI command, and restore/push/conflict-resolution/hook actions ask for confirmation before running. Long-running provider watch hands off to the normal CLI command.
+The terminal UI is built with React Ink. It groups actions into Dashboard, Sync Queue, Session History, Local Provider, Tool Convert, Privacy Review, Conflicts, and Settings views. Use arrow keys to move, Tab or the right arrow to switch views, `/` to search actions, `?` for help, and Enter to run the selected action. Each action shows its equivalent CLI command, and restore/push/privacy allow-pattern-local/conflict-resolution/hook actions ask for confirmation before running. Long-running provider watch hands off to the normal CLI command.
 
 ## Conversation IR and Tool Export
 
@@ -181,13 +181,14 @@ Before pushing, Agent-Sync runs privacy review by default. If common API keys, t
 
 ```bash
 git agent-sync privacy scan
+git agent-sync privacy allow-pattern-local documented_example=sk-example-[a-z]+
 git agent-sync push --privacy redact
 git agent-sync push --privacy allow
 ```
 
 `--privacy redact` writes redacted session and object copies to the sidecar store; it does not rewrite your original local agent session files.
 
-Use `.agent-sync/privacy.json` to tune project policy. `denyPatterns` add extra secret rules; `allowPatterns` skip known safe examples or fixtures during both scan and redaction.
+Use `.agent-sync/privacy.json` to tune project policy. `denyPatterns` add extra secret rules; `allowPatterns` skip known safe examples or fixtures during both scan and redaction. `git agent-sync privacy allow-pattern-local <name>=<regex>` appends one reviewed local allow rule without hand-editing the JSON file.
 
 Remove the hook with:
 

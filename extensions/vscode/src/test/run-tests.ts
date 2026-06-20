@@ -69,6 +69,7 @@ async function main() {
   assert.match(buildCliCommandLine(["watch-local"]), /watch-local/);
   assert.match(buildCliCommandLine(["tui"]), /tui/);
   assert.match(buildCliCommandLine(["privacy", "scan"]), /privacy scan/);
+  assert.match(buildCliCommandLine(["privacy", "allow-pattern-local", "example=sk-example-[a-z]+"]), /privacy allow-pattern-local/);
   assert.match(buildCliCommandLine(["sync", "retry", "all"]), /sync retry all/);
   assert.match(buildCliCommandLine(["sync", "cancel", "all"]), /sync cancel all/);
   assert.match(buildCliCommandLine(["conflicts", "list"]), /conflicts list/);
@@ -92,6 +93,7 @@ async function main() {
   assert.match(html, /id="push"/);
   assert.match(html, /id="syncStatus"/);
   assert.match(html, /id="privacyScan"/);
+  assert.match(html, /id="privacyAllowPattern"/);
   assert.match(html, /id="conflictsList"/);
   assert.match(html, /id="toolInspect"/);
   assert.match(html, /id="search"/);
@@ -104,6 +106,7 @@ async function main() {
   assert.match(html, /command: 'push'/);
   assert.match(html, /command: 'syncStatus'/);
   assert.match(html, /command: 'privacyScan'/);
+  assert.match(html, /command: 'privacyAllowPattern'/);
   assert.match(html, /command: 'conflictsList'/);
   assert.match(html, /command: 'toolInspect'/);
   assert.match(html, /command: 'showBundle'/);

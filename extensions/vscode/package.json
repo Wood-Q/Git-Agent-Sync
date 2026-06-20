@@ -32,6 +32,7 @@
     "onCommand:agentSync.daemonStatus",
     "onCommand:agentSync.privacyScan",
     "onCommand:agentSync.privacyRedactDryRun",
+    "onCommand:agentSync.privacyAllowPattern",
     "onCommand:agentSync.conflictsList",
     "onCommand:agentSync.registerLocal",
     "onCommand:agentSync.repairLocal",
@@ -113,6 +114,11 @@
         "command": "agentSync.privacyRedactDryRun",
         "title": "Agent Sync: Preview Privacy Redaction",
         "icon": "$(eye)"
+      },
+      {
+        "command": "agentSync.privacyAllowPattern",
+        "title": "Agent Sync: Add Privacy Allow Pattern",
+        "icon": "$(shield)"
       },
       {
         "command": "agentSync.conflictsList",

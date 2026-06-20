@@ -129,6 +129,7 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync sync cancel [id\|all]` | Cancel matching pending sync jobs without touching running jobs |
 | `git agent-sync daemon <start\|status\|stop>` | Manage the local background sync worker |
 | `git agent-sync privacy scan` | Scan current-project sessions for common secrets |
+| `git agent-sync privacy allow-pattern-local <name>=<regex>` | Add a reviewed false-positive regex to the local privacy allowlist |
 | `git agent-sync push --privacy redact` | Write redacted sidecar copies when secrets are found |
 | `git agent-sync conflicts list` | List active sidecar conflict quarantine records |
 | `git agent-sync conflicts show <id\|index>` | Inspect a quarantined sidecar conflict |
@@ -175,6 +176,6 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 
 ## Security Note
 
-This MVP copies project conversation files. `push` defaults to `--privacy review`, which blocks when common secrets are detected; use `git agent-sync privacy scan` to inspect findings or `git agent-sync push --privacy redact` to write redacted sidecar copies. Project-level `.agent-sync/privacy.json` can add `denyPatterns` or skip known safe fixtures with `allowPatterns`. Conversation files may still include code snippets, local paths, prompts, and terminal output. Agent-Sync does not copy Claude account, token, global config, cache, telemetry, plugin, skill, IDE lock, or runtime session files.
+This MVP copies project conversation files. `push` defaults to `--privacy review`, which blocks when common secrets are detected; use `git agent-sync privacy scan` to inspect findings, `git agent-sync privacy allow-pattern-local <name>=<regex>` for reviewed false positives, or `git agent-sync push --privacy redact` to write redacted sidecar copies. Project-level `.agent-sync/privacy.json` can add `denyPatterns` or skip known safe fixtures with `allowPatterns`. Conversation files may still include code snippets, local paths, prompts, and terminal output. Agent-Sync does not copy Claude account, token, global config, cache, telemetry, plugin, skill, IDE lock, or runtime session files.
 
 Use a private remote for the sidecar session store. A production version should add default encryption and secret redaction before remote push.

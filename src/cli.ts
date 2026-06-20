@@ -53,6 +53,7 @@ import {
 } from "./daemon.js";
 import { rebuildEventIndexes, writeEventStoreSnapshot } from "./event-store.js";
 import {
+  addPrivacyAllowPattern,
   applyPrivacyRedactionsToStore,
   assertPrivacyAllowsPush,
   createPrivacyReport,
@@ -157,7 +158,7 @@ Usage:
   git agent-sync pull
   git agent-sync sync [status|retry [id|all]|cancel [id|all]|--background|--flush] [--json]
   git agent-sync daemon <start|status|stop> [--once] [--interval <seconds>] [--json]
-  git agent-sync privacy <scan|redact> [--dry-run] [--json]
+  git agent-sync privacy <scan|redact|allow-pattern-local> [--dry-run] [--json]
   git agent-sync tool <inspect|convert|export> --session <bundle-id> [--to ir|codex|claude] [--json]
   git agent-sync conflicts <list|show|resolve> [id|index] [--strategy keep-all|keep-latest|keep-local|keep-remote] [--all] [--json]
   git agent-sync scan [--json]
@@ -263,8 +264,10 @@ Starts, inspects, or stops the local Agent-Sync background worker.`,
     privacy: `Usage:
   git agent-sync privacy scan [--json]
   git agent-sync privacy redact [--dry-run] [--json]
+  git agent-sync privacy allow-pattern-local <name>=<regex> [--json]
+  git agent-sync privacy allow-pattern-local <name> <regex> [--json]
 
-Scans current-project agent sessions with the local redaction policy.`,
+Scans current-project agent sessions or updates the local privacy allowlist.`,
     tool: `Usage:
   git agent-sync tool inspect --session <bundle-id> [--json]
   git agent-sync tool convert --session <bundle-id> [--to ir] [--json]
@@ -403,8 +406,13 @@ function scanCommand(gitRoot, options) {
 
 function privacyCommand(gitRoot, args, options) {
   const action = args[0] || "scan";
-  if (!["scan", "redact"].includes(action)) {
+  if (!["scan", "redact", "allow-pattern-local"].includes(action)) {
     throw new Error(`unknown privacy action "${action}". Run "git agent-sync privacy --help".`);
+  }
+  if (action === "allow-pattern-local") {
+    const result = addPrivacyAllowPattern(gitRoot, args[1], args[2]);
+    printPrivacyAllowPatternResult(result, options);
+    return;
   }
   const config = readConfigWithBundle(gitRoot);
   const scan = scanSessions(gitRoot, config);
@@ -1271,6 +1279,17 @@ function printPrivacyReport(report, options: Record<string, any> = {}) {
   if (report.findings.length > 50) {
     console.log(`... ${report.findings.length - 50} more finding(s)`);
   }
+}
+
+function printPrivacyAllowPatternResult(result, options: Record<string, any> = {}) {
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  const status = result.changed ? "added" : "already exists";
+  console.log(`privacy: ${status} allow pattern ${result.rule.name}`);
+  console.log(`pattern: ${result.rule.pattern}`);
+  console.log(`policy:  ${result.path}`);
 }
 
 function printConflictList(conflicts, options: Record<string, any> = {}) {

@@ -25,6 +25,7 @@ assert.match(menu, /Clone Codex sessions to current provider/);
 assert.match(menu, /Register local provider clones/);
 assert.match(menu, /Preview local clone cleanup/);
 assert.match(menu, /Watch Codex provider changes/);
+assert.match(menu, /Add privacy allow pattern/);
 assert.match(menu, /Tool Convert/);
 assert.match(menu, /Privacy Review/);
 assert.match(menu, /Conflicts/);
@@ -42,6 +43,8 @@ assert.equal(resolveTuiChoice("R").confirm.includes("redacted"), true);
 assert.deepEqual(resolveTuiChoice("u").args, ["sync", "retry"]);
 assert.deepEqual(resolveTuiChoice("K").args, ["sync", "cancel"]);
 assert.equal(resolveTuiChoice("K").confirm.includes("Cancel"), true);
+assert.deepEqual(resolveTuiChoice("P", "privacy").args, ["privacy", "allow-pattern-local"]);
+assert.equal(resolveTuiChoice("P", "privacy").confirm.includes("allow pattern"), true);
 assert.deepEqual(resolveTuiChoice("6").args, ["clone-local"]);
 assert.deepEqual(resolveTuiChoice("n").args, ["register-local"]);
 assert.deepEqual(resolveTuiChoice("z").args, ["clean-local"]);
@@ -55,7 +58,7 @@ assert.equal(resolveTuiChoice("q").exits, true);
 assert.equal(resolveTuiChoice("missing"), null);
 
 const commands = [];
-const answers = ["1", "", "u", "all", "", "K", "all", "y", "", "5", "3", "y", "", "i", "bundle-1", "", "q"];
+const answers = ["1", "", "u", "all", "", "K", "all", "y", "", "P", "example=sk-example-[a-z]+", "y", "", "5", "3", "y", "", "i", "bundle-1", "", "q"];
 const io = {
   async question() {
     return answers.shift() || "";
@@ -75,6 +78,7 @@ assert.deepEqual(commands, [
   { args: ["status"], cwd: "/tmp/project" },
   { args: ["sync", "retry", "all"], cwd: "/tmp/project" },
   { args: ["sync", "cancel", "all"], cwd: "/tmp/project" },
+  { args: ["privacy", "allow-pattern-local", "example=sk-example-[a-z]+"], cwd: "/tmp/project" },
   { args: ["restore", "--index", "3"], cwd: "/tmp/project" },
   { args: ["tool", "inspect", "--session", "bundle-1"], cwd: "/tmp/project" }
 ]);

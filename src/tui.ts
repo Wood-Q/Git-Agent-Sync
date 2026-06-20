@@ -169,6 +169,19 @@ const MENU_CHOICES: TuiChoice[] = [
   },
   { key: "p", view: "privacy", badge: "SCAN", label: "Privacy scan", description: "Find common tokens, private keys, and secret assignments.", args: ["privacy", "scan"] },
   { key: "y", view: "privacy", badge: "DRY", label: "Preview redaction", description: "Show what redaction would change without writing files.", args: ["privacy", "redact", "--dry-run"] },
+  {
+    key: "P",
+    view: "privacy",
+    badge: "ALLOW",
+    label: "Add privacy allow pattern",
+    description: "Record a reviewed false-positive regex in .agent-sync/privacy.json.",
+    args: ["privacy", "allow-pattern-local"],
+    prompt: {
+      label: "Name=regex",
+      placeholder: "documented_example=sk-example-[a-z]+"
+    },
+    confirm: "Add this privacy allow pattern to the local policy?"
+  },
   { key: "R", view: "privacy", badge: "REDACT", label: "Push with redaction", description: "Write redacted sidecar copies and push.", args: ["push", "--privacy", "redact"], confirm: "Write redacted sidecar copies and push them?" },
   { key: "A", view: "privacy", badge: "ALLOW", label: "Push with explicit allow", description: "Bypass privacy blocking for this push.", args: ["push", "--privacy", "allow"], confirm: "Bypass privacy blocking and push without redaction?" },
   { key: "g", view: "conflicts", badge: "LIST", label: "List active conflicts", description: "Show quarantined session object conflicts.", args: ["conflicts", "list"] },
