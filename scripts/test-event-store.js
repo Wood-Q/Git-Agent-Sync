@@ -108,6 +108,43 @@ assert.equal(second.objectsWritten, 0);
 assert.equal(second.objectsReused, 1);
 assert.equal(readSessionEvents(config).length, 2);
 
+const forkContent = [
+  JSON.stringify({
+    type: "session_meta",
+    payload: {
+      id: "session-current",
+      cwd: projectRoot,
+      model_provider: "openrouter"
+    }
+  }),
+  JSON.stringify({ type: "turn_context", payload: { cwd: projectRoot } }),
+  JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content: "forked" } })
+].join("\n") + "\n";
+const forkPath = join(base, "codex-session-fork.jsonl");
+writeFileSync(forkPath, forkContent);
+const forkMatch = {
+  ...match,
+  bundleId: "codex-fork-1234567890",
+  originalPath: forkPath,
+  storeRelativePath: "projects/Project-1234567890/codex/codex-fork-1234567890.jsonl",
+  sha256: sha256(forkContent)
+};
+const fork = writeEventStoreSnapshot(config, [forkMatch], gitContext, "2026-06-20T10:32:00.000Z:abcdef1234567890", {
+  message: "sync forked project session"
+});
+assert.equal(fork.objectsWritten, 1);
+assert.equal(fork.indexes.conflicts, 1);
+assert.equal(fork.indexes.conflictPaths.length, 1);
+assert.equal(existsSync(join(storePath, "objects", "codex", "sha256", `${sha256(forkContent)}.jsonl`)), true);
+const conflict = JSON.parse(readFileSync(join(storePath, fork.indexes.conflictPaths[0]), "utf8"));
+assert.equal(conflict.type, "session-object-conflict");
+assert.equal(conflict.agent, "codex");
+assert.equal(conflict.sessionId, "session-current");
+assert.deepEqual(conflict.objectHashes.sort(), [sha256(content), sha256(forkContent)].sort());
+const conflictManifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+assert.equal(conflictManifest.conflicts, 1);
+assert.deepEqual(conflictManifest.conflictPaths, fork.indexes.conflictPaths);
+
 console.log("event store test passed");
 
 function sha256(value) {

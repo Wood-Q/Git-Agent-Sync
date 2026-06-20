@@ -71,6 +71,8 @@ export function rebuildEventIndexes(config) {
   const events = readSessionEvents(config).filter((event) => eventMatchesProject(config, event));
   const bindings = events.map((event) => eventToBinding(config, event));
   const matches = latestMatchesFromEvents(events);
+  const conflicts = detectEventConflicts(events);
+  const conflictPaths = writeEventConflicts(config, conflicts);
   const rebuiltAt = new Date().toISOString();
 
   const manifest = {
@@ -83,6 +85,8 @@ export function rebuildEventIndexes(config) {
     projectIdentity: config.projectIdentity,
     projectName: config.projectName,
     events: events.length,
+    conflicts: conflicts.length,
+    conflictPaths,
     dependencies: aggregateDependencies(matches),
     matches
   };
@@ -102,8 +106,10 @@ export function rebuildEventIndexes(config) {
   return {
     events: events.length,
     matches: matches.length,
+    conflicts: conflicts.length,
     manifestPath: toSlash(relative(config.storePath, manifestPath)),
-    bindingsIndexPath: toSlash(relative(config.storePath, bindingsIndexPath))
+    bindingsIndexPath: toSlash(relative(config.storePath, bindingsIndexPath)),
+    conflictPaths
   };
 }
 
@@ -251,6 +257,63 @@ function latestMatchesFromEvents(events) {
   return [...byBundle.values()].sort((a, b) => {
     return String(a.agent || "").localeCompare(String(b.agent || "")) ||
       String(a.bundleId || "").localeCompare(String(b.bundleId || ""));
+  });
+}
+
+function detectEventConflicts(events) {
+  const bySession = new Map();
+  for (const event of events) {
+    const agent = event.session?.agent || "";
+    const sessionId = event.session?.sessionId || event.session?.bundleId || "";
+    const objectHash = event.object?.sha256 || "";
+    if (!agent || !sessionId || !objectHash) {
+      continue;
+    }
+    const key = `${agent}:${sessionId}`;
+    const group = bySession.get(key) || {
+      id: sha256(key).slice(0, 16),
+      agent,
+      sessionId,
+      events: [],
+      hashes: new Set(),
+      bundleIds: new Set()
+    };
+    group.events.push(event);
+    group.hashes.add(objectHash);
+    if (event.session?.bundleId) {
+      group.bundleIds.add(event.session.bundleId);
+    }
+    bySession.set(key, group);
+  }
+  return [...bySession.values()]
+    .filter((group) => group.hashes.size > 1)
+    .map((group) => ({
+      version: EVENT_INDEX_VERSION,
+      id: group.id,
+      type: "session-object-conflict",
+      agent: group.agent,
+      sessionId: group.sessionId,
+      bundleIds: [...group.bundleIds].sort(),
+      objectHashes: [...group.hashes].sort(),
+      events: group.events.map((event) => ({
+        syncRunId: event.syncRunId,
+        machineId: event.machineId,
+        syncedAt: event.syncedAt,
+        bundleId: event.session?.bundleId || null,
+        objectHash: event.object?.sha256 || null,
+        objectRelativePath: event.object?.relativePath || null,
+        projectCommit: event.git?.commit || null,
+        projectBranch: event.git?.branch || null
+      }))
+    }));
+}
+
+function writeEventConflicts(config, conflicts) {
+  return conflicts.map((conflict) => {
+    const fileName = `${sanitizePathPart(conflict.agent)}-${sanitizePathPart(conflict.sessionId)}-${conflict.id}.json`;
+    const path = join(config.storePath, "conflicts", config.projectId, fileName);
+    writeJson(path, conflict);
+    return toSlash(relative(config.storePath, path));
   });
 }
 

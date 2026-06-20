@@ -111,6 +111,9 @@ Both directories are added to the project `.gitignore`.
   events/
     <machine-id>/
       <sync-run-id>.jsonl
+  conflicts/
+    <project-id>/
+      <agent>-<session-id>-<conflict-id>.json
   projects/
     <project-id>/
       manifest.json
@@ -124,7 +127,7 @@ Both directories are added to the project `.gitignore`.
         claude-<hash>.jsonl
 ```
 
-`projects/<project-id>/manifest.json`, `bindings.jsonl`, and `bindings.idx.json` remain the compatibility read path for today's `log` and `restore` commands. The new `objects/` tree stores immutable content-addressed session copies, `events/` writes append-only event shards per machine and sync run, and `manifest.events.json` plus `bindings.events.idx.json` are rebuilt from those events. That lets later multi-device sync merge objects and events first, then move the primary query path to rebuildable indexes.
+`projects/<project-id>/manifest.json`, `bindings.jsonl`, and `bindings.idx.json` remain the compatibility read path for today's `log` and `restore` commands. The new `objects/` tree stores immutable content-addressed session copies, `events/` writes append-only event shards per machine and sync run, and `manifest.events.json` plus `bindings.events.idx.json` are rebuilt from those events. If replay sees the same agent/session id pointing at multiple object hashes, it writes a review record under `conflicts/<project-id>/` instead of overwriting either object. That lets later multi-device sync merge objects and events first, then move the primary query path to rebuildable indexes.
 
 When a sidecar remote is configured, `pull` uses sparse checkout so the local `.agent-sync-store/` expands objects, events, this project's full session bundle, and lightweight `manifest.json` files for other projects. The sidecar remote is also kept as a Git promisor remote with a `blob:none` filter, so commits can safely reference non-current project blobs that remain on the remote instead of being expanded locally.
 
