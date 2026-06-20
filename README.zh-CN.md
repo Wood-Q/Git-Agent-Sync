@@ -135,7 +135,8 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 | `git agent-sync push --privacy redact` | 命中密钥时写入脱敏后的 sidecar 副本 |
 | `git agent-sync conflicts list` | 列出 active 的 sidecar 冲突隔离记录 |
 | `git agent-sync conflicts show <id\|index>` | 查看某条隔离冲突的对象和事件详情 |
-| `git agent-sync conflicts resolve <id\|index> --strategy keep-all` | 在不删除任一对象的前提下标记冲突已解决 |
+| `git agent-sync conflicts diff <id\|index>` | 对比隔离对象摘要，不打印原始会话内容 |
+| `git agent-sync conflicts resolve <id\|index> --strategy keep-all\|keep-latest\|keep-local\|keep-remote` | 在不删除任一对象的前提下标记冲突已解决 |
 | `git agent-sync tool inspect --session <bundle-id>` | 用 Conversation IR 汇总一个 sidecar bundle |
 | `git agent-sync tool convert --session <bundle-id> --to ir` | 把 Codex 或 Claude bundle 转成 Agent-Sync Conversation IR |
 | `git agent-sync tool export --session <bundle-id> --to <codex\|claude> --mode readable` | 从 IR 导出可阅读的跨工具 JSONL |

@@ -9,6 +9,8 @@ import {
 } from "./agentSyncCli";
 import { HistoryView } from "./historyView";
 
+const CONFLICT_RESOLUTION_STRATEGIES = ["keep-all", "keep-latest", "keep-local", "keep-remote"];
+
 export function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel("Agent Sync");
   const cli = new AgentSyncCli(output);
@@ -60,6 +62,18 @@ export function activate(context: vscode.ExtensionContext) {
     });
   }));
   registerCliAction(context, output, cli, "agentSync.conflictsList", "Conflicts", ["conflicts", "list"]);
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.conflictsDiff", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runConflictDiff(cli, output, cwd);
+    });
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.conflictsResolve", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runConflictResolve(cli, output, cwd);
+    });
+  }));
   registerCliAction(context, output, cli, "agentSync.registerLocal", "Register Local Codex Clones", ["register-local"]);
   registerCliAction(context, output, cli, "agentSync.repairLocal", "Repair Local Codex Registration", ["repair-local"]);
   registerCliAction(context, output, cli, "agentSync.cleanLocal", "Preview Local Clone Cleanup", ["clean-local"]);
@@ -210,6 +224,41 @@ async function runPrivacyAllowPattern(cli: AgentSyncCli, output: vscode.OutputCh
     return;
   }
   await runCliAction(cli, output, cwd, "Add Privacy Allow Pattern", ["privacy", "allow-pattern-local", value.trim()]);
+}
+
+async function runConflictDiff(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string) {
+  const selector = await pickConflictSelector("Conflict id or list index to diff");
+  if (!selector) {
+    return;
+  }
+  await runCliAction(cli, output, cwd, "Conflict Diff Summary", ["conflicts", "diff", selector]);
+}
+
+async function runConflictResolve(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string) {
+  const selector = await pickConflictSelector("Conflict id or list index to resolve");
+  if (!selector) {
+    return;
+  }
+  const strategy = await vscode.window.showQuickPick(CONFLICT_RESOLUTION_STRATEGIES, {
+    title: "Agent Sync: Conflict Resolution Strategy",
+    placeHolder: "Choose how to mark this quarantined conflict"
+  });
+  if (!strategy) {
+    return;
+  }
+  await runCliAction(cli, output, cwd, "Resolve Conflict", ["conflicts", "resolve", selector, "--strategy", strategy]);
+}
+
+async function pickConflictSelector(prompt: string) {
+  const value = await vscode.window.showInputBox({
+    title: "Agent Sync: Conflict Selector",
+    prompt,
+    placeHolder: "1 or codex-session-id-prefix",
+    validateInput(input) {
+      return input.trim() ? null : "Enter a conflict id or list index.";
+    }
+  });
+  return value?.trim() || "";
 }
 
 async function runToolCommand(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string, mode: "inspect" | "export-readable") {

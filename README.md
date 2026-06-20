@@ -133,7 +133,8 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync push --privacy redact` | Write redacted sidecar copies when secrets are found |
 | `git agent-sync conflicts list` | List active sidecar conflict quarantine records |
 | `git agent-sync conflicts show <id\|index>` | Inspect a quarantined sidecar conflict |
-| `git agent-sync conflicts resolve <id\|index> --strategy keep-all` | Mark a conflict resolved without deleting either object |
+| `git agent-sync conflicts diff <id\|index>` | Compare quarantined object summaries without printing raw session content |
+| `git agent-sync conflicts resolve <id\|index> --strategy keep-all\|keep-latest\|keep-local\|keep-remote` | Mark a conflict resolved without deleting either object |
 | `git agent-sync tool inspect --session <bundle-id>` | Summarize a sidecar bundle as Conversation IR |
 | `git agent-sync tool convert --session <bundle-id> --to ir` | Convert a Codex or Claude bundle to Agent-Sync Conversation IR |
 | `git agent-sync tool export --session <bundle-id> --to <codex\|claude> --mode readable` | Export readable cross-tool JSONL from the IR |

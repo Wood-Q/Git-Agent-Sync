@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { readJson, toSlash, walk, writeJson } from "./utils.js";
 
@@ -33,6 +33,16 @@ export function listConflicts(config, options: Record<string, any> = {}) {
 
 export function showConflict(config, selector, options: Record<string, any> = {}) {
   return resolveConflictSelector(config, selector, options);
+}
+
+export function diffConflict(config, selector, options: Record<string, any> = {}) {
+  const conflict = resolveConflictSelector(config, selector, options);
+  const objects = conflict.objectHashes.map((hash) => readConflictObject(config, conflict, hash));
+  return {
+    ...conflict,
+    objects: objects.map(stripConflictObjectContent),
+    comparisons: compareConflictObjects(objects)
+  };
 }
 
 export function resolveConflict(config, selector, options: Record<string, any> = {}) {
@@ -133,6 +143,86 @@ function readConflictRecord(config, path, value: Record<string, any> | null = nu
     path,
     raw
   };
+}
+
+function readConflictObject(config, conflict, hash) {
+  const event = conflict.events.find((candidate) => candidate.objectHash === hash && candidate.objectRelativePath);
+  const relativePath = event?.objectRelativePath || toSlash(join("objects", conflict.agent, "sha256", `${hash}.jsonl`));
+  const path = join(config.storePath, relativePath);
+  if (!existsSync(path)) {
+    return {
+      hash,
+      relativePath,
+      exists: false,
+      bytes: 0,
+      lines: 0
+    };
+  }
+  const content = readFileSync(path, "utf8");
+  return {
+    hash,
+    relativePath,
+    exists: true,
+    bytes: Buffer.byteLength(content),
+    lines: splitLines(content).length,
+    content
+  };
+}
+
+function compareConflictObjects(objects) {
+  const comparisons = [];
+  for (let leftIndex = 0; leftIndex < objects.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < objects.length; rightIndex += 1) {
+      comparisons.push(compareConflictObjectPair(objects[leftIndex], objects[rightIndex]));
+    }
+  }
+  return comparisons;
+}
+
+function stripConflictObjectContent(object) {
+  const { content, ...summary } = object;
+  return summary;
+}
+
+function compareConflictObjectPair(left, right) {
+  if (!left.exists || !right.exists) {
+    return {
+      left: left.hash,
+      right: right.hash,
+      comparable: false,
+      firstDifferentLine: null,
+      lineDelta: right.lines - left.lines,
+      byteDelta: right.bytes - left.bytes
+    };
+  }
+  const leftLines = splitLines(left.content);
+  const rightLines = splitLines(right.content);
+  return {
+    left: left.hash,
+    right: right.hash,
+    comparable: true,
+    firstDifferentLine: firstDifferentLine(leftLines, rightLines),
+    lineDelta: rightLines.length - leftLines.length,
+    byteDelta: right.bytes - left.bytes
+  };
+}
+
+function firstDifferentLine(leftLines, rightLines) {
+  const limit = Math.max(leftLines.length, rightLines.length);
+  for (let index = 0; index < limit; index += 1) {
+    if (leftLines[index] !== rightLines[index]) {
+      return index + 1;
+    }
+  }
+  return null;
+}
+
+function splitLines(content) {
+  const normalized = content.endsWith("\n") ? content.slice(0, -1) : content;
+  if (!normalized) {
+    return [];
+  }
+  return normalized.split(/\r?\n/);
 }
 
 function sortConflicts(left, right) {

@@ -45,6 +45,10 @@ export class HistoryView {
           vscode.commands.executeCommand("agentSync.privacyAllowPattern");
         } else if (message?.command === "conflictsList") {
           vscode.commands.executeCommand("agentSync.conflictsList");
+        } else if (message?.command === "conflictsDiff") {
+          vscode.commands.executeCommand("agentSync.conflictsDiff");
+        } else if (message?.command === "conflictsResolve") {
+          vscode.commands.executeCommand("agentSync.conflictsResolve");
         } else if (message?.command === "toolInspect") {
           vscode.commands.executeCommand("agentSync.toolInspect");
         } else if (message?.command === "showBundle" && typeof message.bundleId === "string") {
@@ -324,6 +328,8 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     <button type="button" id="privacyScan" title="Scan sessions for secrets">Privacy</button>
     <button type="button" id="privacyAllowPattern" title="Add a reviewed false-positive privacy allow pattern">Allow</button>
     <button type="button" id="conflictsList" title="List sidecar conflict quarantine records">Conflicts</button>
+    <button type="button" id="conflictsDiff" title="Show a sidecar conflict diff summary">Diff</button>
+    <button type="button" id="conflictsResolve" title="Resolve a sidecar conflict with a chosen strategy">Resolve</button>
     <button type="button" id="toolInspect" title="Inspect selected bundle as Conversation IR">IR</button>
     <button type="button" id="localClone" title="Clone Codex sessions to current provider">Clone</button>
     <button type="button" id="registerLocal" title="Register local Codex provider clones">Register</button>
@@ -441,6 +447,12 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     });
     document.getElementById('conflictsList').addEventListener('click', () => {
       vscode.postMessage({ command: 'conflictsList' });
+    });
+    document.getElementById('conflictsDiff').addEventListener('click', () => {
+      vscode.postMessage({ command: 'conflictsDiff' });
+    });
+    document.getElementById('conflictsResolve').addEventListener('click', () => {
+      vscode.postMessage({ command: 'conflictsResolve' });
     });
     document.getElementById('toolInspect').addEventListener('click', () => {
       vscode.postMessage({ command: 'toolInspect' });

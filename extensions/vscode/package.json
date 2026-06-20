@@ -34,6 +34,8 @@
     "onCommand:agentSync.privacyRedactDryRun",
     "onCommand:agentSync.privacyAllowPattern",
     "onCommand:agentSync.conflictsList",
+    "onCommand:agentSync.conflictsDiff",
+    "onCommand:agentSync.conflictsResolve",
     "onCommand:agentSync.registerLocal",
     "onCommand:agentSync.repairLocal",
     "onCommand:agentSync.cleanLocal",
@@ -124,6 +126,16 @@
         "command": "agentSync.conflictsList",
         "title": "Agent Sync: List Conflicts",
         "icon": "$(warning)"
+      },
+      {
+        "command": "agentSync.conflictsDiff",
+        "title": "Agent Sync: Show Conflict Diff Summary",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "agentSync.conflictsResolve",
+        "title": "Agent Sync: Resolve Conflict",
+        "icon": "$(check)"
       },
       {
         "command": "agentSync.registerLocal",

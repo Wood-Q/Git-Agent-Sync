@@ -84,6 +84,7 @@ import { getCodexArchiveInfo, isArchivedCodexSessionPath, summarizeCodexArchiveI
 import { convertSessionToIr, exportIrReadable } from "./conversation-ir.js";
 import {
   CONFLICT_RESOLUTION_STRATEGIES,
+  diffConflict,
   listConflicts,
   resolveConflict,
   showConflict
@@ -160,7 +161,7 @@ Usage:
   git agent-sync daemon <start|status|stop> [--once] [--interval <seconds>] [--json]
   git agent-sync privacy <scan|redact|allow-pattern-local> [--dry-run] [--json]
   git agent-sync tool <inspect|convert|export> --session <bundle-id> [--to ir|codex|claude] [--json]
-  git agent-sync conflicts <list|show|resolve> [id|index] [--strategy keep-all|keep-latest|keep-local|keep-remote] [--all] [--json]
+  git agent-sync conflicts <list|show|diff|resolve> [id|index] [--strategy keep-all|keep-latest|keep-local|keep-remote] [--all] [--json]
   git agent-sync scan [--json]
   git agent-sync clone-local [target-provider] [--dry-run] [--no-register] [--json]
   git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
@@ -277,6 +278,7 @@ Converts a sidecar bundle into Agent-Sync Conversation IR or readable cross-tool
     conflicts: `Usage:
   git agent-sync conflicts list [--all] [--json]
   git agent-sync conflicts show <id|index> [--all] [--json]
+  git agent-sync conflicts diff <id|index> [--all] [--json]
   git agent-sync conflicts resolve <id|index> [--strategy keep-all|keep-latest|keep-local|keep-remote] [--notes <text>] [--dry-run] [--json]
 
 Reviews sidecar conflict quarantine records without deleting any session objects.
@@ -476,7 +478,7 @@ function toolCommand(gitRoot, args, options) {
 
 function conflictsCommand(gitRoot, args, options) {
   const action = args[0] || "list";
-  if (!["list", "show", "resolve"].includes(action)) {
+  if (!["list", "show", "diff", "resolve"].includes(action)) {
     throw new Error(`unknown conflicts action "${action}". Run "git agent-sync conflicts --help".`);
   }
   const config = readConfigWithBundle(gitRoot);
@@ -498,6 +500,16 @@ function conflictsCommand(gitRoot, args, options) {
       return;
     }
     printConflictDetail(conflict);
+    return;
+  }
+
+  if (action === "diff") {
+    const conflict = diffConflict(config, args[1], { all: options.all });
+    if (options.json) {
+      console.log(JSON.stringify(conflict, null, 2));
+      return;
+    }
+    printConflictDiff(conflict);
     return;
   }
 
@@ -1330,6 +1342,21 @@ function printConflictDetail(conflict) {
     console.log(`resolve:  git agent-sync conflicts resolve ${conflict.id} --strategy keep-all`);
     console.log(`strategies: ${CONFLICT_RESOLUTION_STRATEGIES.join(", ")}`);
   }
+}
+
+function printConflictDiff(conflict) {
+  console.log(`id:      ${conflict.id}`);
+  console.log(`agent:   ${conflict.agent}`);
+  console.log(`session: ${conflict.sessionId}`);
+  console.log(`objects: ${conflict.objects.length}`);
+  for (const object of conflict.objects) {
+    console.log(`  - ${object.hash} ${object.exists ? `${object.lines} line(s), ${object.bytes} byte(s)` : "missing"} ${object.relativePath}`);
+  }
+  for (const comparison of conflict.comparisons) {
+    const line = comparison.firstDifferentLine ? `line ${comparison.firstDifferentLine}` : "no line delta";
+    console.log(`diff:    ${comparison.left} <> ${comparison.right}: ${comparison.comparable ? line : "not comparable"}, lineDelta=${comparison.lineDelta}, byteDelta=${comparison.byteDelta}`);
+  }
+  console.log("note:    raw session content is not printed; run conflicts show for object paths if manual inspection is needed.");
 }
 
 function limitBindings(bindings, options) {

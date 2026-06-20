@@ -24,9 +24,9 @@ Agent-Sync 的长期目标是成为 agent conversation processing platform：
 - **恢复适配**：恢复时会把源机器的路径映射到当前机器的 Codex / Claude 目录，并给恢复文件写入 `agentSyncAdapted` 标记。
 - **Codex UI 注册**：恢复 Codex 会话时会写入本机 `state_5.sqlite` 和 `session_index.jsonl`，让 Codex 插件 / App 能看到恢复后的会话。
 - **本机 provider 同步**：`clone-local` 会把当前项目的 Codex 会话克隆到指定或当前 `model_provider`；`watch-local` 会监听 provider 变化后触发克隆；`register-local` / `repair-local` 会把 Agent-Sync 本机 provider 克隆注册进 Codex UI 索引；`clean-local` 会预览或删除当前项目由 Agent-Sync 生成的 provider clone。
-- **冲突隔离与 review**：事件重放发现同一 agent session id 对应多个对象 hash 时，会写入 `conflicts/` 隔离记录；`conflicts list/show/resolve` 可以查看并用非破坏性的元数据标记解决。
+- **冲突隔离与 review**：事件重放发现同一 agent session id 对应多个对象 hash 时，会写入 `conflicts/` 隔离记录；`conflicts list/show/diff/resolve` 可以查看、安全对比摘要，并用非破坏性的元数据标记解决。
 - **TUI 入口**：`git agent-sync tui` 提供交互式终端菜单，降低常用操作的记忆成本。
-- **VS Code 入口**：扩展可以调用 CLI 执行 push、pull、restore、show bundle、sync status/background/flush、privacy scan/redact dry-run/allow-pattern-local、conflicts list、Conversation IR inspect/export、打开 TUI、触发本机 provider clone/register/watch/repair/clean。
+- **VS Code 入口**：扩展可以调用 CLI 执行 push、pull、restore、show bundle、sync status/background/flush、privacy scan/redact dry-run/allow-pattern-local、conflicts list/diff/resolve、Conversation IR inspect/export、打开 TUI、触发本机 provider clone/register/watch/repair/clean。
 
 当前最大的边界也很明确：
 
@@ -471,6 +471,7 @@ git agent-sync privacy redact
 git agent-sync privacy allow-pattern-local
 git agent-sync conflicts list
 git agent-sync conflicts show
+git agent-sync conflicts diff
 git agent-sync conflicts resolve
 git agent-sync clone-local
 git agent-sync watch-local
@@ -495,14 +496,14 @@ git agent-sync import-local
 - `clone-local` / `watch-local` / `register-local` / `repair-local` / `clean-local`：只改本机 Codex / Claude 会话目录或本机索引。
 - `tool convert` / `tool export`：跨 agent 格式处理。
 - `privacy scan` / `privacy redact` / `privacy allow-pattern-local`：隐私检查、脱敏与本地 allowlist 更新。
-- `conflicts list` / `conflicts show` / `conflicts resolve`：sidecar 冲突隔离区 review 和非破坏性解决标记。
+- `conflicts list` / `conflicts show` / `conflicts diff` / `conflicts resolve`：sidecar 冲突隔离区 review、安全 diff 摘要和非破坏性解决标记。
 - `daemon`：后台队列和异步 Git 操作。
 
 ## 8. TUI 方案
 
 TUI 适合使用 React Ink。目标不是把 CLI 命令包一层菜单，而是提供“可视化选择 + 风险确认 + 批量操作”。
 
-当前实现已经把 `git agent-sync tui` 切换为 React Ink 操作台：左侧是视图导航，右侧是动作列表，底部显示运行状态、prompt 和命令输出摘要；动作行显示等价 CLI，支持 `/` 搜索和 `?` 帮助，restore / push / privacy allow-pattern-local / conflict resolve / hook 这类高风险动作会二次确认；非 TTY 环境会输出同一套动作和命令的文本菜单，方便测试和脚本环境查看。Local Provider 视图已接入 `clone-local`、`register-local`、`repair-local`、`clean-local` 预览和 `watch-local`；Privacy Review 视图已接入 scan、redact dry-run、push redact、explicit allow 和 allow-pattern-local；Conflicts 视图已接入 `conflicts list/show/resolve --strategy keep-all`，作为后续 richer diff/review UI 的 CLI 一致入口。
+当前实现已经把 `git agent-sync tui` 切换为 React Ink 操作台：左侧是视图导航，右侧是动作列表，底部显示运行状态、prompt 和命令输出摘要；动作行显示等价 CLI，支持 `/` 搜索和 `?` 帮助，restore / push / privacy allow-pattern-local / conflict resolve / hook 这类高风险动作会二次确认；非 TTY 环境会输出同一套动作和命令的文本菜单，方便测试和脚本环境查看。Local Provider 视图已接入 `clone-local`、`register-local`、`repair-local`、`clean-local` 预览和 `watch-local`；Privacy Review 视图已接入 scan、redact dry-run、push redact、explicit allow 和 allow-pattern-local；Conflicts 视图已接入 `conflicts list/show/diff` 和 keep-all / keep-latest / keep-local / keep-remote 解决策略，作为后续内容级 review UI 的 CLI 一致入口。
 
 信息架构：
 
@@ -512,7 +513,7 @@ TUI 适合使用 React Ink。目标不是把 CLI 命令包一层菜单，而是�
 - **Local Provider**：显示当前 Codex `model_provider`、可克隆会话、watch 状态、注册状态。
 - **Tool Convert**：选择 Codex / Claude 会话，查看 IR 解析结果，导出为 readable 或 resumable。
 - **Privacy Review**：逐条查看 secret 命中，选择 redact、allow once、allow pattern、skip push；当前已提供 allow-pattern-local 写入入口，后续继续强化逐条命中操作。
-- **Conflicts**：展示跨设备冲突，选择保留 A、保留 B、都保留、生成新 session。
+- **Conflicts**：展示跨设备冲突，查看 diff 摘要，选择保留 latest、local、remote 或都保留；生成新 session 仍需目标工具能力进一步约束。
 - **Settings**：配置 sidecar remote、privacy policy、daemon、自定义 agent root。
 
 交互要求：
@@ -536,7 +537,7 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 - **Provider Controls**：显示当前 Codex provider，提供 `clone-local`、`watch-local`、`repair-local`。
 - **Tool Conversion View**：用统一结构展示 Codex / Claude 消息和工具调用，支持导出。
 
-当前 VS Code 实现保持“只调用 CLI”的边界：History toolbar 和 Command Palette 已接入 pull、push、sync status/background/flush/retry/cancel、daemon status、privacy scan/redact dry-run/allow-pattern-local、conflicts list、tool inspect/export readable、show bundle、clone-local、register-local、watch-local、repair-local、clean-local 预览、TUI 和 restore；History Webview 支持自由搜索、列过滤、行级 show / restore。
+当前 VS Code 实现保持“只调用 CLI”的边界：History toolbar 和 Command Palette 已接入 pull、push、sync status/background/flush/retry/cancel、daemon status、privacy scan/redact dry-run/allow-pattern-local、conflicts list/diff/resolve、tool inspect/export readable、show bundle、clone-local、register-local、watch-local、repair-local、clean-local 预览、TUI 和 restore；History Webview 支持自由搜索、列过滤、行级 show / restore。
 
 体验要求：
 
@@ -676,7 +677,7 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 - **跨工具 export smoke**：导出 readable session 后能在目标 viewer 中打开。
 - **VS Code adapter 测试**：CLI path、Windows shim、错误展示、进度状态。
 
-当前测试矩阵已包含 `test:store-merge`，覆盖两个业务 clone 共享同一个 sidecar base 后，本地 sidecar commit 与远端 sidecar commit 分叉、随后自动 fetch/merge/rebuild/retry push 的路径。`test:conflicts` 覆盖冲突隔离记录的 list/show/resolve、dry-run、active/all 过滤，以及 resolved 状态在事件索引重建后的保留。`test:privacy` 覆盖默认 secret 规则、redact 写入 sidecar 副本、原始本机会话不被改写、`allowPatterns` 对误报 fixture 的扫描/脱敏跳过，以及 `privacy allow-pattern-local` 的幂等写入。
+当前测试矩阵已包含 `test:store-merge`，覆盖两个业务 clone 共享同一个 sidecar base 后，本地 sidecar commit 与远端 sidecar commit 分叉、随后自动 fetch/merge/rebuild/retry push 的路径。`test:conflicts` 覆盖冲突隔离记录的 list/show/diff/resolve、dry-run、active/all 过滤，以及 resolved 状态在事件索引重建后的保留。`test:privacy` 覆盖默认 secret 规则、redact 写入 sidecar 副本、原始本机会话不被改写、`allowPatterns` 对误报 fixture 的扫描/脱敏跳过，以及 `privacy allow-pattern-local` 的幂等写入。
 
 ## 12. 风险与决策
 

@@ -198,6 +198,18 @@ const MENU_CHOICES: TuiChoice[] = [
     }
   },
   {
+    key: "D",
+    view: "conflicts",
+    badge: "DIFF",
+    label: "Show conflict diff summary",
+    description: "Compare quarantined object sizes and first differing lines without printing raw content.",
+    args: ["conflicts", "diff"],
+    prompt: {
+      label: "Conflict id or index",
+      placeholder: "Enter a conflict id or visible list index"
+    }
+  },
+  {
     key: "j",
     view: "conflicts",
     badge: "RESOLVE",
@@ -209,6 +221,45 @@ const MENU_CHOICES: TuiChoice[] = [
       placeholder: "Enter a conflict id or visible list index"
     },
     confirm: "Mark this conflict as resolved without deleting either object?"
+  },
+  {
+    key: "J",
+    view: "conflicts",
+    badge: "LATEST",
+    label: "Resolve conflict by keeping latest",
+    description: "Mark the latest object as the preferred resolution metadata.",
+    args: ["conflicts", "resolve", "--strategy", "keep-latest"],
+    prompt: {
+      label: "Conflict id or index",
+      placeholder: "Enter a conflict id or visible list index"
+    },
+    confirm: "Mark this conflict resolved with keep-latest?"
+  },
+  {
+    key: "O",
+    view: "conflicts",
+    badge: "LOCAL",
+    label: "Resolve conflict by keeping local",
+    description: "Mark the local object as the preferred resolution metadata.",
+    args: ["conflicts", "resolve", "--strategy", "keep-local"],
+    prompt: {
+      label: "Conflict id or index",
+      placeholder: "Enter a conflict id or visible list index"
+    },
+    confirm: "Mark this conflict resolved with keep-local?"
+  },
+  {
+    key: "E",
+    view: "conflicts",
+    badge: "REMOTE",
+    label: "Resolve conflict by keeping remote",
+    description: "Mark the remote object as the preferred resolution metadata.",
+    args: ["conflicts", "resolve", "--strategy", "keep-remote"],
+    prompt: {
+      label: "Conflict id or index",
+      placeholder: "Enter a conflict id or visible list index"
+    },
+    confirm: "Mark this conflict resolved with keep-remote?"
   },
   { key: "x", view: "ops", badge: "DOCTOR", label: "Run doctor", description: "Check config, sidecar store, sparse checkout, and bindings.", args: ["doctor"] },
   { key: "H", view: "ops", badge: "HOOKS", label: "Install pre-push hook", description: "Queue background Agent-Sync jobs during git push.", args: ["install-hooks"], confirm: "Install the Agent-Sync managed pre-push hook in this repository?" },

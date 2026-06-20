@@ -73,6 +73,8 @@ async function main() {
   assert.match(buildCliCommandLine(["sync", "retry", "all"]), /sync retry all/);
   assert.match(buildCliCommandLine(["sync", "cancel", "all"]), /sync cancel all/);
   assert.match(buildCliCommandLine(["conflicts", "list"]), /conflicts list/);
+  assert.match(buildCliCommandLine(["conflicts", "diff", "1"]), /conflicts diff 1/);
+  assert.match(buildCliCommandLine(["conflicts", "resolve", "1", "--strategy", "keep-latest"]), /keep-latest/);
   assert.match(buildCliCommandLine(["register-local"]), /register-local/);
   assert.match(buildCliCommandLine(["clean-local"]), /clean-local/);
   assert.match(buildCliCommandLine(["tool", "inspect", "--session", "bundle-1"]), /tool inspect/);
@@ -95,6 +97,8 @@ async function main() {
   assert.match(html, /id="privacyScan"/);
   assert.match(html, /id="privacyAllowPattern"/);
   assert.match(html, /id="conflictsList"/);
+  assert.match(html, /id="conflictsDiff"/);
+  assert.match(html, /id="conflictsResolve"/);
   assert.match(html, /id="toolInspect"/);
   assert.match(html, /id="search"/);
   assert.match(html, /id="localClone"/);
@@ -108,6 +112,8 @@ async function main() {
   assert.match(html, /command: 'privacyScan'/);
   assert.match(html, /command: 'privacyAllowPattern'/);
   assert.match(html, /command: 'conflictsList'/);
+  assert.match(html, /command: 'conflictsDiff'/);
+  assert.match(html, /command: 'conflictsResolve'/);
   assert.match(html, /command: 'toolInspect'/);
   assert.match(html, /command: 'showBundle'/);
   assert.match(html, /command: 'localClone'/);
