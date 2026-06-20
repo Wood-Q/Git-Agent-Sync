@@ -11,6 +11,7 @@ import {
   getClaudeRestoreRelativePath,
   registerRestoredClaudeSession
 } from "./claude-session.js";
+import { getMissingSkillWarnings } from "./dependencies.js";
 import { expandHome, normalizePath, readJson, toSlash, writeFileAtomic } from "./utils.js";
 
 export function restoreCommand(gitRoot, args, options, config) {
@@ -118,6 +119,8 @@ function restoreMatches(config, matches, options: Record<string, any> = {}) {
       printRestoreLine(options, `skipped ${match.agent}: ${source} (${projectMatch.reason})`);
       continue;
     }
+    const warnings = getRestoreWarnings(match);
+    printRestoreWarnings(options, warnings);
     const target = getRestoreTarget(config, match);
     mkdirSync(dirname(target), { recursive: true });
     const result: any = restoreSessionFile(config, match, source, target, options);
@@ -134,10 +137,21 @@ function restoreMatches(config, matches, options: Record<string, any> = {}) {
       fromPlatform: result.fromPlatform || null,
       toPlatform: result.toPlatform || null,
       shell: result.shell || null,
-      registered
+      registered,
+      warnings
     });
   }
   return results;
+}
+
+function getRestoreWarnings(match) {
+  return getMissingSkillWarnings(match.dependencies, match.bundleId);
+}
+
+function printRestoreWarnings(options, warnings) {
+  for (const warning of warnings) {
+    printRestoreLine(options, `warn: ${warning.message}`);
+  }
 }
 
 function printJsonResult(options, results) {

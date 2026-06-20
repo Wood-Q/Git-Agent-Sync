@@ -2,6 +2,7 @@ import { existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { getCodexArchiveInfo, isArchivedCodexSessionPath, summarizeCodexArchiveInfo } from "./codex-archive.js";
+import { extractSessionDependencies } from "./dependencies.js";
 import { getProjectRemote, normalizeRemoteUrl } from "./git.js";
 import {
   applyCodexThreadMetadata,
@@ -74,7 +75,7 @@ export function scanSessions(gitRoot, config, archiveInfo = null) {
 function prepareScanCache(gitRoot, config, projectRemote, candidates, codexTitleSignature, claudeRoot) {
   const cache = loadScanCache(gitRoot);
   const contextKey = JSON.stringify({
-    providerVersion: 2,
+    providerVersion: 3,
     projectId: config.projectId,
     projectIdentity: config.projectIdentity,
     projectRoot: normalizePath(gitRoot),
@@ -186,6 +187,7 @@ function scanCandidate(candidate, cache, stats, config, projectRemote, codexTitl
   stats.refreshed += 1;
   const content = safeRead(candidate.path);
   const metadata = getCandidateMetadata(candidate, content, codexTitles, codexThreadIndex);
+  const dependencies = extractSessionDependencies(candidate.agent, content);
   if (metadata && !metadata.title && metadata.sessionId && codexTitles.has(metadata.sessionId)) {
     metadata.title = codexTitles.get(metadata.sessionId);
   }
@@ -195,7 +197,8 @@ function scanCandidate(candidate, cache, stats, config, projectRemote, codexTitl
     ? {
         ...buildMatchBase(candidate, content, hash, stat),
         matchedBy: matchedBy.slice(0, 3),
-        metadata: metadata || undefined
+        metadata: metadata || undefined,
+        dependencies: dependencies.skills.length ? dependencies : undefined
       }
     : null;
 

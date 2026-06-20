@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { BINDINGS_FILE, BINDINGS_INDEX_FILE, SUPPORTED_AGENTS } from "./constants.js";
+import { normalizeDependencies } from "./dependencies.js";
 import { getGitContext } from "./git.js";
 import { readJson, writeJson } from "./utils.js";
 
@@ -44,7 +45,8 @@ export function writeBindings(config, matches, gitContext, syncRunId = createSyn
       sha256: match.sha256,
       storeRelativePath: match.storeRelativePath,
       originalPath: match.originalPath,
-      agentRelativePath: match.agentRelativePath
+      agentRelativePath: match.agentRelativePath,
+      dependencies: match.dependencies?.skills?.length ? normalizeDependencies(match.dependencies, match.agent) : null
     };
     const key = bindingKey(binding);
     if (!seen.has(key)) {
@@ -367,7 +369,8 @@ function normalizeBinding(binding) {
     sha256: binding.sha256 || null,
     storeRelativePath: binding.storeRelativePath || null,
     originalPath: binding.originalPath || null,
-    agentRelativePath: binding.agentRelativePath || null
+    agentRelativePath: binding.agentRelativePath || null,
+    dependencies: binding.dependencies ? normalizeDependencies(binding.dependencies, binding.agent) : null
   };
   if (!normalized.bundleId || !normalized.agent || !normalized.storeRelativePath) {
     return null;
