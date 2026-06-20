@@ -139,7 +139,7 @@ IR 明确分成几块：
 - `events` 保存统一后的消息、工具调用和工具结果，同时保留每条原始 vendor event 作为 provenance。
 - `dependencies` 保存识别出的 skill、MCP/plugin 线索，以及未来判断能否继续 handoff 时需要检查的依赖。
 
-`tool convert --to ir --json` 会输出完整 IR。`tool export --to <codex|claude> --mode readable` 会输出另一个 UI 可以展示或归档的 JSONL 视图。这个 readable export 和真正可继续对话的 resumable handoff 是分开的：只有当目标工具能接受必要 schema、索引、provider/runtime 上下文和依赖时，Agent-Sync 才会把 handoff 标记成 resumable。
+`tool convert --to ir --json` 会输出完整 IR。`tool export --to <codex|claude> --mode readable` 会输出另一个 UI 可以展示或归档的 JSONL 视图。这个 readable export 和真正可继续对话的 resumable handoff 是分开的：只有当目标工具能接受必要 schema、索引、provider/runtime 上下文和依赖时，Agent-Sync 才会把 handoff 标记成 resumable。如果在这些保证还不存在时请求 `--mode resumable`，导出仍会保持 `mode: "readable"`、报告 `resumable: false`，并记录为什么只能 readable-only。
 
 ## 隐私边界
 

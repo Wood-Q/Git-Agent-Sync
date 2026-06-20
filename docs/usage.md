@@ -15,7 +15,7 @@ VS Code extension:
 - Marketplace: [Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - Extension ID: `mokio.agent-sync-vscode`
 
-The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. The History view toolbar can pull, push, refresh, clear filters, and restore sessions for the current workspace.
+The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. The History view toolbar can pull, push, inspect sync status, run privacy scan, inspect Conversation IR, clone local provider sessions, open the TUI, refresh, clear filters, and restore sessions for the current workspace; the Command Palette also exposes background sync, queue flush, daemon status, repair-local, privacy redaction preview, and readable tool export.
 
 For local development:
 
@@ -131,7 +131,7 @@ git agent-sync tool convert --session <bundle-id> --to ir --json
 git agent-sync tool export --session <bundle-id> --to claude --mode readable
 ```
 
-`inspect` prints a short summary of the source agent, title, event count, and tool-call count. `convert` emits Agent-Sync Conversation IR, preserving the original vendor JSONL under provenance/vendor fields while normalizing messages, tool calls, tool results, project identity, runtime provider, and dependency hints. `export --mode readable` writes JSONL that another surface can display or archive; it is intentionally not marked as a resumable Codex or Claude handoff.
+`inspect` prints a short summary of the source agent, title, event count, and tool-call count. `convert` emits Agent-Sync Conversation IR, preserving the original vendor JSONL under provenance/vendor fields while normalizing messages, tool calls, tool results, project identity, runtime provider, and dependency hints. `export --mode readable` writes JSONL that another surface can display or archive; if `--mode resumable` is requested before a target adapter can safely continue the session, the export header records `requestedMode: "resumable"`, keeps `mode: "readable"`, sets `resumable: false`, and includes a readable-only reason.
 
 ## Automatic Push
 

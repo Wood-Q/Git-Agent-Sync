@@ -107,6 +107,11 @@ const exported = exportIrReadable(claudeIr, { to: "codex", mode: "readable" });
 assert.match(exported, /agent_sync_ir_export/);
 assert.match(exported, /tool_call/);
 assert.match(exported, /Bash/);
+const requestedResumable = JSON.parse(exportIrReadable(claudeIr, { to: "codex", mode: "resumable" }).split(/\r?\n/)[0]);
+assert.equal(requestedResumable.requestedMode, "resumable");
+assert.equal(requestedResumable.mode, "readable");
+assert.equal(requestedResumable.resumable, false);
+assert.match(requestedResumable.readableOnlyReason, /not supported/);
 
 const cliBase = realpathSync(mkdtempSync(join(tmpdir(), "agent-sync-ir-cli-")));
 const cliProject = join(cliBase, "project");
@@ -164,6 +169,12 @@ const exportedLines = exportedCli.trim().split(/\r?\n/).map((line) => JSON.parse
 assert.equal(exportedLines[0].type, "agent_sync_ir_export");
 assert.equal(exportedLines[0].target, "claude");
 assert.equal(exportedLines.some((line) => line.type === "tool_call" && line.name === "exec_command"), true);
+const requestedResumableCli = runCli(cliProject, ["tool", "export", "--session", cliBundleId, "--to", "claude", "--mode", "resumable"]);
+const requestedResumableHeader = JSON.parse(requestedResumableCli.trim().split(/\r?\n/)[0]);
+assert.equal(requestedResumableHeader.requestedMode, "resumable");
+assert.equal(requestedResumableHeader.mode, "readable");
+assert.equal(requestedResumableHeader.resumable, false);
+assert.match(requestedResumableHeader.readableOnlyReason, /not supported/);
 
 console.log("conversation IR test passed");
 

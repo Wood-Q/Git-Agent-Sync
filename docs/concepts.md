@@ -139,7 +139,7 @@ The IR keeps four boundaries explicit:
 - `events` stores normalized messages, tool calls, and tool results while keeping each original vendor event attached for provenance.
 - `dependencies` stores detected skills, MCP/plugin hints, and other requirements that affect whether a future handoff can be resumed.
 
-`tool convert --to ir --json` emits the full IR. `tool export --to <codex|claude> --mode readable` emits a JSONL view that another UI can display or archive. That readable export is deliberately separate from resumable handoff: Agent-Sync only marks a handoff resumable when the target tool can accept the required schema, indexes, provider/runtime context, and dependencies.
+`tool convert --to ir --json` emits the full IR. `tool export --to <codex|claude> --mode readable` emits a JSONL view that another UI can display or archive. That readable export is deliberately separate from resumable handoff: Agent-Sync only marks a handoff resumable when the target tool can accept the required schema, indexes, provider/runtime context, and dependencies. When `--mode resumable` is requested before those guarantees exist, the export stays `mode: "readable"`, reports `resumable: false`, and records why it is readable-only.
 
 ## Privacy Boundaries
 

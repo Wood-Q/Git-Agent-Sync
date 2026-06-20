@@ -37,6 +37,12 @@ export class HistoryView {
           vscode.commands.executeCommand("agentSync.pull");
         } else if (message?.command === "push") {
           vscode.commands.executeCommand("agentSync.push");
+        } else if (message?.command === "syncStatus") {
+          vscode.commands.executeCommand("agentSync.syncStatus");
+        } else if (message?.command === "privacyScan") {
+          vscode.commands.executeCommand("agentSync.privacyScan");
+        } else if (message?.command === "toolInspect") {
+          vscode.commands.executeCommand("agentSync.toolInspect");
         } else if (message?.command === "localClone") {
           vscode.commands.executeCommand("agentSync.localClone");
         } else if (message?.command === "watchLocalCopy") {
@@ -298,6 +304,9 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     <div class="count"><span id="visibleCount">${bindings.length}</span> / ${bindings.length}</div>
     <button type="button" id="pull" title="Pull sidecar sessions">Pull</button>
     <button type="button" id="push" title="Push local sessions">Push</button>
+    <button type="button" id="syncStatus" title="Show sync queue status">Sync</button>
+    <button type="button" id="privacyScan" title="Scan sessions for secrets">Privacy</button>
+    <button type="button" id="toolInspect" title="Inspect selected bundle as Conversation IR">IR</button>
     <button type="button" id="localClone" title="Clone Codex sessions to current provider">Clone</button>
     <button type="button" id="watchLocalCopy" title="Watch Codex provider changes">Watch</button>
     <button type="button" id="openTui" title="Open Agent Sync TUI">TUI</button>
@@ -395,6 +404,15 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     });
     document.getElementById('push').addEventListener('click', () => {
       vscode.postMessage({ command: 'push' });
+    });
+    document.getElementById('syncStatus').addEventListener('click', () => {
+      vscode.postMessage({ command: 'syncStatus' });
+    });
+    document.getElementById('privacyScan').addEventListener('click', () => {
+      vscode.postMessage({ command: 'privacyScan' });
+    });
+    document.getElementById('toolInspect').addEventListener('click', () => {
+      vscode.postMessage({ command: 'toolInspect' });
     });
     document.getElementById('localClone').addEventListener('click', () => {
       vscode.postMessage({ command: 'localClone' });

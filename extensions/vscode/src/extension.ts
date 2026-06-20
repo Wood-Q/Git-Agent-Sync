@@ -45,6 +45,28 @@ export function activate(context: vscode.ExtensionContext) {
     });
   }));
 
+  registerCliAction(context, output, cli, "agentSync.syncStatus", "Sync Status", ["sync", "status"]);
+  registerCliAction(context, output, cli, "agentSync.syncBackground", "Background Sync", ["sync", "--background"]);
+  registerCliAction(context, output, cli, "agentSync.syncFlush", "Flush Sync Queue", ["sync", "--flush"]);
+  registerCliAction(context, output, cli, "agentSync.daemonStatus", "Daemon Status", ["daemon", "status"]);
+  registerCliAction(context, output, cli, "agentSync.privacyScan", "Privacy Scan", ["privacy", "scan"]);
+  registerCliAction(context, output, cli, "agentSync.privacyRedactDryRun", "Privacy Redaction Preview", ["privacy", "redact", "--dry-run"]);
+  registerCliAction(context, output, cli, "agentSync.repairLocal", "Repair Local Codex Registration", ["repair-local"]);
+
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.toolInspect", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runToolCommand(cli, output, cwd, "inspect");
+    });
+  }));
+
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.toolExportReadable", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runToolCommand(cli, output, cwd, "export-readable");
+    });
+  }));
+
   context.subscriptions.push(vscode.commands.registerCommand("agentSync.localClone", async () => {
     await withErrorHandling(output, async () => {
       const cwd = getWorkspaceRoot();
@@ -114,6 +136,73 @@ async function runLocalProviderClone(cli: AgentSyncCli, output: vscode.OutputCha
       output.show();
     }
   });
+}
+
+function registerCliAction(
+  context: vscode.ExtensionContext,
+  output: vscode.OutputChannel,
+  cli: AgentSyncCli,
+  command: string,
+  label: string,
+  args: string[]
+) {
+  context.subscriptions.push(vscode.commands.registerCommand(command, async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runCliAction(cli, output, cwd, label, args);
+    });
+  }));
+}
+
+async function runCliAction(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string, label: string, args: string[]) {
+  const stdout = await vscode.window.withProgress({
+    location: vscode.ProgressLocation.Notification,
+    title: `Agent Sync: ${label}`,
+    cancellable: false
+  }, () => cli.run(cwd, args));
+  const summary = summarizeCliOutput(label, stdout);
+  vscode.window.showInformationMessage(summary, "Show Output").then((selection) => {
+    if (selection === "Show Output") {
+      output.show();
+    }
+  });
+}
+
+async function runToolCommand(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string, mode: "inspect" | "export-readable") {
+  const bindings = await cli.log(cwd);
+  const picked = await pickBinding(bindings, mode === "inspect" ? "Inspect Agent-Sync Bundle IR" : "Export Readable Claude JSONL");
+  if (!picked?.bundleId) {
+    return;
+  }
+  const args = mode === "inspect"
+    ? ["tool", "inspect", "--session", picked.bundleId]
+    : ["tool", "export", "--to", "claude", "--mode", "readable", "--session", picked.bundleId];
+  await runCliAction(cli, output, cwd, mode === "inspect" ? "Tool Inspect" : "Tool Export Readable", args);
+}
+
+async function pickBinding(bindings: AgentSyncBinding[], title: string) {
+  if (!bindings.length) {
+    vscode.window.showInformationMessage("Agent Sync: no sessions found.");
+    return null;
+  }
+  return vscode.window.showQuickPick(bindings.map((binding, index) => ({
+    label: `${index + 1}. ${binding.title || "(untitled session)"}`,
+    description: [binding.agent, shortCommit(binding.projectCommit), binding.projectBranch || "detached"].filter(Boolean).join(" · "),
+    detail: `${binding.bundleId || ""} · ${formatDate(binding.conversationAt || binding.syncedAt || binding.boundAt || "")}`,
+    binding
+  })), {
+    title,
+    placeHolder: "Select a synced session"
+  }).then((picked) => picked?.binding || null);
+}
+
+function summarizeCliOutput(label: string, stdout: string) {
+  const firstLine = stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+  if (!firstLine) {
+    return `Agent Sync: ${label} complete.`;
+  }
+  const clipped = firstLine.length > 120 ? `${firstLine.slice(0, 119)}…` : firstLine;
+  return `Agent Sync: ${label} complete. ${clipped}`;
 }
 
 async function startLocalWatchTerminal(cwd: string) {

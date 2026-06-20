@@ -16,6 +16,8 @@ export function convertSessionToIr(agent, content, context: Record<string, any> 
 
 export function exportIrReadable(ir, options: Record<string, any> = {}) {
   const target = options.to || "ir";
+  const requestedMode = options.mode || "readable";
+  const mode = resolveExportMode(ir, { ...options, requestedMode });
   const lines = [
     {
       type: "agent_sync_ir_export",
@@ -25,7 +27,10 @@ export function exportIrReadable(ir, options: Record<string, any> = {}) {
       conversationId: ir.conversation.id,
       title: ir.conversation.title,
       exportedAt: new Date().toISOString(),
-      mode: options.mode || "readable"
+      requestedMode,
+      mode: mode.mode,
+      resumable: mode.resumable,
+      readableOnlyReason: mode.readableOnlyReason
     },
     ...ir.events.map((event) => ({
       type: event.type,
@@ -40,6 +45,21 @@ export function exportIrReadable(ir, options: Record<string, any> = {}) {
     }))
   ];
   return `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`;
+}
+
+function resolveExportMode(ir, options) {
+  if (options.requestedMode !== "resumable") {
+    return {
+      mode: "readable",
+      resumable: false,
+      readableOnlyReason: null
+    };
+  }
+  return {
+    mode: "readable",
+    resumable: false,
+    readableOnlyReason: `resumable ${ir.conversation.sourceAgent || "agent"} to ${options.to || "ir"} handoff is not supported by the current adapter`
+  };
 }
 
 function codexToIr(content, context) {

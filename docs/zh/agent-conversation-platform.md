@@ -25,7 +25,7 @@ Agent-Sync 的长期目标是成为 agent conversation processing platform：
 - **Codex UI 注册**：恢复 Codex 会话时会写入本机 `state_5.sqlite` 和 `session_index.jsonl`，让 Codex 插件 / App 能看到恢复后的会话。
 - **本机 provider 同步**：`clone-local` 会把当前项目的 Codex 会话克隆到指定或当前 `model_provider`；`watch-local` 会监听 provider 变化后触发克隆。
 - **TUI 入口**：`git agent-sync tui` 提供交互式终端菜单，降低常用操作的记忆成本。
-- **VS Code 入口**：扩展可以调用 CLI 执行 push、pull、restore、打开 TUI、触发本机 provider 克隆和 watch。
+- **VS Code 入口**：扩展可以调用 CLI 执行 push、pull、restore、sync status/background/flush、privacy scan/redact dry-run、Conversation IR inspect/export、打开 TUI、触发本机 provider clone/watch/repair。
 
 当前最大的边界也很明确：
 
@@ -406,6 +406,8 @@ git agent-sync tool export --to claude --session <bundle-id> --mode readable
 git agent-sync tool export --to codex --session <bundle-id> --mode resumable
 ```
 
+当前实现已经支持 `inspect`、`convert --to ir` 和 readable export。请求 `--mode resumable` 时，如果目标 adapter 还不能安全写入可继续会话所需的 schema、索引、provider/runtime 上下文和依赖，导出会明确保持 `mode: "readable"`、`resumable: false`，并写入 readable-only 原因，避免把归档视图伪装成可继续 handoff。
+
 ### 6.6 依赖图
 
 现有 `extractSessionDependencies` 已能识别 Codex function call 中的 skill 和 Claude `SkillTool`。后续应扩展为 requirement graph：
@@ -513,6 +515,8 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 - **Privacy Review Webview**：展示脱敏命中，允许逐条处理。
 - **Provider Controls**：显示当前 Codex provider，提供 `clone-local`、`watch-local`、`repair-local`。
 - **Tool Conversion View**：用统一结构展示 Codex / Claude 消息和工具调用，支持导出。
+
+当前 VS Code 实现保持“只调用 CLI”的边界：History toolbar 和 Command Palette 已接入 pull、push、sync status/background/flush、daemon status、privacy scan/redact dry-run、tool inspect/export readable、clone-local、watch-local、repair-local、TUI 和 restore。
 
 体验要求：
 
