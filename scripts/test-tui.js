@@ -9,12 +9,12 @@ const config = {
 
 const menu = renderTuiMenu(config);
 assert.match(menu, /Agent Sync TUI - Project/);
-assert.match(menu, /Copy Codex -> Claude/);
-assert.match(menu, /Watch Claude -> Codex copy/);
+assert.match(menu, /Clone Codex sessions to current provider/);
+assert.match(menu, /Watch Codex provider changes/);
 
 assert.equal(getTuiChoices().some((choice) => choice.key === "5" && choice.prompt), true);
-assert.deepEqual(resolveTuiChoice("6").args, ["copy-local", "--from", "codex", "--to", "claude"]);
-assert.deepEqual(resolveTuiChoice("W").args, ["watch-local", "--from", "claude", "--to", "codex", "--mode", "copy"]);
+assert.deepEqual(resolveTuiChoice("6").args, ["clone-local"]);
+assert.deepEqual(resolveTuiChoice("w").args, ["watch-local"]);
 assert.equal(resolveTuiChoice("q").exits, true);
 assert.equal(resolveTuiChoice("missing"), null);
 

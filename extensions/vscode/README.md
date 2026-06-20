@@ -4,7 +4,7 @@ Browse, pull, push, and restore Agent-Sync sessions from VS Code.
 
 This extension calls the `agent-sync` CLI from your PATH by default. On Windows it also checks common npm global install locations and supports the `agent-sync.cmd` shim created by npm. If the CLI is installed somewhere else, set `agentSync.cliPath` to the command or absolute path.
 
-The History view toolbar includes Pull, Push, Clone, Copy, Watch, TUI, Refresh, and Clear actions. Pull and Push run the sidecar CLI commands for the current workspace and refresh the history table after completion. Clone, Copy, and Watch run local Codex/Claude provider transfer commands; TUI opens `agent-sync tui` in an integrated terminal.
+The History view toolbar includes Pull, Push, Clone, Watch, TUI, Refresh, and Clear actions. Pull and Push run the sidecar CLI commands for the current workspace and refresh the history table after completion. Clone and Watch run local Codex `model_provider` sync commands; TUI opens `agent-sync tui` in an integrated terminal.
 
 Marketplace:
 

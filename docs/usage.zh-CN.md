@@ -88,24 +88,24 @@ git agent-sync restore --current --no-adapt
 git agent-sync restore --current --no-register
 ```
 
-## 本机跨 Provider Clone 与 Copy
+## 本机 Codex Provider Clone
 
-如果你想在同一台机器上把当前项目会话交给另一个 provider 继续，可以直接做本机转换：
-
-```bash
-git agent-sync copy-local --from codex --to claude
-git agent-sync clone-local --from claude --to codex
-```
-
-`copy` 会尽量保留源 session id，并更新由 Agent-Sync 创建过的目标副本。`clone` 会创建稳定的新目标 session id，目标 clone 已存在时会跳过。两个命令都只处理通过结构化项目元数据匹配当前 Git 项目的会话。
-
-切换 provider 时如果希望目标副本持续跟进：
+当你切换 Codex API 来源，希望当前项目的 Codex 会话在新的 `model_provider` 下继续可见时，可以做本机 clone：
 
 ```bash
-git agent-sync watch-local --from codex --to claude --mode copy
+git agent-sync clone-local
+git agent-sync clone-local openrouter
 ```
 
-VS Code History 视图里也有 Clone、Copy 和 Watch 按钮，会对当前 workspace 执行同一组本机转换命令。
+省略目标 provider 时，Agent-Sync 会读取 `~/.codex/config.toml` 里的 `model_provider`。克隆后的 rollout 仍写在 `~/.codex/sessions`，会生成稳定的新 session id，并记录 `cloned_from`、`original_provider`、`clone_timestamp` 等元数据。命令只处理通过结构化项目元数据匹配当前 Git 项目的 Codex 会话。
+
+切换 Codex API provider 时如果希望自动同步：
+
+```bash
+git agent-sync watch-local
+```
+
+`watch-local` 会轮询 `~/.codex/config.toml`；当 `model_provider` 变化时，它会把当前项目的 Codex 会话克隆到新的 provider。VS Code History 视图里也有 Clone 和 Watch 按钮，会对当前 workspace 执行同样的本机命令。
 
 ## 终端 TUI
 

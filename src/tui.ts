@@ -27,12 +27,8 @@ const MENU_CHOICES: TuiChoice[] = [
       placeholder: "Enter the # shown by agent-sync log"
     }
   },
-  { key: "6", label: "Copy Codex -> Claude", args: ["copy-local", "--from", "codex", "--to", "claude"] },
-  { key: "7", label: "Copy Claude -> Codex", args: ["copy-local", "--from", "claude", "--to", "codex"] },
-  { key: "8", label: "Clone Codex -> Claude", args: ["clone-local", "--from", "codex", "--to", "claude"] },
-  { key: "9", label: "Clone Claude -> Codex", args: ["clone-local", "--from", "claude", "--to", "codex"] },
-  { key: "w", label: "Watch Codex -> Claude copy", args: ["watch-local", "--from", "codex", "--to", "claude", "--mode", "copy"] },
-  { key: "W", label: "Watch Claude -> Codex copy", args: ["watch-local", "--from", "claude", "--to", "codex", "--mode", "copy"] },
+  { key: "6", label: "Clone Codex sessions to current provider", args: ["clone-local"] },
+  { key: "w", label: "Watch Codex provider changes", args: ["watch-local"] },
   { key: "q", label: "Quit", args: [], exits: true }
 ];
 
@@ -60,13 +56,9 @@ export function renderTuiMenu(config) {
     "  4  Push",
     "  5  Restore by index",
     "",
-    "Local provider transfer",
-    "  6  Copy Codex -> Claude",
-    "  7  Copy Claude -> Codex",
-    "  8  Clone Codex -> Claude",
-    "  9  Clone Claude -> Codex",
-    "  w  Watch Codex -> Claude copy",
-    "  W  Watch Claude -> Codex copy",
+    "Local Codex provider sync",
+    "  6  Clone Codex sessions to current provider",
+    "  w  Watch Codex provider changes",
     "",
     "  q  Quit"
   ];

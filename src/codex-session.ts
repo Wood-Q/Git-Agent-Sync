@@ -18,6 +18,7 @@ export function extractCodexSessionMetadata(content) {
     sessionId: null,
     title: null,
     conversationAt: null,
+    modelProvider: null,
     projectRoots: [],
     workdirs: [],
     gitContexts: []
@@ -36,6 +37,7 @@ export function extractCodexSessionMetadata(content) {
     if (item.type === "session_meta") {
       metadata.sessionId ||= payload.id || null;
       metadata.conversationAt ||= parseCodexTimestamp(payload.timestamp);
+      metadata.modelProvider ||= payload.model_provider || payload.modelProvider || null;
       threadTitleCandidates.push(payload.thread_name, payload.title, payload.name);
       addPath(projectRoots, payload.cwd);
       if (payload.git && typeof payload.git === "object") {

@@ -25,7 +25,6 @@
     "onCommand:agentSync.pull",
     "onCommand:agentSync.push",
     "onCommand:agentSync.localClone",
-    "onCommand:agentSync.localCopy",
     "onCommand:agentSync.watchLocalCopy",
     "onCommand:agentSync.openTui"
   ],
@@ -62,17 +61,12 @@
       },
       {
         "command": "agentSync.localClone",
-        "title": "Agent Sync: Clone Local Provider Sessions",
+        "title": "Agent Sync: Clone Codex Sessions to Current Provider",
         "icon": "$(copy)"
       },
       {
-        "command": "agentSync.localCopy",
-        "title": "Agent Sync: Copy Local Provider Sessions",
-        "icon": "$(files)"
-      },
-      {
         "command": "agentSync.watchLocalCopy",
-        "title": "Agent Sync: Watch Local Provider Copy",
+        "title": "Agent Sync: Watch Codex Provider",
         "icon": "$(eye)"
       },
       {

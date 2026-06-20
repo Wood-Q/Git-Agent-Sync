@@ -49,13 +49,9 @@ export interface RestoreResponse {
   results: RestoreResult[];
 }
 
-export type LocalTransferAgent = "codex" | "claude";
-export type LocalTransferMode = "clone" | "copy";
-
 export interface LocalTransferResponse {
-  mode: LocalTransferMode;
-  from: LocalTransferAgent;
-  to: LocalTransferAgent;
+  mode: "clone";
+  provider: string;
   candidates: number;
   stats: Record<string, number>;
 }
@@ -92,10 +88,9 @@ export class AgentSyncCli {
     return this.run(cwd, ["push"]);
   }
 
-  async localTransfer(cwd: string, mode: LocalTransferMode, from: LocalTransferAgent, to: LocalTransferAgent): Promise<LocalTransferResponse> {
-    const command = `${mode}-local`;
-    const stdout = await this.run(cwd, [command, "--from", from, "--to", to, "--json"]);
-    return parseJson<LocalTransferResponse>(stdout, `agent-sync ${command} --json`);
+  async localTransfer(cwd: string): Promise<LocalTransferResponse> {
+    const stdout = await this.run(cwd, ["clone-local", "--json"]);
+    return parseJson<LocalTransferResponse>(stdout, "agent-sync clone-local --json");
   }
 
   async run(cwd: string, args: string[]): Promise<string> {

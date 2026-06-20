@@ -66,7 +66,7 @@ async function main() {
   assert.ok(output.lines.some((line: string) => line.includes("$ ")));
   assert.deepEqual(normalizeLogFilter({ selector: "branch", value: " main " }), { selector: "branch", value: "main" });
   assert.deepEqual(normalizeLogFilter({ selector: "latest" }), { selector: "latest" });
-  assert.match(buildCliCommandLine(["watch-local", "--from", "codex", "--to", "claude"]), /watch-local --from codex --to claude/);
+  assert.match(buildCliCommandLine(["watch-local"]), /watch-local/);
   assert.match(buildCliCommandLine(["tui"]), /tui/);
 
   const html = renderHistoryHtml({ cspSource: "vscode-resource:" }, [{
@@ -83,13 +83,11 @@ async function main() {
   assert.match(html, /id="pull"/);
   assert.match(html, /id="push"/);
   assert.match(html, /id="localClone"/);
-  assert.match(html, /id="localCopy"/);
   assert.match(html, /id="watchLocalCopy"/);
   assert.match(html, /id="openTui"/);
   assert.match(html, /command: 'pull'/);
   assert.match(html, /command: 'push'/);
   assert.match(html, /command: 'localClone'/);
-  assert.match(html, /command: 'localCopy'/);
   assert.match(html, /command: 'watchLocalCopy'/);
   assert.match(html, /command: 'openTui'/);
   assert.match(html, /data-filter-column="author"/);
