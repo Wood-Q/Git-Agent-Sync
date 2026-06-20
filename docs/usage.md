@@ -95,9 +95,11 @@ Use local clone when you switch Codex API providers and want current-project Cod
 ```bash
 git agent-sync clone-local
 git agent-sync clone-local openrouter
+git agent-sync clone-local openrouter --no-register
+git agent-sync repair-local
 ```
 
-When the target provider is omitted, Agent-Sync reads `model_provider` from `~/.codex/config.toml`. The cloned rollout stays in `~/.codex/sessions`, gets a new stable session id, and records `cloned_from`, `original_provider`, and `clone_timestamp` metadata. Only sessions that match the current Git project through structured metadata are cloned.
+When the target provider is omitted, Agent-Sync reads `model_provider` from `~/.codex/config.toml`. The cloned rollout stays in `~/.codex/sessions`, gets a new stable session id, and records `cloned_from`, `original_provider`, and `clone_timestamp` metadata. By default it also registers local `state_5.sqlite` and `session_index.jsonl` entries so the Codex UI can see the clone; use `--no-register` when you only want to write the file. If the file exists but the UI cannot see it, run `repair-local` to re-register Agent-Sync provider clones. Only sessions that match the current Git project through structured metadata are cloned.
 
 To keep Codex sessions available while switching API providers:
 

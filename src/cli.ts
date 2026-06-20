@@ -34,6 +34,7 @@ import {
   DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS,
   checkLocalTransferWatch,
   normalizeWatchOptions,
+  runLocalRepair,
   runLocalTransfer
 } from "./local-transfer.js";
 import {
@@ -108,6 +109,7 @@ export async function main(argv) {
     scan: () => scanCommand(gitRoot, options),
     "clone-local": () => localTransferCommand(gitRoot, args, options),
     "watch-local": () => localTransferWatchCommand(gitRoot, options),
+    "repair-local": () => localRepairCommand(gitRoot, options),
     tui: () => tuiCommand(gitRoot),
     "install-hooks": () => installHooksCommand(gitRoot),
     "uninstall-hooks": () => uninstallHooksCommand(gitRoot),
@@ -142,8 +144,9 @@ Usage:
   git agent-sync daemon <start|status|stop> [--once] [--interval <seconds>] [--json]
   git agent-sync privacy <scan|redact> [--dry-run] [--json]
   git agent-sync scan [--json]
-  git agent-sync clone-local [target-provider] [--dry-run] [--json]
+  git agent-sync clone-local [target-provider] [--dry-run] [--no-register] [--json]
   git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
+  git agent-sync repair-local [--dry-run] [--json]
   git agent-sync tui
   git agent-sync restore <bundle-id>|--index <n>|--i <n>|--all|[filters] [index] [--no-adapt] [--no-register]
   git agent-sync install-hooks
@@ -242,16 +245,20 @@ Starts, inspects, or stops the local Agent-Sync background worker.`,
 
 Scans current-project agent sessions with the local redaction policy.`,
     "clone-local": `Usage:
-  git agent-sync clone-local [target-provider] [--dry-run] [--json]
+  git agent-sync clone-local [target-provider] [--dry-run] [--no-register] [--json]
 
 Clones current-project Codex sessions to the target Codex model_provider.
 When target-provider is omitted, Agent-Sync reads ~/.codex/config.toml.
-The cloned rollout stays inside ~/.codex/sessions and records cloned_from/original_provider metadata.`,
+The cloned rollout stays inside ~/.codex/sessions, records cloned_from/original_provider metadata, and registers Codex UI indexes unless --no-register is used.`,
     "watch-local": `Usage:
   git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
 
 Watches ~/.codex/config.toml for model_provider changes and clones current-project Codex sessions to the active provider.
 Defaults to an interval of ${DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS} seconds.`,
+    "repair-local": `Usage:
+  git agent-sync repair-local [--dry-run] [--json]
+
+Repairs local Codex UI registration for Agent-Sync provider clones without rewriting the rollout files.`,
     tui: `Usage:
   git agent-sync tui
 
@@ -377,6 +384,12 @@ function localTransferCommand(gitRoot, args, options) {
     ...options,
     targetProvider: args[0] || ""
   });
+  printLocalTransferResult(result, options);
+}
+
+function localRepairCommand(gitRoot, options) {
+  const config = readConfigWithBundle(gitRoot);
+  const result = runLocalRepair(gitRoot, config, options);
   printLocalTransferResult(result, options);
 }
 
@@ -891,6 +904,19 @@ function readConfigWithBundle(gitRoot) {
 function printLocalTransferResult(result, options: Record<string, any> = {}) {
   if (options.json) {
     console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (result.mode === "repair") {
+    console.log("agent-sync: repair local Codex provider clone registration");
+    console.log(`repaired: ${result.stats.repaired}, dry-run: ${result.stats.dry_run}, skipped: ${result.stats.skipped_unmarked + result.stats.skipped_foreign}, errors: ${result.stats.error}`);
+    for (const item of result.results) {
+      if (item.action === "repaired" || item.action === "dry_run") {
+        console.log(`[${item.action}] ${item.path}`);
+      } else if (item.action === "error") {
+        console.log(`[error] ${item.path}: ${item.message}`);
+      }
+    }
     return;
   }
 

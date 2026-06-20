@@ -127,6 +127,7 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync push --privacy redact` | Write redacted sidecar copies when secrets are found |
 | `git agent-sync clone-local [target-provider]` | Clone local current-project Codex sessions to a Codex `model_provider` |
 | `git agent-sync watch-local [--interval <seconds>]` | Watch Codex `model_provider` changes and clone sessions to the active provider |
+| `git agent-sync repair-local` | Repair local Codex UI registration for provider clones |
 | `git agent-sync tui` | Open an interactive terminal menu for common Agent-Sync operations |
 | `git agent-sync log [--oneline] [-n <count>\|-<count>] [--json]` | Browse restorable session history |
 | `git agent-sync log --latest [--oneline] [-n <count>\|-<count>] [--json]` | Browse sessions from the latest sync batch |

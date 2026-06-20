@@ -95,9 +95,11 @@ git agent-sync restore --current --no-register
 ```bash
 git agent-sync clone-local
 git agent-sync clone-local openrouter
+git agent-sync clone-local openrouter --no-register
+git agent-sync repair-local
 ```
 
-省略目标 provider 时，Agent-Sync 会读取 `~/.codex/config.toml` 里的 `model_provider`。克隆后的 rollout 仍写在 `~/.codex/sessions`，会生成稳定的新 session id，并记录 `cloned_from`、`original_provider`、`clone_timestamp` 等元数据。命令只处理通过结构化项目元数据匹配当前 Git 项目的 Codex 会话。
+省略目标 provider 时，Agent-Sync 会读取 `~/.codex/config.toml` 里的 `model_provider`。克隆后的 rollout 仍写在 `~/.codex/sessions`，会生成稳定的新 session id，并记录 `cloned_from`、`original_provider`、`clone_timestamp` 等元数据。默认还会注册本机 `state_5.sqlite` 和 `session_index.jsonl`，让 Codex UI 能看到克隆会话；如果只想写文件，可以加 `--no-register`。如果底层文件已存在但 UI 看不到，运行 `repair-local` 会重新注册 Agent-Sync 生成的 provider 克隆。命令只处理通过结构化项目元数据匹配当前 Git 项目的 Codex 会话。
 
 切换 Codex API provider 时如果希望自动同步：
 
