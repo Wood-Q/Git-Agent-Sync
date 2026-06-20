@@ -130,6 +130,10 @@ When a sidecar remote is configured, `pull` uses sparse checkout so the local `.
 
 ## Privacy Boundaries
 
+`push` defaults to `--privacy review`. Before writing a sidecar commit, Agent-Sync scans matched current-project sessions with built-in rules for OpenAI / Anthropic / GitHub tokens, AWS access keys, private keys, Bearer tokens, and common `api_key` / `token` / `secret` / `password` assignments. Findings are not uploaded silently; run `git agent-sync privacy scan` to inspect them, or explicitly use `git agent-sync push --privacy redact` to write redacted sidecar copies.
+
+Redaction only affects the copies inside `.agent-sync-store/`, including object-store copies. It does not rewrite the original local Codex / Claude session files. `projects/<project-id>/privacy-report.json` records the matched rule and location for later explanation.
+
 Agent-Sync intentionally does not use these `.codex` files as core project/session truth:
 
 - `session_index.jsonl`, because it only contains session id, title, and update time.

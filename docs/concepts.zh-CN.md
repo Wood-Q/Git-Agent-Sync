@@ -130,6 +130,10 @@ Agent session 文件里可能记录创建会话时的 shell、工作目录和项
 
 ## 隐私边界
 
+`push` 默认使用 `--privacy review`。在写入 sidecar commit 前，Agent-Sync 会用内置规则扫描当前项目匹配到的会话，默认识别 OpenAI / Anthropic / GitHub token、AWS access key、private key、Bearer token 和常见 `api_key` / `token` / `secret` / `password` 赋值。命中后不会静默上传；用户可以先运行 `git agent-sync privacy scan` 查看命中项，或者显式使用 `git agent-sync push --privacy redact` 写入脱敏后的 sidecar 副本。
+
+脱敏只作用于 `.agent-sync-store/` 中的会话副本和对象副本，不会改写本机原始 Codex / Claude session 文件。`projects/<project-id>/privacy-report.json` 会记录命中的规则和位置，方便后续解释。
+
 Agent-Sync 不把下面这些 `.codex` 内容作为核心项目/session 判断依据：
 
 - `session_index.jsonl` 只有 session id、标题和更新时间，只适合作为标题兜底，不足以判断项目归属。

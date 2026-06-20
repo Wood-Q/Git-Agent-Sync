@@ -144,6 +144,16 @@ git agent-sync daemon status
 git agent-sync daemon stop
 ```
 
+Before pushing, Agent-Sync runs privacy review by default. If common API keys, tokens, or private keys are found, `push` stops and asks you to inspect or redact:
+
+```bash
+git agent-sync privacy scan
+git agent-sync push --privacy redact
+git agent-sync push --privacy allow
+```
+
+`--privacy redact` writes redacted session and object copies to the sidecar store; it does not rewrite your original local agent session files.
+
 Remove the hook with:
 
 ```bash

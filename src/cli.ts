@@ -47,6 +47,15 @@ import {
   stopDaemon
 } from "./daemon.js";
 import { writeEventStoreSnapshot } from "./event-store.js";
+import {
+  applyPrivacyRedactionsToStore,
+  assertPrivacyAllowsPush,
+  createPrivacyReport,
+  loadPrivacyPolicy,
+  normalizePrivacyMode,
+  scanPrivacyMatches,
+  writePrivacyReport
+} from "./privacy.js";
 import { restoreCommand } from "./restore.js";
 import { runTui } from "./tui.js";
 import {
@@ -95,6 +104,7 @@ export async function main(argv) {
     pull: () => pullCommand(gitRoot),
     sync: () => syncCommand(gitRoot, args, options),
     daemon: () => daemonCommand(gitRoot, args, options),
+    privacy: () => privacyCommand(gitRoot, args, options),
     scan: () => scanCommand(gitRoot, options),
     "clone-local": () => localTransferCommand(gitRoot, args, options),
     "watch-local": () => localTransferWatchCommand(gitRoot, options),
@@ -126,10 +136,11 @@ Usage:
   git agent-sync status [--json]
   git agent-sync log [--latest|--current|--branch <name>|--commit <sha>] [--agent <name>] [--author <text>] [--bundle <prefix>] [--date <YYYY-MM-DD>] [--title <text>] [--oneline] [-n <count>|-<count>] [--json]
   git agent-sync show <bundle-id>|[filters] <index> [--json]
-  git agent-sync push [--m <message>]
+  git agent-sync push [--m <message>] [--privacy review|redact|allow|off]
   git agent-sync pull
   git agent-sync sync [status|--background|--flush] [--json]
   git agent-sync daemon <start|status|stop> [--once] [--interval <seconds>] [--json]
+  git agent-sync privacy <scan|redact> [--dry-run] [--json]
   git agent-sync scan [--json]
   git agent-sync clone-local [target-provider] [--dry-run] [--json]
   git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
@@ -202,11 +213,12 @@ Formats:
 Prints one agent session snapshot detail without restoring it.
 Aligns with: git show <object>.`,
     push: `Usage:
-  git agent-sync push [--m <message>]
+  git agent-sync push [--m <message>] [--privacy review|redact|allow|off]
 
 Copies matching agent session snapshots into the sidecar repo and commits them.
 Use --m to set the sidecar commit message for this sync.
-Aligns with: git push. The sidecar commit records the current project HEAD commit.`,
+Aligns with: git push. The sidecar commit records the current project HEAD commit.
+Privacy defaults to review; use --privacy redact to write redacted sidecar copies.`,
     pull: `Usage:
   git agent-sync pull
 
@@ -224,6 +236,11 @@ Queues or flushes sidecar sync jobs without blocking normal project work.`,
   git agent-sync daemon stop [--json]
 
 Starts, inspects, or stops the local Agent-Sync background worker.`,
+    privacy: `Usage:
+  git agent-sync privacy scan [--json]
+  git agent-sync privacy redact [--dry-run] [--json]
+
+Scans current-project agent sessions with the local redaction policy.`,
     "clone-local": `Usage:
   git agent-sync clone-local [target-provider] [--dry-run] [--json]
 
@@ -334,6 +351,26 @@ function scanCommand(gitRoot, options) {
   return statusCommand(gitRoot, options);
 }
 
+function privacyCommand(gitRoot, args, options) {
+  const action = args[0] || "scan";
+  if (!["scan", "redact"].includes(action)) {
+    throw new Error(`unknown privacy action "${action}". Run "git agent-sync privacy --help".`);
+  }
+  const config = readConfigWithBundle(gitRoot);
+  const scan = scanSessions(gitRoot, config);
+  const policy = loadPrivacyPolicy(gitRoot);
+  const report = scanPrivacyMatches(scan.matches, policy);
+  report.mode = action;
+  if (action === "redact") {
+    report.redacted = !options.dryRun;
+  }
+  if (options.json) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+  printPrivacyReport(report, { dryRun: options.dryRun, action });
+}
+
 function localTransferCommand(gitRoot, args, options) {
   const config = readConfigWithBundle(gitRoot);
   const result = runLocalTransfer(gitRoot, config, {
@@ -401,7 +438,7 @@ function showCommand(gitRoot, args, options) {
   printBindingDetail(config, match);
 }
 
-function pushCommand(gitRoot, options = {}) {
+function pushCommand(gitRoot, options: Record<string, any> = {}) {
   const config = readConfigWithBundle(gitRoot);
   ensureStoreRepo(config.storePath, config.remote);
   syncStoreFromRemote(config);
@@ -412,10 +449,25 @@ function pushCommand(gitRoot, options = {}) {
   const archiveInfo = getCodexArchiveInfo(getAgentRoot("codex"), { gitRoot });
   const scan = scanSessions(gitRoot, config, archiveInfo);
   writeJson(join(gitRoot, CACHE_FILE), scan);
+  const privacyMode = normalizePrivacyMode(options.privacy);
+  const privacyPolicy = loadPrivacyPolicy(gitRoot);
+  const privacyReport: Record<string, any> = privacyMode === "off" || privacyMode === "allow"
+    ? createPrivacyReport([], privacyPolicy, { mode: privacyMode })
+    : scanPrivacyMatches(scan.matches, privacyPolicy);
+  privacyReport.mode = privacyMode;
+  assertPrivacyAllowsPush(privacyReport, privacyMode);
 
   const pruned = pruneArchivedSidecarEntries(config, archiveInfo);
   const foreignPruned = pruneForeignProjectSidecarEntries(config);
   const copied = copyMatchesToStore(config, scan, archiveInfo);
+  const redactions = privacyMode === "redact"
+    ? applyPrivacyRedactionsToStore(config, scan.matches, privacyPolicy)
+    : { filesChanged: 0 };
+  if (privacyMode !== "off" && privacyReport.totalFindings > 0) {
+    privacyReport.redacted = privacyMode === "redact";
+    privacyReport.filesChanged = redactions.filesChanged;
+    writePrivacyReport(config, privacyReport);
+  }
   writeManifest(config, scan, gitContext);
   const commitMessage = getPushCommitMessage(config, gitContext, options);
   const author = getProjectGitAuthor(gitRoot);
@@ -427,7 +479,8 @@ function pushCommand(gitRoot, options = {}) {
   const eventStore = writeEventStoreSnapshot(config, scan.matches, gitContext, syncRunId, {
     message: commitMessage,
     authorName: author.name,
-    authorEmail: author.email
+    authorEmail: author.email,
+    preferStoreContent: privacyMode === "redact"
   });
 
   stageProjectBundle(config);
@@ -436,7 +489,7 @@ function pushCommand(gitRoot, options = {}) {
     console.log(`agent-sync: no sidecar changes (${copied.length} matched session(s), ${pruned.removedFiles} archived removed, ${foreignPruned.removedFiles} foreign removed).`);
   } else {
     runGit(["-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "-m", commitMessage], config.storePath);
-    console.log(`agent-sync: committed ${copied.length} matched session file(s), ${bindingsAdded} new binding(s), ${eventStore.eventsWritten} event(s), ${eventStore.objectsWritten} object(s), ${pruned.removedFiles} archived removed, ${foreignPruned.removedFiles} foreign removed.`);
+    console.log(`agent-sync: committed ${copied.length} matched session file(s), ${bindingsAdded} new binding(s), ${eventStore.eventsWritten} event(s), ${eventStore.objectsWritten} object(s), ${redactions.filesChanged} redacted file(s), ${pruned.removedFiles} archived removed, ${foreignPruned.removedFiles} foreign removed.`);
   }
 
   if (config.remote) {
@@ -934,6 +987,22 @@ function printScan(scan, config) {
   }
   for (const match of scan.matches) {
     console.log(`- ${match.bundleId} ${match.agent} ${match.originalPath} (${match.bytes} bytes)`);
+  }
+}
+
+function printPrivacyReport(report, options: Record<string, any> = {}) {
+  const action = options.action || "scan";
+  console.log(`privacy: ${report.totalFindings} finding(s)`);
+  if (action === "redact" && options.dryRun) {
+    console.log("mode:    dry-run redaction preview");
+  } else if (action === "redact") {
+    console.log("mode:    redaction preview; use push --privacy redact to write sidecar copies");
+  }
+  for (const finding of report.findings.slice(0, 50)) {
+    console.log(`- ${finding.rule} ${finding.path}:${finding.line}:${finding.column} ${finding.preview}`);
+  }
+  if (report.findings.length > 50) {
+    console.log(`... ${report.findings.length - 50} more finding(s)`);
   }
 }
 

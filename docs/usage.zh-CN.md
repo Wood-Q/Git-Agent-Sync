@@ -144,6 +144,16 @@ git agent-sync daemon status
 git agent-sync daemon stop
 ```
 
+推送前会默认执行隐私 review。命中常见 API key、token、private key 时，`push` 会停止并提示先检查：
+
+```bash
+git agent-sync privacy scan
+git agent-sync push --privacy redact
+git agent-sync push --privacy allow
+```
+
+`--privacy redact` 会把 sidecar store 中的会话副本和对象副本写成脱敏内容；原始本机会话文件不会被改写。
+
 移除 hook：
 
 ```bash

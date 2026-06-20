@@ -19,7 +19,7 @@ export function writeEventStoreSnapshot(config, matches, gitContext, syncRunId, 
   let skipped = 0;
 
   for (const match of matches.filter((item) => SUPPORTED_EVENT_AGENTS.has(item.agent))) {
-    const source = readMatchContent(config, match);
+    const source = readMatchContent(config, match, commitInfo);
     if (!source) {
       skipped += 1;
       continue;
@@ -204,11 +204,12 @@ function createSnapshotEvent({
   };
 }
 
-function readMatchContent(config, match) {
-  const candidates = [
-    match.originalPath ? expandHome(match.originalPath) : "",
-    match.storeRelativePath ? join(config.storePath, match.storeRelativePath) : ""
-  ].filter(Boolean);
+function readMatchContent(config, match, options: Record<string, any> = {}) {
+  const originalPath = match.originalPath ? expandHome(match.originalPath) : "";
+  const storePath = match.storeRelativePath ? join(config.storePath, match.storeRelativePath) : "";
+  const candidates = options.preferStoreContent
+    ? [storePath, originalPath].filter(Boolean)
+    : [originalPath, storePath].filter(Boolean);
 
   for (const path of candidates) {
     if (existsSync(path)) {

@@ -123,6 +123,8 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync sync status` | Show queued, running, completed, and failed sync jobs |
 | `git agent-sync sync --flush` | Process queued sync jobs in the current terminal |
 | `git agent-sync daemon <start\|status\|stop>` | Manage the local background sync worker |
+| `git agent-sync privacy scan` | Scan current-project sessions for common secrets |
+| `git agent-sync push --privacy redact` | Write redacted sidecar copies when secrets are found |
 | `git agent-sync clone-local [target-provider]` | Clone local current-project Codex sessions to a Codex `model_provider` |
 | `git agent-sync watch-local [--interval <seconds>]` | Watch Codex `model_provider` changes and clone sessions to the active provider |
 | `git agent-sync tui` | Open an interactive terminal menu for common Agent-Sync operations |
@@ -159,6 +161,6 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 
 ## Security Note
 
-This MVP copies raw project conversation files. Those files may include secrets, code snippets, local paths, prompts, and terminal output. It does not copy Claude account, token, global config, cache, telemetry, plugin, skill, IDE lock, or runtime session files.
+This MVP copies project conversation files. `push` defaults to `--privacy review`, which blocks when common secrets are detected; use `git agent-sync privacy scan` to inspect findings or `git agent-sync push --privacy redact` to write redacted sidecar copies. Conversation files may still include code snippets, local paths, prompts, and terminal output. Agent-Sync does not copy Claude account, token, global config, cache, telemetry, plugin, skill, IDE lock, or runtime session files.
 
 Use a private remote for the sidecar session store. A production version should add default encryption and secret redaction before remote push.

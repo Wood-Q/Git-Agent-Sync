@@ -24,6 +24,7 @@ export type CliOptions = Record<string, string | boolean | undefined> & {
   maxCount?: string;
   message?: string;
   mode?: string;
+  privacy?: string;
   remote?: string;
   store?: string;
   title?: string;
@@ -111,6 +112,10 @@ export function parseArgs(rawArgs: string[]) {
       options.mode = arg.slice("--mode=".length);
     } else if (arg === "--mode") {
       options.mode = rawArgs[++i];
+    } else if (arg.startsWith("--privacy=")) {
+      options.privacy = arg.slice("--privacy=".length);
+    } else if (arg === "--privacy") {
+      options.privacy = rawArgs[++i];
     } else if (arg.startsWith("--interval=")) {
       options.interval = arg.slice("--interval=".length);
     } else if (arg === "--interval") {
