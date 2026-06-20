@@ -15,7 +15,7 @@ VS Code extension:
 - Marketplace: [Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - Extension ID: `mokio.agent-sync-vscode`
 
-The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. The History view toolbar can pull, push, inspect sync status, run privacy scan, list sidecar conflicts, inspect Conversation IR, clone/register/clean local provider sessions, open the TUI, refresh, search or clear filters, show bundle details, and restore sessions for the current workspace; the Command Palette also exposes background sync, queue flush, daemon status, register-local, repair-local, clean-local preview, privacy redaction preview, show bundle, and readable tool export.
+The extension runs the CLI from `agentSync.cliPath`, defaulting to `agent-sync`. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. The History view toolbar can pull, push, inspect sync status, run privacy scan, list sidecar conflicts, inspect Conversation IR, clone/register/clean local provider sessions, open the TUI, refresh, search or clear filters, show bundle details, and restore sessions for the current workspace; the Command Palette also exposes background sync, queue flush/retry/cancel, daemon status, register-local, repair-local, clean-local preview, privacy redaction preview, show bundle, and readable tool export.
 
 For local development:
 
@@ -120,7 +120,7 @@ Open the terminal menu when you want the common workflows in one place:
 git agent-sync tui
 ```
 
-The TUI can run status, latest log, pull, push, restore by index, `clone-local`, `register-local`, `repair-local`, `clean-local` preview, local watch actions, and conflict list/show/resolve commands. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
+The TUI can run status, latest log, pull, push, restore by index, sync queue status/flush/retry/cancel, `clone-local`, `register-local`, `repair-local`, `clean-local` preview, local watch actions, and conflict list/show/resolve commands. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
 
 The terminal UI is built with React Ink. It groups actions into Dashboard, Sync Queue, Session History, Local Provider, Tool Convert, Privacy Review, Conflicts, and Settings views. Use arrow keys to move, Tab or the right arrow to switch views, `/` to search actions, `?` for help, and Enter to run the selected action. Each action shows its equivalent CLI command, and restore/push/conflict-resolution/hook actions ask for confirmation before running. Long-running provider watch hands off to the normal CLI command.
 
@@ -170,6 +170,8 @@ You can also manage the queue manually:
 git agent-sync sync --background
 git agent-sync sync status
 git agent-sync sync --flush
+git agent-sync sync retry all
+git agent-sync sync cancel all
 git agent-sync daemon start
 git agent-sync daemon status
 git agent-sync daemon stop

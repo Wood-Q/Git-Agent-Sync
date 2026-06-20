@@ -69,6 +69,8 @@ async function main() {
   assert.match(buildCliCommandLine(["watch-local"]), /watch-local/);
   assert.match(buildCliCommandLine(["tui"]), /tui/);
   assert.match(buildCliCommandLine(["privacy", "scan"]), /privacy scan/);
+  assert.match(buildCliCommandLine(["sync", "retry", "all"]), /sync retry all/);
+  assert.match(buildCliCommandLine(["sync", "cancel", "all"]), /sync cancel all/);
   assert.match(buildCliCommandLine(["conflicts", "list"]), /conflicts list/);
   assert.match(buildCliCommandLine(["register-local"]), /register-local/);
   assert.match(buildCliCommandLine(["clean-local"]), /clean-local/);

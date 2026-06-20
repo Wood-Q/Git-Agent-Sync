@@ -70,6 +70,31 @@ const MENU_CHOICES: TuiChoice[] = [
   { key: "8", view: "queue", badge: "QUEUE", label: "Show sync queue status", description: "Inspect pending, running, done, and failed jobs.", args: ["sync", "status"] },
   { key: "9", view: "queue", badge: "QUEUE", label: "Queue background sync", description: "Enqueue a sidecar push and start the worker.", args: ["sync", "--background"] },
   { key: "f", view: "queue", badge: "FLUSH", label: "Flush queue now", description: "Process queued sync jobs in this terminal.", args: ["sync", "--flush"] },
+  {
+    key: "u",
+    view: "queue",
+    badge: "RETRY",
+    label: "Retry failed queue jobs",
+    description: "Move failed or cancelled sync jobs back to pending.",
+    args: ["sync", "retry"],
+    prompt: {
+      label: "Job id or all",
+      placeholder: "Enter a job id prefix or all"
+    }
+  },
+  {
+    key: "K",
+    view: "queue",
+    badge: "CANCEL",
+    label: "Cancel pending queue jobs",
+    description: "Move matching pending jobs to cancelled without touching running jobs.",
+    args: ["sync", "cancel"],
+    prompt: {
+      label: "Job id or all",
+      placeholder: "Enter a job id prefix or all"
+    },
+    confirm: "Cancel matching pending sync job(s)?"
+  },
   { key: "d", view: "queue", badge: "DAEMON", label: "Daemon status", description: "Read the local worker state file.", args: ["daemon", "status"] },
   { key: "b", view: "queue", badge: "DAEMON", label: "Start daemon", description: "Start the background worker loop.", args: ["daemon", "start"] },
   { key: "k", view: "queue", badge: "DAEMON", label: "Stop daemon", description: "Request a local worker shutdown.", args: ["daemon", "stop"] },

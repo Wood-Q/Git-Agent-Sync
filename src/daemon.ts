@@ -10,6 +10,7 @@ const DAEMON_STATE = join(CONFIG_DIR, "daemon-state.json");
 const SYNC_LOCK = join(CONFIG_DIR, "sync-lock");
 const DEFAULT_DAEMON_INTERVAL_SECONDS = 15;
 const DEFAULT_MAX_ATTEMPTS = 3;
+const QUEUE_STATES = ["pending", "running", "done", "failed", "cancelled"];
 
 type SyncJob = Record<string, any>;
 
@@ -120,9 +121,8 @@ export function flushSyncQueue(gitRoot, options: Record<string, any> = {}) {
 
 export function getSyncQueueStatus(gitRoot) {
   const paths = getQueuePaths(gitRoot);
-  const states = ["pending", "running", "done", "failed"];
   const jobs = {};
-  for (const state of states) {
+  for (const state of QUEUE_STATES) {
     jobs[state] = listQueueFiles(gitRoot, state).map((file) => {
       try {
         return readJson(file);
@@ -136,7 +136,7 @@ export function getSyncQueueStatus(gitRoot) {
     queuePath: toSlash(relative(gitRoot, paths.root)),
     lock: existsSync(paths.lock),
     daemon: readDaemonState(gitRoot),
-    counts: Object.fromEntries(states.map((state) => [state, jobs[state].length])),
+    counts: Object.fromEntries(QUEUE_STATES.map((state) => [state, jobs[state].length])),
     jobs
   };
 }
@@ -149,13 +149,36 @@ export function formatSyncQueueStatus(status) {
     `pending: ${status.counts.pending}`,
     `running: ${status.counts.running}`,
     `done: ${status.counts.done}`,
-    `failed: ${status.counts.failed}`
+    `failed: ${status.counts.failed}`,
+    `cancelled: ${status.counts.cancelled || 0}`
   ];
-  const visibleJobs = [...status.jobs.pending, ...status.jobs.running, ...status.jobs.failed].slice(0, 10);
+  const visibleJobs = [...status.jobs.pending, ...status.jobs.running, ...status.jobs.failed, ...(status.jobs.cancelled || [])].slice(0, 10);
   for (const job of visibleJobs) {
     lines.push(`- ${job.status} ${job.id} ${job.action || "sync"} attempts=${job.attempts || 0}`);
   }
   return lines.join("\n");
+}
+
+export function retrySyncJobs(gitRoot, selector = "all") {
+  return mutateQueueJobs(gitRoot, "retry", selector, ["failed", "cancelled"], (job, now) => ({
+    ...job,
+    status: "pending",
+    attempts: 0,
+    retriedAt: now,
+    updatedAt: now,
+    retryAfter: null,
+    exitCode: null
+  }));
+}
+
+export function cancelSyncJobs(gitRoot, selector = "all") {
+  return mutateQueueJobs(gitRoot, "cancel", selector, ["pending"], (job, now) => ({
+    ...job,
+    status: "cancelled",
+    cancelledAt: now,
+    completedAt: now,
+    updatedAt: now
+  }));
 }
 
 export function startBackgroundSync(gitRoot) {
@@ -284,6 +307,66 @@ function moveJob(gitRoot, fromPath, state, job) {
   return targetPath;
 }
 
+function mutateQueueJobs(gitRoot, action, selector, states, mapJob) {
+  const lock = acquireSyncLock(gitRoot);
+  if (!lock.acquired) {
+    return {
+      version: 1,
+      action,
+      selector,
+      locked: true,
+      message: lock.message,
+      changed: 0,
+      skipped: 0,
+      results: []
+    };
+  }
+
+  const normalizedSelector = String(selector || "all").trim() || "all";
+  const now = new Date().toISOString();
+  const results = [];
+  let changed = 0;
+  let skipped = 0;
+  try {
+    for (const state of states) {
+      for (const file of listQueueFiles(gitRoot, state)) {
+        const job = readJson<SyncJob>(file);
+        if (!matchesJobSelector(job, normalizedSelector)) {
+          skipped += 1;
+          continue;
+        }
+        const nextJob = mapJob(job, now);
+        const targetState = nextJob.status;
+        moveJob(gitRoot, file, targetState, nextJob);
+        changed += 1;
+        results.push({
+          id: nextJob.id,
+          action: nextJob.action,
+          from: state,
+          to: targetState,
+          attempts: nextJob.attempts || 0
+        });
+      }
+    }
+  } finally {
+    releaseSyncLock(lock);
+  }
+
+  return {
+    version: 1,
+    action,
+    selector: normalizedSelector,
+    locked: false,
+    changed,
+    skipped,
+    results
+  };
+}
+
+function matchesJobSelector(job, selector) {
+  return selector === "all" || String(job.id || "").startsWith(selector);
+}
+
 function listQueueFiles(gitRoot, state) {
   const dir = getQueuePaths(gitRoot)[state];
   if (!existsSync(dir)) {
@@ -303,6 +386,7 @@ function getQueuePaths(gitRoot) {
     running: join(root, "running"),
     done: join(root, "done"),
     failed: join(root, "failed"),
+    cancelled: join(root, "cancelled"),
     lock: join(gitRoot, SYNC_LOCK)
   };
 }

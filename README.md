@@ -90,6 +90,8 @@ The hook queues a background sync job instead of running the sidecar push inline
 git agent-sync sync --background
 git agent-sync sync status
 git agent-sync sync --flush
+git agent-sync sync retry all
+git agent-sync sync cancel all
 git agent-sync daemon start
 git agent-sync daemon status
 git agent-sync daemon stop
@@ -121,8 +123,10 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync push [--m <message>]` | Snapshot matched sessions into the sidecar store and push the sidecar remote |
 | `git agent-sync pull` | Pull sidecar snapshots for this project |
 | `git agent-sync sync --background` | Queue a sidecar sync job and start a background worker |
-| `git agent-sync sync status` | Show queued, running, completed, and failed sync jobs |
+| `git agent-sync sync status` | Show queued, running, completed, failed, and cancelled sync jobs |
 | `git agent-sync sync --flush` | Process queued sync jobs in the current terminal |
+| `git agent-sync sync retry [id\|all]` | Move failed or cancelled sync jobs back to pending |
+| `git agent-sync sync cancel [id\|all]` | Cancel matching pending sync jobs without touching running jobs |
 | `git agent-sync daemon <start\|status\|stop>` | Manage the local background sync worker |
 | `git agent-sync privacy scan` | Scan current-project sessions for common secrets |
 | `git agent-sync push --privacy redact` | Write redacted sidecar copies when secrets are found |

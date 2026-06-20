@@ -34,7 +34,7 @@ Agent-Sync 的长期目标是成为 agent conversation processing platform：
 - 本机 provider 同步只处理 Codex provider 内部克隆，不等价于 Codex 与 Claude Code 之间的完整格式转换。
 - 跨工具转换已经有 Conversation IR、inspect/convert/readable export；真正可继续对话的 resumable handoff 仍需要按目标工具能力谨慎放开。
 - 隐私保护已经有 push 前 scan/review/redact pipeline，并支持 `.agent-sync/privacy.json` 里的 `denyPatterns` / `allowPatterns`；更细的交互式逐条 review 仍在 TUI / VS Code 体验层继续增强。
-- 后台同步 daemon 和异步队列已有 CLI 主路径；更丰富的队列可视化和失败操作仍在 TUI / VS Code 体验层继续增强。
+- 后台同步 daemon 和异步队列已有 CLI 主路径，`sync retry` / `sync cancel` 可把失败或取消的任务重新入队、取消尚未运行的 pending 任务；更丰富的队列可视化仍在 TUI / VS Code 体验层继续增强。
 
 ## 3. 核心设计原则
 
@@ -151,6 +151,8 @@ git agent-sync daemon stop
 git agent-sync sync --background
 git agent-sync sync --flush
 git agent-sync sync status
+git agent-sync sync retry [id|all]
+git agent-sync sync cancel [id|all]
 ```
 
 hooks 只入队，不直接做耗时 Git 操作：
@@ -458,6 +460,8 @@ git agent-sync doctor
 git agent-sync sync status
 git agent-sync sync --background
 git agent-sync sync --flush
+git agent-sync sync retry
+git agent-sync sync cancel
 git agent-sync daemon start
 git agent-sync daemon status
 git agent-sync daemon stop
@@ -501,7 +505,7 @@ TUI 适合使用 React Ink。目标不是把 CLI 命令包一层菜单，而是�
 信息架构：
 
 - **Dashboard**：显示当前项目、sidecar remote、最近同步、待处理队列、隐私风险、冲突数量。
-- **Sync Queue**：展示 pending / running / failed jobs，可重试、取消、flush。
+- **Sync Queue**：展示 pending / running / failed / cancelled jobs，可重试、取消、flush。
 - **Session History**：按 latest、current、branch、commit 浏览 bindings，支持恢复、查看详情、筛选 agent。
 - **Local Provider**：显示当前 Codex `model_provider`、可克隆会话、watch 状态、注册状态。
 - **Tool Convert**：选择 Codex / Claude 会话，查看 IR 解析结果，导出为 readable 或 resumable。
@@ -530,7 +534,7 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 - **Provider Controls**：显示当前 Codex provider，提供 `clone-local`、`watch-local`、`repair-local`。
 - **Tool Conversion View**：用统一结构展示 Codex / Claude 消息和工具调用，支持导出。
 
-当前 VS Code 实现保持“只调用 CLI”的边界：History toolbar 和 Command Palette 已接入 pull、push、sync status/background/flush、daemon status、privacy scan/redact dry-run、conflicts list、tool inspect/export readable、show bundle、clone-local、register-local、watch-local、repair-local、clean-local 预览、TUI 和 restore；History Webview 支持自由搜索、列过滤、行级 show / restore。
+当前 VS Code 实现保持“只调用 CLI”的边界：History toolbar 和 Command Palette 已接入 pull、push、sync status/background/flush/retry/cancel、daemon status、privacy scan/redact dry-run、conflicts list、tool inspect/export readable、show bundle、clone-local、register-local、watch-local、repair-local、clean-local 预览、TUI 和 restore；History Webview 支持自由搜索、列过滤、行级 show / restore。
 
 体验要求：
 
@@ -574,7 +578,7 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 
 目标：
 
-- 实现 queue、daemon、lock、retry、status。
+- 实现 queue、daemon、lock、retry、cancel、status。
 - hooks 只入队，不阻塞用户 Git 操作。
 
 验收：

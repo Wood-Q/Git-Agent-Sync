@@ -15,7 +15,7 @@ VS Code 插件已经发布到 Marketplace：
 - Marketplace：[Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - 扩展 ID：`mokio.agent-sync-vscode`
 
-插件会从 `agentSync.cliPath` 调用 CLI，默认命令是 `agent-sync`。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。History 视图顶部工具栏可以对当前 workspace 执行 pull、push、查看同步状态、隐私扫描、列出 sidecar 冲突、Conversation IR 检查、本机 provider clone / register / clean、打开 TUI、刷新、搜索或清空筛选、show bundle 详情和恢复会话；Command Palette 还提供后台同步、队列 flush、daemon 状态、register-local、repair-local、clean-local 预览、隐私脱敏预览、show bundle 和 readable tool export。
+插件会从 `agentSync.cliPath` 调用 CLI，默认命令是 `agent-sync`。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。History 视图顶部工具栏可以对当前 workspace 执行 pull、push、查看同步状态、隐私扫描、列出 sidecar 冲突、Conversation IR 检查、本机 provider clone / register / clean、打开 TUI、刷新、搜索或清空筛选、show bundle 详情和恢复会话；Command Palette 还提供后台同步、队列 flush/retry/cancel、daemon 状态、register-local、repair-local、clean-local 预览、隐私脱敏预览、show bundle 和 readable tool export。
 
 本地开发阶段：
 
@@ -120,7 +120,7 @@ git agent-sync watch-local
 git agent-sync tui
 ```
 
-TUI 可以执行 status、最新 log、pull、push、按编号 restore、`clone-local`、`register-local`、`repair-local`、`clean-local` 预览、本机 watch，以及冲突 list/show/resolve。VS Code History 视图里也有 TUI 按钮，会在集成终端打开同一个菜单。
+TUI 可以执行 status、最新 log、pull、push、按编号 restore、同步队列 status/flush/retry/cancel、`clone-local`、`register-local`、`repair-local`、`clean-local` 预览、本机 watch，以及冲突 list/show/resolve。VS Code History 视图里也有 TUI 按钮，会在集成终端打开同一个菜单。
 
 这个终端 UI 使用 React Ink 构建。操作会分成 Dashboard、Sync Queue、Session History、Local Provider、Tool Convert、Privacy Review、Conflicts 和 Settings 视图。方向键移动，Tab 或右方向键切换视图，`/` 搜索动作，`?` 打开帮助，Enter 执行当前动作；每个动作都会显示等价 CLI，restore、push、冲突解决和 hook 操作会在执行前二次确认。长时间运行的 provider watch 会交给普通 CLI 命令继续执行。
 
@@ -170,6 +170,8 @@ git agent-sync conflicts resolve 1 --strategy keep-all
 git agent-sync sync --background
 git agent-sync sync status
 git agent-sync sync --flush
+git agent-sync sync retry all
+git agent-sync sync cancel all
 git agent-sync daemon start
 git agent-sync daemon status
 git agent-sync daemon stop

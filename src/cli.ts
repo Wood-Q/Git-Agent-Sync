@@ -40,10 +40,12 @@ import {
   runLocalTransfer
 } from "./local-transfer.js";
 import {
+  cancelSyncJobs,
   enqueueSyncJob,
   flushSyncQueue,
   formatSyncQueueStatus,
   getSyncQueueStatus,
+  retrySyncJobs,
   runDaemonLoop,
   startBackgroundSync,
   startDaemonProcess,
@@ -153,7 +155,7 @@ Usage:
   git agent-sync show <bundle-id>|[filters] <index> [--json]
   git agent-sync push [--m <message>] [--privacy review|redact|allow|off]
   git agent-sync pull
-  git agent-sync sync [status|--background|--flush] [--json]
+  git agent-sync sync [status|retry [id|all]|cancel [id|all]|--background|--flush] [--json]
   git agent-sync daemon <start|status|stop> [--once] [--interval <seconds>] [--json]
   git agent-sync privacy <scan|redact> [--dry-run] [--json]
   git agent-sync tool <inspect|convert|export> --session <bundle-id> [--to ir|codex|claude] [--json]
@@ -248,8 +250,10 @@ Run log or restore after pull to inspect or recover sessions.`,
   git agent-sync sync status [--json]
   git agent-sync sync --background [--json]
   git agent-sync sync --flush [--json]
+  git agent-sync sync retry [id|all] [--json]
+  git agent-sync sync cancel [id|all] [--json]
 
-Queues or flushes sidecar sync jobs without blocking normal project work.`,
+Queues, flushes, retries, or cancels local sidecar sync jobs without blocking normal project work.`,
     daemon: `Usage:
   git agent-sync daemon start [--once] [--interval <seconds>] [--json]
   git agent-sync daemon status [--json]
@@ -736,21 +740,31 @@ function isRejectedStorePush(result) {
 
 async function syncCommand(gitRoot, args, options) {
   const action = args[0] || "";
-  if (action === "status" || (options.json && !options.background && !options.flush)) {
+  if (action === "status" || (!action && options.json && !options.background && !options.flush)) {
     printQueueStatus(gitRoot, options);
     return;
   }
-  if (action && !["background", "flush"].includes(action)) {
+  if (action && !["background", "flush", "retry", "cancel"].includes(action)) {
     throw new Error(`unknown sync action "${action}". Run "git agent-sync sync --help".`);
   }
 
-  const config = readConfigWithBundle(gitRoot);
   if (options.flush || action === "flush") {
     const result = flushSyncQueue(gitRoot);
     printSyncResult(result, options);
     return;
   }
+  if (action === "retry") {
+    const result = retrySyncJobs(gitRoot, args[1] || "all");
+    printQueueMutationResult(result, options);
+    return;
+  }
+  if (action === "cancel") {
+    const result = cancelSyncJobs(gitRoot, args[1] || "all");
+    printQueueMutationResult(result, options);
+    return;
+  }
 
+  const config = readConfigWithBundle(gitRoot);
   const job = enqueueSyncJob(gitRoot, config, {
     action: "push",
     reason: options.background || action === "background" ? "background-sync" : "manual-sync"
@@ -1178,6 +1192,22 @@ function printSyncResult(result, options) {
     return;
   }
   console.log(`agent-sync: processed ${result.processed} sync job(s), ${result.succeeded} succeeded, ${result.retried} queued for retry, ${result.failed} failed.`);
+}
+
+function printQueueMutationResult(result, options) {
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  if (result.locked) {
+    console.log(`agent-sync: ${result.message}`);
+    return;
+  }
+  const verb = result.action === "retry" ? "queued for retry" : "cancelled";
+  console.log(`agent-sync: ${verb} ${result.changed} sync job(s).`);
+  if (!result.changed) {
+    console.log(`agent-sync: no matching ${result.action === "retry" ? "failed or cancelled" : "pending"} job found for "${result.selector}".`);
+  }
 }
 
 function printDaemonResult(result, options) {

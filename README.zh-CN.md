@@ -92,6 +92,8 @@ hook 会把同步任务放入后台队列，而不是在 `git push` 过程中直
 git agent-sync sync --background
 git agent-sync sync status
 git agent-sync sync --flush
+git agent-sync sync retry all
+git agent-sync sync cancel all
 git agent-sync daemon start
 git agent-sync daemon status
 git agent-sync daemon stop
@@ -123,8 +125,10 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 | `git agent-sync push [--m <message>]` | 写入会话快照并推送 sidecar remote |
 | `git agent-sync pull` | 拉取当前项目可用的 sidecar 快照 |
 | `git agent-sync sync --background` | 入队 sidecar 同步任务并启动后台 worker |
-| `git agent-sync sync status` | 查看 pending、running、done、failed 同步任务 |
+| `git agent-sync sync status` | 查看 pending、running、done、failed、cancelled 同步任务 |
 | `git agent-sync sync --flush` | 在当前终端处理队列中的同步任务 |
+| `git agent-sync sync retry [id\|all]` | 把 failed 或 cancelled 同步任务重新放回 pending |
+| `git agent-sync sync cancel [id\|all]` | 取消匹配的 pending 同步任务，不中断 running 任务 |
 | `git agent-sync daemon <start\|status\|stop>` | 管理本地后台同步 worker |
 | `git agent-sync privacy scan` | 扫描当前项目会话里的常见密钥 |
 | `git agent-sync push --privacy redact` | 命中密钥时写入脱敏后的 sidecar 副本 |

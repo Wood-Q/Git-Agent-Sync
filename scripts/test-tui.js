@@ -18,6 +18,8 @@ const config = {
 const menu = renderTuiMenu(config);
 assert.match(menu, /Agent Sync TUI - Project/);
 assert.match(menu, /Sync Queue/);
+assert.match(menu, /Retry failed queue jobs/);
+assert.match(menu, /Cancel pending queue jobs/);
 assert.match(menu, /Settings/);
 assert.match(menu, /Clone Codex sessions to current provider/);
 assert.match(menu, /Register local provider clones/);
@@ -37,6 +39,9 @@ assert.equal(getTuiChoices().some((choice) => choice.key === "i" && choice.promp
 assert.equal(getTuiChoices().some((choice) => choice.key === "5" && choice.prompt), true);
 assert.equal(resolveTuiChoice("4").confirm.includes("Push"), true);
 assert.equal(resolveTuiChoice("R").confirm.includes("redacted"), true);
+assert.deepEqual(resolveTuiChoice("u").args, ["sync", "retry"]);
+assert.deepEqual(resolveTuiChoice("K").args, ["sync", "cancel"]);
+assert.equal(resolveTuiChoice("K").confirm.includes("Cancel"), true);
 assert.deepEqual(resolveTuiChoice("6").args, ["clone-local"]);
 assert.deepEqual(resolveTuiChoice("n").args, ["register-local"]);
 assert.deepEqual(resolveTuiChoice("z").args, ["clean-local"]);
@@ -50,7 +55,7 @@ assert.equal(resolveTuiChoice("q").exits, true);
 assert.equal(resolveTuiChoice("missing"), null);
 
 const commands = [];
-const answers = ["1", "", "5", "3", "y", "", "i", "bundle-1", "", "q"];
+const answers = ["1", "", "u", "all", "", "K", "all", "y", "", "5", "3", "y", "", "i", "bundle-1", "", "q"];
 const io = {
   async question() {
     return answers.shift() || "";
@@ -68,6 +73,8 @@ await runTui("/tmp/project", config, {
 
 assert.deepEqual(commands, [
   { args: ["status"], cwd: "/tmp/project" },
+  { args: ["sync", "retry", "all"], cwd: "/tmp/project" },
+  { args: ["sync", "cancel", "all"], cwd: "/tmp/project" },
   { args: ["restore", "--index", "3"], cwd: "/tmp/project" },
   { args: ["tool", "inspect", "--session", "bundle-1"], cwd: "/tmp/project" }
 ]);

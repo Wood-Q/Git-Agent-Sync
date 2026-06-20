@@ -48,6 +48,8 @@ export function activate(context: vscode.ExtensionContext) {
   registerCliAction(context, output, cli, "agentSync.syncStatus", "Sync Status", ["sync", "status"]);
   registerCliAction(context, output, cli, "agentSync.syncBackground", "Background Sync", ["sync", "--background"]);
   registerCliAction(context, output, cli, "agentSync.syncFlush", "Flush Sync Queue", ["sync", "--flush"]);
+  registerCliAction(context, output, cli, "agentSync.syncRetry", "Retry Failed Sync Jobs", ["sync", "retry", "all"]);
+  registerCliAction(context, output, cli, "agentSync.syncCancel", "Cancel Pending Sync Jobs", ["sync", "cancel", "all"]);
   registerCliAction(context, output, cli, "agentSync.daemonStatus", "Daemon Status", ["daemon", "status"]);
   registerCliAction(context, output, cli, "agentSync.privacyScan", "Privacy Scan", ["privacy", "scan"]);
   registerCliAction(context, output, cli, "agentSync.privacyRedactDryRun", "Privacy Redaction Preview", ["privacy", "redact", "--dry-run"]);
