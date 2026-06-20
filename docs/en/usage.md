@@ -178,6 +178,8 @@ git agent-sync daemon status
 git agent-sync daemon stop
 ```
 
+During a flush, stale `running` jobs left by a crashed daemon are recovered back to `pending` under the sync lock and processed again in the same queue pass.
+
 Before pushing, Agent-Sync runs privacy review by default. If common API keys, tokens, or private keys are found, `push` stops and asks you to inspect or redact:
 
 ```bash

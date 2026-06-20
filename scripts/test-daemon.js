@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -17,6 +17,7 @@ const repoRoot = process.cwd();
 const cli = join(repoRoot, "bin", "git-agent-sync.js");
 const base = mkdtempSync(join(tmpdir(), "agent-sync-daemon-"));
 const gitRoot = join(base, "project");
+const queueRoot = join(gitRoot, ".agent-sync", "queue");
 mkdirSync(join(gitRoot, ".agent-sync"), { recursive: true });
 run("git", ["init", "-b", "main"], gitRoot);
 
@@ -112,6 +113,42 @@ flushSyncQueue(gitRoot, {
   }
 });
 
+const staleJob = enqueueSyncJob(gitRoot, config, { reason: "crash-recovery-test", maxAttempts: 3 });
+const stalePendingPath = join(queueRoot, "pending", `${staleJob.id}.json`);
+const staleRunningPath = join(queueRoot, "running", `${staleJob.id}.json`);
+mkdirSync(join(queueRoot, "running"), { recursive: true });
+writeFileSync(stalePendingPath, JSON.stringify({
+  ...staleJob,
+  status: "running",
+  attempts: 1,
+  startedAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z"
+}, null, 2));
+renameSync(stalePendingPath, staleRunningPath);
+status = getSyncQueueStatus(gitRoot);
+assert.equal(status.counts.running, 1);
+assert.equal(status.jobs.running[0].id, staleJob.id);
+
+const recoveredFlush = flushSyncQueue(gitRoot, {
+  runner(runningJob) {
+    assert.equal(runningJob.id, staleJob.id);
+    assert.equal(runningJob.attempts, 2);
+    assert.equal(runningJob.recoveryReason, "daemon-restart");
+    assert.ok(runningJob.recoveredAt);
+    return { status: 0, stdout: "recovered ok", stderr: "" };
+  }
+});
+assert.equal(recoveredFlush.recovered, 1);
+assert.equal(recoveredFlush.recoveredJobs[0].id, staleJob.id);
+assert.equal(recoveredFlush.processed, 1);
+assert.equal(recoveredFlush.succeeded, 1);
+status = getSyncQueueStatus(gitRoot);
+assert.equal(status.counts.running, 0);
+const recoveredDone = status.jobs.done.find((doneJob) => doneJob.id === staleJob.id);
+assert.ok(recoveredDone);
+assert.equal(recoveredDone.recoveryReason, "daemon-restart");
+assert.equal(recoveredDone.stdout, "recovered ok");
+
 const lockPath = join(gitRoot, ".agent-sync", "sync-lock");
 writeFileSync(lockPath, "locked");
 const locked = flushSyncQueue(gitRoot, {
@@ -120,6 +157,7 @@ const locked = flushSyncQueue(gitRoot, {
   }
 });
 assert.equal(locked.locked, true);
+assert.equal(locked.recovered, 0);
 assert.equal(existsSync(lockPath), true);
 
 const stopped = stopDaemon(gitRoot);

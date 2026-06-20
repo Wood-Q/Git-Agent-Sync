@@ -1211,7 +1211,8 @@ function printSyncResult(result, options) {
     console.log(`agent-sync: ${result.message}`);
     return;
   }
-  console.log(`agent-sync: processed ${result.processed} sync job(s), ${result.succeeded} succeeded, ${result.retried} queued for retry, ${result.failed} failed.`);
+  const recovered = result.recovered ? `recovered ${result.recovered} stale running sync job(s), ` : "";
+  console.log(`agent-sync: ${recovered}processed ${result.processed} sync job(s), ${result.succeeded} succeeded, ${result.retried} queued for retry, ${result.failed} failed.`);
 }
 
 function printQueueMutationResult(result, options) {

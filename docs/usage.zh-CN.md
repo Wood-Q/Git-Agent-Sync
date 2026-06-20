@@ -178,6 +178,8 @@ git agent-sync daemon status
 git agent-sync daemon stop
 ```
 
+flush 时如果发现上一次 daemon 崩溃留下的 `running` 任务，会在持有同步锁后恢复回 `pending`，并在同一轮继续处理。
+
 推送前会默认执行隐私 review。命中常见 API key、token、private key 时，`push` 会停止并提示先检查：
 
 ```bash

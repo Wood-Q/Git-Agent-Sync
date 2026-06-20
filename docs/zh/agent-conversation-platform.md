@@ -34,7 +34,7 @@ Agent-Sync 的长期目标是成为 agent conversation processing platform：
 - 本机 provider 同步只处理 Codex provider 内部克隆，不等价于 Codex 与 Claude Code 之间的完整格式转换。
 - 跨工具转换已经有 Conversation IR、inspect/convert/readable export；真正可继续对话的 resumable handoff 仍需要按目标工具能力谨慎放开。
 - 隐私保护已经有 push 前 scan/review/redact pipeline，并支持 `.agent-sync/privacy.json` 里的 `denyPatterns` / `allowPatterns`；TUI / VS Code 入口已支持把确认过的误报追加为 allow pattern，更细的逐条 diff review 仍在体验层继续增强。
-- 后台同步 daemon 和异步队列已有 CLI 主路径，`sync retry` / `sync cancel` 可把失败或取消的任务重新入队、取消尚未运行的 pending 任务；更丰富的队列可视化仍在 TUI / VS Code 体验层继续增强。
+- 后台同步 daemon 和异步队列已有 CLI 主路径，`sync retry` / `sync cancel` 可把失败或取消的任务重新入队、取消尚未运行的 pending 任务；`flush` 会在持有同步锁后恢复 crash 遗留的 `running` job，并在同一轮继续处理；更丰富的队列可视化仍在 TUI / VS Code 体验层继续增强。
 
 ## 3. 核心设计原则
 
@@ -138,9 +138,12 @@ daemon -> acquire lock -> fetch -> merge events -> rebuild indexes -> push -> up
     running/*.json
     done/*.json
     failed/*.json
+    cancelled/*.json
   daemon-state.json
   sync-lock
 ```
+
+当前实现中，`flush` / daemon loop 拿到 `sync-lock` 后会先扫描 stale `running/*.json`，把 crash 遗留的任务带着 `recoveredAt` 和 `recoveryReason` 放回 `pending`，再进入正常执行流程，避免任务永久卡在 running。
 
 命令设计：
 
@@ -587,7 +590,7 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 验收：
 
 - `sync --background` 在短时间内返回。
-- daemon crash 后可恢复 running job。
+- daemon crash 后可恢复 running job，恢复记录会进入 `recoveredJobs` 并继续同轮 flush。
 - push 被拒绝时自动 fetch + replay + retry。
 
 ### Phase 3：隐私脱敏引擎
@@ -669,7 +672,7 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 - **JSONL 损坏防护**：人为制造并发 append，确认最终对象仍是合法 JSONL。
 - **事件重放测试**：删除 `manifest.json` 和 `bindings.idx.json` 后由 events 重建。
 - **冲突隔离测试**：同 session id 分叉时进入 `conflicts/`，不会覆盖原始对象；list/show/resolve 能查看和标记解决，事件索引重建不会抹掉 resolved 元数据。
-- **daemon 测试**：queue 状态迁移、锁、retry、crash recovery。
+- **daemon 测试**：queue 状态迁移、锁、retry/cancel、crash recovery。
 - **隐私 fixture**：覆盖常见 token、误报 allowlist、dry-run diff。
 - **provider clone 测试**：provider 变化、重复 clone、注册 Codex state、register-local、repair-local、clean-local dry-run/force。
 - **Codex adapter golden test**：session meta、turn context、message、function_call。

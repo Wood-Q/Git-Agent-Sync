@@ -49,16 +49,20 @@ export function flushSyncQueue(gitRoot, options: Record<string, any> = {}) {
       succeeded: 0,
       failed: 0,
       retried: 0,
+      recovered: 0,
+      recoveredJobs: [],
       results: []
     };
   }
 
   const results = [];
+  const recoveredJobs = [];
   let processed = 0;
   let succeeded = 0;
   let failed = 0;
   let retried = 0;
   try {
+    recoveredJobs.push(...recoverRunningJobs(gitRoot));
     const runner = options.runner || runJobCommand;
     for (const pendingPath of listQueueFiles(gitRoot, "pending")) {
       const job = readJson<SyncJob>(pendingPath);
@@ -115,6 +119,8 @@ export function flushSyncQueue(gitRoot, options: Record<string, any> = {}) {
     succeeded,
     failed,
     retried,
+    recovered: recoveredJobs.length,
+    recoveredJobs,
     results
   };
 }
@@ -305,6 +311,31 @@ function moveJob(gitRoot, fromPath, state, job) {
   writeJson(fromPath, job);
   renameSync(fromPath, targetPath);
   return targetPath;
+}
+
+function recoverRunningJobs(gitRoot) {
+  const recoveredAt = new Date().toISOString();
+  const recovered = [];
+  for (const runningPath of listQueueFiles(gitRoot, "running")) {
+    const job = readJson<SyncJob>(runningPath);
+    const nextJob: SyncJob = {
+      ...job,
+      status: "pending",
+      recoveredAt,
+      recoveryReason: "daemon-restart",
+      updatedAt: recoveredAt
+    };
+    moveJob(gitRoot, runningPath, "pending", nextJob);
+    recovered.push({
+      id: nextJob.id,
+      action: nextJob.action,
+      from: "running",
+      to: "pending",
+      attempts: nextJob.attempts || 0,
+      recoveredAt
+    });
+  }
+  return recovered;
 }
 
 function mutateQueueJobs(gitRoot, action, selector, states, mapJob) {

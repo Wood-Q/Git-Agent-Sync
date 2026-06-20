@@ -97,6 +97,8 @@ git agent-sync daemon status
 git agent-sync daemon stop
 ```
 
+During a flush, stale `running` jobs left by a crashed daemon are recovered back to `pending` under the sync lock and processed again in the same queue pass.
+
 Remove the hook with:
 
 ```bash
@@ -124,7 +126,7 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync pull` | Pull sidecar snapshots for this project |
 | `git agent-sync sync --background` | Queue a sidecar sync job and start a background worker |
 | `git agent-sync sync status` | Show queued, running, completed, failed, and cancelled sync jobs |
-| `git agent-sync sync --flush` | Process queued sync jobs in the current terminal |
+| `git agent-sync sync --flush` | Process queued sync jobs in the current terminal, recovering stale running jobs first |
 | `git agent-sync sync retry [id\|all]` | Move failed or cancelled sync jobs back to pending |
 | `git agent-sync sync cancel [id\|all]` | Cancel matching pending sync jobs without touching running jobs |
 | `git agent-sync daemon <start\|status\|stop>` | Manage the local background sync worker |

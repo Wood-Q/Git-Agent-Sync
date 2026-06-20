@@ -99,6 +99,8 @@ git agent-sync daemon status
 git agent-sync daemon stop
 ```
 
+flush 时如果发现上一次 daemon 崩溃留下的 `running` 任务，会在持有同步锁后恢复回 `pending`，并在同一轮继续处理。
+
 移除 hook：
 
 ```bash
@@ -126,7 +128,7 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 | `git agent-sync pull` | 拉取当前项目可用的 sidecar 快照 |
 | `git agent-sync sync --background` | 入队 sidecar 同步任务并启动后台 worker |
 | `git agent-sync sync status` | 查看 pending、running、done、failed、cancelled 同步任务 |
-| `git agent-sync sync --flush` | 在当前终端处理队列中的同步任务 |
+| `git agent-sync sync --flush` | 在当前终端处理队列中的同步任务，并先恢复 stale running 任务 |
 | `git agent-sync sync retry [id\|all]` | 把 failed 或 cancelled 同步任务重新放回 pending |
 | `git agent-sync sync cancel [id\|all]` | 取消匹配的 pending 同步任务，不中断 running 任务 |
 | `git agent-sync daemon <start\|status\|stop>` | 管理本地后台同步 worker |
