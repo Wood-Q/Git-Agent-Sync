@@ -23,6 +23,7 @@ It solves one specific problem: source code can move with `git clone`, but local
 - Adapts restored session paths across machines and operating systems
 - Records the business repo branch, `HEAD` commit, dirty state, and sync message for each snapshot
 - Lets you browse and restore by latest sync, current commit, branch, commit, bundle id, or log index
+- Provides a React Ink TUI for dashboard, sync queue, history, local provider, tool conversion, privacy review, conflicts, and settings workflows
 
 ## Install
 

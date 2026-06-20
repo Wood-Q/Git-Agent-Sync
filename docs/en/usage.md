@@ -117,7 +117,9 @@ Open the terminal menu when you want the common workflows in one place:
 git agent-sync tui
 ```
 
-The TUI can run status, latest log, pull, push, restore by index, local clone/copy, and local watch actions. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
+The TUI can run status, latest log, pull, push, restore by index, `clone-local`, `repair-local`, and local watch actions. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
+
+The terminal UI is built with React Ink. It groups actions into Dashboard, Sync Queue, Session History, Local Provider, Tool Convert, Privacy Review, Conflicts, and Settings views. Use arrow keys to move, Tab or the right arrow to switch views, Enter to run the selected action, and prompts for restore indexes or bundle ids. Long-running provider watch hands off to the normal CLI command.
 
 ## Conversation IR and Tool Export
 

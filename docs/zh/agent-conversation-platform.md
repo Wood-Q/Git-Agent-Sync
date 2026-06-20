@@ -480,6 +480,8 @@ git agent-sync tool export
 
 TUI 适合使用 React Ink。目标不是把 CLI 命令包一层菜单，而是提供“可视化选择 + 风险确认 + 批量操作”。
 
+当前实现已经把 `git agent-sync tui` 切换为 React Ink 操作台：左侧是视图导航，右侧是动作列表，底部显示运行状态、prompt 和命令输出摘要；非 TTY 环境会输出同一套动作的文本菜单，方便测试和脚本环境查看。
+
 信息架构：
 
 - **Dashboard**：显示当前项目、sidecar remote、最近同步、待处理队列、隐私风险、冲突数量。
