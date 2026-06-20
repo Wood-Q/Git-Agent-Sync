@@ -13,8 +13,8 @@ assert.match(menu, /Copy Codex -> Claude/);
 assert.match(menu, /Watch Claude -> Codex copy/);
 
 assert.equal(getTuiChoices().some((choice) => choice.key === "5" && choice.prompt), true);
-assert.deepEqual(resolveTuiChoice("6").args, ["copy", "--from", "codex", "--to", "claude"]);
-assert.deepEqual(resolveTuiChoice("W").args, ["watch", "--from", "claude", "--to", "codex", "--mode", "copy"]);
+assert.deepEqual(resolveTuiChoice("6").args, ["copy-local", "--from", "codex", "--to", "claude"]);
+assert.deepEqual(resolveTuiChoice("W").args, ["watch-local", "--from", "claude", "--to", "codex", "--mode", "copy"]);
 assert.equal(resolveTuiChoice("q").exits, true);
 assert.equal(resolveTuiChoice("missing"), null);
 

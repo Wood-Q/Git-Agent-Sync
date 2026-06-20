@@ -108,9 +108,9 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync scan [--json]` | Scan matching local Codex / Claude sessions |
 | `git agent-sync push [--m <message>]` | Snapshot matched sessions into the sidecar store and push the sidecar remote |
 | `git agent-sync pull` | Pull sidecar snapshots for this project |
-| `git agent-sync clone --from <agent> --to <agent>` | Clone local current-project sessions across Codex and Claude with new stable target ids |
-| `git agent-sync copy --from <agent> --to <agent>` | Copy local current-project sessions across Codex and Claude, updating Agent-Sync-created copies |
-| `git agent-sync watch --from <agent> --to <agent> [--mode clone\|copy]` | Watch local sessions and rerun cross-provider clone/copy when source sessions change |
+| `git agent-sync clone-local --from <agent> --to <agent>` | Clone local current-project sessions across Codex and Claude with new stable target ids |
+| `git agent-sync copy-local --from <agent> --to <agent>` | Copy local current-project sessions across Codex and Claude, updating Agent-Sync-created copies |
+| `git agent-sync watch-local --from <agent> --to <agent> [--mode clone\|copy]` | Watch local sessions and rerun cross-provider clone/copy when source sessions change |
 | `git agent-sync tui` | Open an interactive terminal menu for common Agent-Sync operations |
 | `git agent-sync log [--oneline] [-n <count>\|-<count>] [--json]` | Browse restorable session history |
 | `git agent-sync log --latest [--oneline] [-n <count>\|-<count>] [--json]` | Browse sessions from the latest sync batch |

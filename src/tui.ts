@@ -27,12 +27,12 @@ const MENU_CHOICES: TuiChoice[] = [
       placeholder: "Enter the # shown by agent-sync log"
     }
   },
-  { key: "6", label: "Copy Codex -> Claude", args: ["copy", "--from", "codex", "--to", "claude"] },
-  { key: "7", label: "Copy Claude -> Codex", args: ["copy", "--from", "claude", "--to", "codex"] },
-  { key: "8", label: "Clone Codex -> Claude", args: ["clone", "--from", "codex", "--to", "claude"] },
-  { key: "9", label: "Clone Claude -> Codex", args: ["clone", "--from", "claude", "--to", "codex"] },
-  { key: "w", label: "Watch Codex -> Claude copy", args: ["watch", "--from", "codex", "--to", "claude", "--mode", "copy"] },
-  { key: "W", label: "Watch Claude -> Codex copy", args: ["watch", "--from", "claude", "--to", "codex", "--mode", "copy"] },
+  { key: "6", label: "Copy Codex -> Claude", args: ["copy-local", "--from", "codex", "--to", "claude"] },
+  { key: "7", label: "Copy Claude -> Codex", args: ["copy-local", "--from", "claude", "--to", "codex"] },
+  { key: "8", label: "Clone Codex -> Claude", args: ["clone-local", "--from", "codex", "--to", "claude"] },
+  { key: "9", label: "Clone Claude -> Codex", args: ["clone-local", "--from", "claude", "--to", "codex"] },
+  { key: "w", label: "Watch Codex -> Claude copy", args: ["watch-local", "--from", "codex", "--to", "claude", "--mode", "copy"] },
+  { key: "W", label: "Watch Claude -> Codex copy", args: ["watch-local", "--from", "claude", "--to", "codex", "--mode", "copy"] },
   { key: "q", label: "Quit", args: [], exits: true }
 ];
 
@@ -125,7 +125,7 @@ export async function runTui(gitRoot, config, options: Record<string, any> = {})
 }
 
 function isWatchChoice(choice: TuiChoice) {
-  return choice.args[0] === "watch";
+  return choice.args[0] === "watch-local";
 }
 
 function runCliCommand(args: string[], cwd: string) {

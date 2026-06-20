@@ -139,7 +139,7 @@ async function startLocalWatchTerminal(cwd: string) {
     cwd
   });
   terminal.show();
-  terminal.sendText(buildCliCommandLine(["watch", "--from", pair.from, "--to", pair.to, "--mode", "copy"]));
+  terminal.sendText(buildCliCommandLine(["watch-local", "--from", pair.from, "--to", pair.to, "--mode", "copy"]));
 }
 
 function startTuiTerminal(cwd: string) {

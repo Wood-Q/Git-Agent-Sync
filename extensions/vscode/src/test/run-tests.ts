@@ -66,7 +66,7 @@ async function main() {
   assert.ok(output.lines.some((line: string) => line.includes("$ ")));
   assert.deepEqual(normalizeLogFilter({ selector: "branch", value: " main " }), { selector: "branch", value: "main" });
   assert.deepEqual(normalizeLogFilter({ selector: "latest" }), { selector: "latest" });
-  assert.match(buildCliCommandLine(["watch", "--from", "codex", "--to", "claude"]), /watch --from codex --to claude/);
+  assert.match(buildCliCommandLine(["watch-local", "--from", "codex", "--to", "claude"]), /watch-local --from codex --to claude/);
   assert.match(buildCliCommandLine(["tui"]), /tui/);
 
   const html = renderHistoryHtml({ cspSource: "vscode-resource:" }, [{

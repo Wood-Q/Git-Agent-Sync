@@ -83,9 +83,9 @@ export async function main(argv) {
     push: () => pushCommand(gitRoot, options),
     pull: () => pullCommand(gitRoot),
     scan: () => scanCommand(gitRoot, options),
-    clone: () => localTransferCommand(gitRoot, "clone", options),
-    copy: () => localTransferCommand(gitRoot, "copy", options),
-    watch: () => localTransferWatchCommand(gitRoot, options),
+    "clone-local": () => localTransferCommand(gitRoot, "clone", options),
+    "copy-local": () => localTransferCommand(gitRoot, "copy", options),
+    "watch-local": () => localTransferWatchCommand(gitRoot, options),
     tui: () => tuiCommand(gitRoot),
     "install-hooks": () => installHooksCommand(gitRoot),
     "uninstall-hooks": () => uninstallHooksCommand(gitRoot),
@@ -117,9 +117,9 @@ Usage:
   git agent-sync push [--m <message>]
   git agent-sync pull
   git agent-sync scan [--json]
-  git agent-sync clone --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
-  git agent-sync copy --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
-  git agent-sync watch --from <codex|claude> --to <codex|claude> [--mode clone|copy] [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
+  git agent-sync clone-local --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
+  git agent-sync copy-local --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
+  git agent-sync watch-local --from <codex|claude> --to <codex|claude> [--mode clone|copy] [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
   git agent-sync tui
   git agent-sync restore <bundle-id>|--index <n>|--i <n>|--all|[filters] [index] [--no-adapt] [--no-register]
   git agent-sync install-hooks
@@ -199,18 +199,18 @@ Aligns with: git push. The sidecar commit records the current project HEAD commi
 
 Fast-forwards the sidecar repo from its remote.
 Run log or restore after pull to inspect or recover sessions.`,
-    clone: `Usage:
-  git agent-sync clone --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
+    "clone-local": `Usage:
+  git agent-sync clone-local --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
 
 Clones current-project local sessions from one agent provider into the other.
 Clone mode creates a stable new target session id and skips when that clone already exists.`,
-    copy: `Usage:
-  git agent-sync copy --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
+    "copy-local": `Usage:
+  git agent-sync copy-local --from <codex|claude> --to <codex|claude> [--dry-run] [--json]
 
 Copies current-project local sessions from one agent provider into the other.
 Copy mode preserves the source session id when possible and updates an existing Agent-Sync-created target copy.`,
-    watch: `Usage:
-  git agent-sync watch --from <codex|claude> --to <codex|claude> [--mode clone|copy] [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
+    "watch-local": `Usage:
+  git agent-sync watch-local --from <codex|claude> --to <codex|claude> [--mode clone|copy] [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
 
 Watches local source sessions and automatically runs cross-provider clone/copy when matched source sessions change.
 Defaults to --mode copy and an interval of ${DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS} seconds.`,

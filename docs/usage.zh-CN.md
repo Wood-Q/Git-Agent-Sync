@@ -93,8 +93,8 @@ git agent-sync restore --current --no-register
 如果你想在同一台机器上把当前项目会话交给另一个 provider 继续，可以直接做本机转换：
 
 ```bash
-git agent-sync copy --from codex --to claude
-git agent-sync clone --from claude --to codex
+git agent-sync copy-local --from codex --to claude
+git agent-sync clone-local --from claude --to codex
 ```
 
 `copy` 会尽量保留源 session id，并更新由 Agent-Sync 创建过的目标副本。`clone` 会创建稳定的新目标 session id，目标 clone 已存在时会跳过。两个命令都只处理通过结构化项目元数据匹配当前 Git 项目的会话。
@@ -102,7 +102,7 @@ git agent-sync clone --from claude --to codex
 切换 provider 时如果希望目标副本持续跟进：
 
 ```bash
-git agent-sync watch --from codex --to claude --mode copy
+git agent-sync watch-local --from codex --to claude --mode copy
 ```
 
 VS Code History 视图里也有 Clone、Copy 和 Watch 按钮，会对当前 workspace 执行同一组本机转换命令。

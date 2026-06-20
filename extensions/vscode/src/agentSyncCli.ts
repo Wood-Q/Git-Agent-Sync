@@ -93,8 +93,9 @@ export class AgentSyncCli {
   }
 
   async localTransfer(cwd: string, mode: LocalTransferMode, from: LocalTransferAgent, to: LocalTransferAgent): Promise<LocalTransferResponse> {
-    const stdout = await this.run(cwd, [mode, "--from", from, "--to", to, "--json"]);
-    return parseJson<LocalTransferResponse>(stdout, `agent-sync ${mode} --json`);
+    const command = `${mode}-local`;
+    const stdout = await this.run(cwd, [command, "--from", from, "--to", to, "--json"]);
+    return parseJson<LocalTransferResponse>(stdout, `agent-sync ${command} --json`);
   }
 
   async run(cwd: string, args: string[]): Promise<string> {

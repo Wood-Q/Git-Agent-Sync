@@ -93,8 +93,8 @@ git agent-sync restore --current --no-register
 Use local transfer when you want to keep working on the same project conversation in another provider on the same machine:
 
 ```bash
-git agent-sync copy --from codex --to claude
-git agent-sync clone --from claude --to codex
+git agent-sync copy-local --from codex --to claude
+git agent-sync clone-local --from claude --to codex
 ```
 
 `copy` preserves the source session id when possible and updates target files previously created by Agent-Sync. `clone` creates a stable new target session id and skips once that clone already exists. Both commands only use sessions that match the current Git project through structured metadata.
@@ -102,7 +102,7 @@ git agent-sync clone --from claude --to codex
 To keep a local copy fresh while switching providers:
 
 ```bash
-git agent-sync watch --from codex --to claude --mode copy
+git agent-sync watch-local --from codex --to claude --mode copy
 ```
 
 The VS Code History view includes Clone, Copy, and Watch buttons that run the same local transfer commands for the current workspace.
