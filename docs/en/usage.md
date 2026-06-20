@@ -149,6 +149,8 @@ git push
 
 The hook queues a local sync job and starts a background worker instead of running the potentially slow sidecar push inside `git push`. It exits successfully without syncing when `.agent-sync/config.json` or the sidecar Git repo is missing, so it does not block normal project pushes before `init` has been completed.
 
+When two machines push sidecar commits from the same base, Agent-Sync retries non-fast-forward sidecar pushes by fetching `origin/main`, merging the object/event shards, rebuilding event indexes, and pushing again. Unrelated sidecar histories still stop with an explicit error instead of guessing.
+
 You can also manage the queue manually:
 
 ```bash

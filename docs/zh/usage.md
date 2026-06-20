@@ -149,6 +149,8 @@ git push
 
 hook 会把同步任务放入本地队列，并启动后台 worker，而不是在 `git push` 过程中直接执行耗时的 sidecar push。如果当前项目缺少 `.agent-sync/config.json`，或者 sidecar Git 仓库还不存在，hook 会直接成功退出，不会阻塞业务仓库自己的 `git push`。
 
+当两台机器从同一个 sidecar base 分别提交并推送时，如果 sidecar push 遇到 non-fast-forward 拒绝，Agent-Sync 会自动 fetch `origin/main`，合并对象/事件分片，重建事件索引，然后再次 push。完全 unrelated 的 sidecar 历史仍会明确停止，不会猜测合并。
+
 也可以手动管理队列和后台 worker：
 
 ```bash

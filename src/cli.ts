@@ -47,7 +47,7 @@ import {
   startDaemonProcess,
   stopDaemon
 } from "./daemon.js";
-import { writeEventStoreSnapshot } from "./event-store.js";
+import { rebuildEventIndexes, writeEventStoreSnapshot } from "./event-store.js";
 import {
   applyPrivacyRedactionsToStore,
   assertPrivacyAllowsPush,
@@ -508,7 +508,9 @@ function showCommand(gitRoot, args, options) {
 function pushCommand(gitRoot, options: Record<string, any> = {}) {
   const config = readConfigWithBundle(gitRoot);
   ensureStoreRepo(config.storePath, config.remote);
-  syncStoreFromRemote(config);
+  syncStoreFromRemote(config, {
+    onMerge: () => rebuildMergedEventIndexes(config)
+  });
   adoptExistingProjectBundle(config);
   writeConfig(gitRoot, config);
   const gitContext = getGitContext(gitRoot);
@@ -560,7 +562,7 @@ function pushCommand(gitRoot, options: Record<string, any> = {}) {
   }
 
   if (config.remote) {
-    runGit(["push", "-u", "origin", DEFAULT_STORE_BRANCH], config.storePath);
+    pushStoreWithRetry(config);
     console.log("agent-sync: pushed sidecar repo.");
   }
 }
@@ -604,6 +606,46 @@ function pullCommand(gitRoot) {
       console.log(`agent-sync: using compatible project bundle ${bundle.projectId}.`);
     }
   }
+}
+
+function pushStoreWithRetry(config) {
+  const first = runGit(["push", "-u", "origin", DEFAULT_STORE_BRANCH], config.storePath, { allowFail: true });
+  if (first.status === 0) {
+    return { retried: false };
+  }
+  if (!isRejectedStorePush(first)) {
+    throw new Error(`git push -u origin ${DEFAULT_STORE_BRANCH} failed: ${(first.stderr || first.stdout || "").trim()}`);
+  }
+
+  console.log(`agent-sync: sidecar push was rejected; fetching ${DEFAULT_STORE_BRANCH}, replaying event indexes, and retrying.`);
+  syncStoreFromRemote(config, {
+    onMerge: () => rebuildMergedEventIndexes(config)
+  });
+  rebuildMergedEventIndexes(config);
+  const retry = runGit(["push", "-u", "origin", DEFAULT_STORE_BRANCH], config.storePath, { allowFail: true });
+  if (retry.status !== 0) {
+    throw new Error(`git push -u origin ${DEFAULT_STORE_BRANCH} failed after retry: ${(retry.stderr || retry.stdout || "").trim()}`);
+  }
+  return { retried: true };
+}
+
+function rebuildMergedEventIndexes(config) {
+  const rebuilt = rebuildEventIndexes(config);
+  stageProjectBundle(config);
+  const diff = runGit(["diff", "--cached", "--quiet"], config.storePath, { allowFail: true });
+  if (diff.status !== 0) {
+    runGit(["commit", "-m", `rebuild ${config.projectName} sidecar event indexes`], config.storePath);
+    console.log(`agent-sync: rebuilt event indexes from ${rebuilt.events} event(s), ${rebuilt.conflicts || 0} conflict(s).`);
+  }
+  return rebuilt;
+}
+
+function isRejectedStorePush(result) {
+  const output = `${result.stderr || ""}\n${result.stdout || ""}`.toLowerCase();
+  return output.includes("rejected") ||
+    output.includes("fetch first") ||
+    output.includes("non-fast-forward") ||
+    output.includes("failed to push some refs");
 }
 
 async function syncCommand(gitRoot, args, options) {
@@ -1236,8 +1278,7 @@ function findBindingByBundleId(config, bundleId) {
   if (!bundleId) {
     throw new Error("show requires a bundle id or selector index");
   }
-  const summary = inspectBindings(config);
-  return summary.bindings.find((binding) => binding.bundleId === bundleId) || null;
+  return readAllBindings(config).find((binding) => binding.bundleId === bundleId) || null;
 }
 
 function getBindingTitle(config, binding, titles) {

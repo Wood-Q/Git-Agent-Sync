@@ -131,6 +131,8 @@ Agent session 文件里可能记录创建会话时的 shell、工作目录和项
 
 配置了 sidecar remote 时，`pull` 会启用 sparse checkout：本地 `.agent-sync-store/` 会展开对象、事件、当前项目的会话 bundle，以及其他项目的轻量 `manifest.json` 用于识别兼容项目。sidecar remote 也会保持 Git promisor remote 和 `blob:none` filter 配置，因此提交时可以安全引用仍留在远端的非当前项目 blob，而不必把它们全部展开到本机。
 
+push 时，如果 sidecar remote 返回 non-fast-forward 拒绝，并且本地和远端有共同历史，Agent-Sync 会把它当作业务层合并：fetch 远端分支，合并对象/事件分片和本地 sidecar commit，重建事件派生索引，必要时提交这些重建索引，然后重试 push。若 sidecar 历史完全 unrelated，仍会停止并要求人类明确决策。
+
 ## Conversation IR
 
 Agent-Sync 用 Conversation IR 作为跨工具查看的统一模型。Codex 或 Claude 的原始 JSONL 仍然作为 sidecar store 中保真的 bundle 保存；IR 是 `git agent-sync tool inspect`、`tool convert` 和 `tool export` 按需派生出来的结构。

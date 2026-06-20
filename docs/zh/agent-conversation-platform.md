@@ -117,6 +117,8 @@ Agent-Sync 的长期目标是成为 agent conversation processing platform：
 
 这样 Git 只负责传输和版本记录，不负责理解 JSONL 的语义。
 
+当前实现已经在 shared-history 场景下支持 sidecar push retry：non-fast-forward push 被拒后会 fetch 远端、合并对象/事件分片、重建事件索引、提交必要索引变化并再次 push；完全 unrelated 的 sidecar 历史仍会停止，避免猜测合并。
+
 ### 4.5 后台同步
 
 Git pull / push 可能很慢，不能阻塞用户终端。建议新增 daemon：
@@ -655,6 +657,8 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 - **Claude adapter golden test**：message content、tool_use、tool_result、workdir。
 - **跨工具 export smoke**：导出 readable session 后能在目标 viewer 中打开。
 - **VS Code adapter 测试**：CLI path、Windows shim、错误展示、进度状态。
+
+当前测试矩阵已包含 `test:store-merge`，覆盖两个业务 clone 共享同一个 sidecar base 后，本地 sidecar commit 与远端 sidecar commit 分叉、随后自动 fetch/merge/rebuild/retry push 的路径。
 
 ## 12. 风险与决策
 

@@ -112,11 +112,12 @@ export function inspectBindings(config) {
 }
 
 function readBindings(config) {
+  const eventBindings = readEventIndexBindings(config);
   const index = loadBindingsIndex(config);
   if (index) {
-    return index.bindings;
+    return mergeBindings(index.bindings, eventBindings);
   }
-  return inspectBindings(config).bindings;
+  return mergeBindings(inspectBindings(config).bindings, eventBindings);
 }
 
 export function readAllBindings(config) {
@@ -301,6 +302,38 @@ function loadBindingsIndex(config) {
   } catch {
     return null;
   }
+}
+
+function readEventIndexBindings(config) {
+  const indexPath = join(config.storePath, "projects", config.projectId, "bindings.events.idx.json");
+  if (!existsSync(indexPath)) {
+    return [];
+  }
+  try {
+    const index = readJson(indexPath);
+    if (index.generatedFrom !== "events" || !Array.isArray(index.bindings)) {
+      return [];
+    }
+    return index.bindings.map(normalizeBinding).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function mergeBindings(primary, eventBindings) {
+  if (!eventBindings.length) {
+    return primary;
+  }
+  const seen = new Set(primary.map(bindingKey));
+  const merged = [...primary];
+  for (const binding of eventBindings) {
+    const key = bindingKey(binding);
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(binding);
+    }
+  }
+  return merged;
 }
 
 function writeBindingsIndex(config, bindings) {

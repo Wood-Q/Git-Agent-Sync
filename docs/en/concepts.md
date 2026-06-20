@@ -131,6 +131,8 @@ Both directories are added to the project `.gitignore`.
 
 When a sidecar remote is configured, `pull` uses sparse checkout so the local `.agent-sync-store/` expands objects, events, this project's full session bundle, and lightweight `manifest.json` files for other projects. The sidecar remote is also kept as a Git promisor remote with a `blob:none` filter, so commits can safely reference non-current project blobs that remain on the remote instead of being expanded locally.
 
+On push, a non-fast-forward sidecar rejection is treated as a business merge opportunity when both sides share history: Agent-Sync fetches the remote branch, merges object/event shards with the local sidecar commit, rebuilds event-derived indexes, commits those rebuilt indexes when needed, and retries the push. If the sidecar histories are unrelated, it still stops and asks for an explicit human decision.
+
 ## Conversation IR
 
 Agent-Sync uses Conversation IR as the shared model for cross-tool inspection. The source Codex or Claude JSONL remains the preserved bundle in the sidecar store; IR is derived on demand by `git agent-sync tool inspect`, `tool convert`, and `tool export`.
