@@ -38,6 +38,7 @@ export function loadPrivacyPolicy(gitRoot) {
 
 export function scanPrivacyMatches(matches, policy = normalizePolicy({})) {
   const compiled = compileRules(policy);
+  const allowRules = compileAllowRules(policy);
   const findings = [];
   for (const match of matches) {
     const sourcePath = match.originalPath ? expandHome(match.originalPath) : "";
@@ -49,18 +50,26 @@ export function scanPrivacyMatches(matches, policy = normalizePolicy({})) {
       agent: match.agent,
       bundleId: match.bundleId,
       path: match.originalPath
-    }));
+    }, allowRules));
   }
   return createPrivacyReport(findings, policy, { redacted: false });
 }
 
-export function scanText(content, compiledRules, context: Record<string, any> = {}) {
+export function scanText(content, compiledRules, context: Record<string, any> = {}, allowRules = []) {
   const findings = [];
   for (const rule of compiledRules) {
     rule.regex.lastIndex = 0;
     let match;
     while ((match = rule.regex.exec(content))) {
       const value = match[0];
+      const start = match.index;
+      const end = start + value.length;
+      if (isAllowedSpan(content, start, end, allowRules)) {
+        if (value.length === 0) {
+          rule.regex.lastIndex += 1;
+        }
+        continue;
+      }
       const position = positionForOffset(content, match.index);
       findings.push({
         rule: rule.name,
@@ -70,8 +79,8 @@ export function scanText(content, compiledRules, context: Record<string, any> = 
         path: context.path || null,
         line: position.line,
         column: position.column,
-        start: match.index,
-        end: match.index + value.length,
+        start,
+        end,
         preview: maskSecret(value),
         replacement: replacementForRule(rule)
       });
@@ -85,9 +94,17 @@ export function scanText(content, compiledRules, context: Record<string, any> = 
 
 export function redactText(content, policy = normalizePolicy({})) {
   let redacted = content;
+  const allowRules = compileAllowRules(policy);
   for (const rule of compileRules(policy)) {
     rule.regex.lastIndex = 0;
-    redacted = redacted.replace(rule.regex, replacementForRule(rule));
+    redacted = redacted.replace(rule.regex, (...args) => {
+      const value = args[0];
+      const offset = getReplaceOffset(args);
+      if (isAllowedSpan(redacted, offset, offset + value.length, allowRules)) {
+        return value;
+      }
+      return replacementForRule(rule);
+    });
   }
   return redacted;
 }
@@ -126,6 +143,7 @@ export function createPrivacyReport(findings, policy, options: Record<string, an
     redacted: Boolean(options.redacted),
     totalFindings: findings.length,
     rules: policy.rules.map((rule) => rule.name),
+    allowPatterns: policy.allowRules.map((rule) => rule.name),
     findings
   };
 }
@@ -138,6 +156,7 @@ export function assertPrivacyAllowsPush(report, mode) {
 
 function normalizePolicy(rawPolicy) {
   const denyPatterns = Array.isArray(rawPolicy.denyPatterns) ? rawPolicy.denyPatterns : [];
+  const allowPatterns = Array.isArray(rawPolicy.allowPatterns) ? rawPolicy.allowPatterns : [];
   return {
     version: 1,
     replacement: rawPolicy.replacement || DEFAULT_REPLACEMENT,
@@ -147,7 +166,8 @@ function normalizePolicy(rawPolicy) {
       flags: rule.flags || "g",
       severity: rule.severity || "high",
       replacement: rule.replacement || rawPolicy.replacement || DEFAULT_REPLACEMENT
-    }))
+    })),
+    allowRules: allowPatterns.map((rule, index) => normalizeAllowRule(rule, index))
   };
 }
 
@@ -156,6 +176,28 @@ function compileRules(policy) {
     ...rule,
     regex: new RegExp(rule.pattern, normalizeFlags(rule.flags))
   }));
+}
+
+function compileAllowRules(policy) {
+  return policy.allowRules.map((rule) => ({
+    ...rule,
+    regex: new RegExp(rule.pattern, normalizeFlags(rule.flags))
+  }));
+}
+
+function normalizeAllowRule(rule, index) {
+  if (typeof rule === "string") {
+    return {
+      name: `allow_${index + 1}`,
+      pattern: rule,
+      flags: "g"
+    };
+  }
+  return {
+    name: rule.name || `allow_${index + 1}`,
+    pattern: rule.pattern,
+    flags: rule.flags || "g"
+  };
 }
 
 function normalizeFlags(flags) {
@@ -183,4 +225,28 @@ function positionForOffset(content, offset) {
     line: lines.length,
     column: lines[lines.length - 1].length + 1
   };
+}
+
+function isAllowedSpan(content, start, end, allowRules) {
+  for (const rule of allowRules) {
+    rule.regex.lastIndex = 0;
+    let match;
+    while ((match = rule.regex.exec(content))) {
+      const allowStart = match.index;
+      const allowEnd = allowStart + match[0].length;
+      if (allowEnd > start && allowStart < end) {
+        return true;
+      }
+      if (match[0].length === 0) {
+        rule.regex.lastIndex += 1;
+      }
+    }
+  }
+  return false;
+}
+
+function getReplaceOffset(args) {
+  const maybeGroups = args[args.length - 1];
+  const offsetIndex = typeof maybeGroups === "object" ? args.length - 3 : args.length - 2;
+  return Number(args[offsetIndex] || 0);
 }

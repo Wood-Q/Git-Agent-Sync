@@ -185,6 +185,8 @@ git agent-sync push --privacy allow
 
 `--privacy redact` writes redacted session and object copies to the sidecar store; it does not rewrite your original local agent session files.
 
+Use `.agent-sync/privacy.json` to tune project policy. `denyPatterns` add extra secret rules; `allowPatterns` skip known safe examples or fixtures during both scan and redaction.
+
 Remove the hook with:
 
 ```bash

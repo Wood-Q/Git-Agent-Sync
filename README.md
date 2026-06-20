@@ -171,6 +171,6 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 
 ## Security Note
 
-This MVP copies project conversation files. `push` defaults to `--privacy review`, which blocks when common secrets are detected; use `git agent-sync privacy scan` to inspect findings or `git agent-sync push --privacy redact` to write redacted sidecar copies. Conversation files may still include code snippets, local paths, prompts, and terminal output. Agent-Sync does not copy Claude account, token, global config, cache, telemetry, plugin, skill, IDE lock, or runtime session files.
+This MVP copies project conversation files. `push` defaults to `--privacy review`, which blocks when common secrets are detected; use `git agent-sync privacy scan` to inspect findings or `git agent-sync push --privacy redact` to write redacted sidecar copies. Project-level `.agent-sync/privacy.json` can add `denyPatterns` or skip known safe fixtures with `allowPatterns`. Conversation files may still include code snippets, local paths, prompts, and terminal output. Agent-Sync does not copy Claude account, token, global config, cache, telemetry, plugin, skill, IDE lock, or runtime session files.
 
 Use a private remote for the sidecar session store. A production version should add default encryption and secret redaction before remote push.

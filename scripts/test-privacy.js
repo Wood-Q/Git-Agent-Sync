@@ -64,6 +64,36 @@ assert.equal(redacted.includes(secret), false);
 assert.equal(redacted.includes(githubToken), false);
 assert.match(redacted, /\[REDACTED:openai_api_key\]/);
 
+const allowRoot = join(base, "allow-project");
+mkdirSync(join(allowRoot, ".agent-sync"), { recursive: true });
+const allowedSecret = "sk-" + "c".repeat(32);
+const blockedSecret = "sk-" + "d".repeat(32);
+const allowSourcePath = join(base, "allow-session.jsonl");
+const allowContent = [
+  JSON.stringify({ type: "session_meta", payload: { id: "allow-session", cwd: allowRoot } }),
+  JSON.stringify({ type: "message", payload: { text: `example=${allowedSecret}` } }),
+  JSON.stringify({ type: "message", payload: { text: `real=${blockedSecret}` } })
+].join("\n") + "\n";
+writeFileSync(allowSourcePath, allowContent);
+writeFileSync(join(allowRoot, ".agent-sync", "privacy.json"), JSON.stringify({
+  version: 1,
+  allowPatterns: [
+    { name: "documented_example_token", pattern: "sk-c{32}" }
+  ]
+}, null, 2));
+const allowPolicy = loadPrivacyPolicy(allowRoot);
+const allowReport = scanPrivacyMatches([{
+  agent: "codex",
+  bundleId: "allow-secret",
+  originalPath: allowSourcePath
+}], allowPolicy);
+assert.equal(allowReport.allowPatterns.includes("documented_example_token"), true);
+assert.equal(allowReport.findings.some((finding) => finding.preview.includes("cccc")), false);
+assert.equal(allowReport.findings.some((finding) => finding.preview.includes("dddd")), true);
+const allowRedacted = redactText(allowContent, allowPolicy);
+assert.equal(allowRedacted.includes(allowedSecret), true);
+assert.equal(allowRedacted.includes(blockedSecret), false);
+
 const applied = applyPrivacyRedactionsToStore(config, [match], policy);
 assert.equal(applied.filesChanged, 1);
 const stored = readFileSync(storeSessionPath, "utf8");

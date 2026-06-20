@@ -173,6 +173,6 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 
 ## 隐私提醒
 
-当前 `push` 默认使用 `--privacy review`，扫描到常见密钥时会阻止推送；可以用 `git agent-sync privacy scan` 查看命中项，或用 `git agent-sync push --privacy redact` 写入脱敏后的 sidecar 副本。项目会话仍可能包含私有代码、本地路径、prompt、终端输出和调试信息。Agent-Sync 不会复制 Claude 账号、token、全局配置、缓存、遥测、插件、技能、IDE lock 或运行态 session 文件。
+当前 `push` 默认使用 `--privacy review`，扫描到常见密钥时会阻止推送；可以用 `git agent-sync privacy scan` 查看命中项，或用 `git agent-sync push --privacy redact` 写入脱敏后的 sidecar 副本。项目级 `.agent-sync/privacy.json` 可以用 `denyPatterns` 增加规则，也可以用 `allowPatterns` 跳过已知安全的 fixture。项目会话仍可能包含私有代码、本地路径、prompt、终端输出和调试信息。Agent-Sync 不会复制 Claude 账号、token、全局配置、缓存、遥测、插件、技能、IDE lock 或运行态 session 文件。
 
 请务必使用私有远程仓库保存 sidecar session store。后续生产化版本应加入默认加密和 secret redaction。

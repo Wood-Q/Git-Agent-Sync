@@ -33,7 +33,7 @@ Agent-Sync 的长期目标是成为 agent conversation processing platform：
 - 跨设备同步已经支持 shared-history 场景下的 sidecar push retry：non-fast-forward 后 fetch、合并对象/事件分片、重建索引并重试；完全 unrelated 的 sidecar 历史仍会停止，避免猜测合并。
 - 本机 provider 同步只处理 Codex provider 内部克隆，不等价于 Codex 与 Claude Code 之间的完整格式转换。
 - 跨工具转换已经有 Conversation IR、inspect/convert/readable export；真正可继续对话的 resumable handoff 仍需要按目标工具能力谨慎放开。
-- 隐私保护已经有 push 前 scan/review/redact pipeline；更细的交互式逐条 review 仍在 TUI / VS Code 体验层继续增强。
+- 隐私保护已经有 push 前 scan/review/redact pipeline，并支持 `.agent-sync/privacy.json` 里的 `denyPatterns` / `allowPatterns`；更细的交互式逐条 review 仍在 TUI / VS Code 体验层继续增强。
 - 后台同步 daemon 和异步队列已有 CLI 主路径；更丰富的队列可视化和失败操作仍在 TUI / VS Code 体验层继续增强。
 
 ## 3. 核心设计原则
@@ -670,7 +670,7 @@ VS Code 插件应服务于“我正在这个项目里工作”的场景。
 - **跨工具 export smoke**：导出 readable session 后能在目标 viewer 中打开。
 - **VS Code adapter 测试**：CLI path、Windows shim、错误展示、进度状态。
 
-当前测试矩阵已包含 `test:store-merge`，覆盖两个业务 clone 共享同一个 sidecar base 后，本地 sidecar commit 与远端 sidecar commit 分叉、随后自动 fetch/merge/rebuild/retry push 的路径。`test:conflicts` 覆盖冲突隔离记录的 list/show/resolve、dry-run、active/all 过滤，以及 resolved 状态在事件索引重建后的保留。
+当前测试矩阵已包含 `test:store-merge`，覆盖两个业务 clone 共享同一个 sidecar base 后，本地 sidecar commit 与远端 sidecar commit 分叉、随后自动 fetch/merge/rebuild/retry push 的路径。`test:conflicts` 覆盖冲突隔离记录的 list/show/resolve、dry-run、active/all 过滤，以及 resolved 状态在事件索引重建后的保留。`test:privacy` 覆盖默认 secret 规则、redact 写入 sidecar 副本、原始本机会话不被改写，以及 `allowPatterns` 对误报 fixture 的扫描/脱敏跳过。
 
 ## 12. 风险与决策
 

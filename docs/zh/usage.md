@@ -185,6 +185,8 @@ git agent-sync push --privacy allow
 
 `--privacy redact` 会把 sidecar store 中的会话副本和对象副本写成脱敏内容；原始本机会话文件不会被改写。
 
+可以用 `.agent-sync/privacy.json` 调整项目策略。`denyPatterns` 增加额外 secret 规则，`allowPatterns` 会让已知安全的示例值或 fixture 同时跳过扫描和脱敏。
+
 移除 hook：
 
 ```bash
