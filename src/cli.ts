@@ -36,6 +36,7 @@ import {
   normalizeWatchOptions,
   runLocalTransfer
 } from "./local-transfer.js";
+import { writeEventStoreSnapshot } from "./event-store.js";
 import { restoreCommand } from "./restore.js";
 import { runTui } from "./tui.js";
 import {
@@ -397,6 +398,11 @@ function pushCommand(gitRoot, options = {}) {
     authorName: author.name,
     authorEmail: author.email
   });
+  const eventStore = writeEventStoreSnapshot(config, scan.matches, gitContext, syncRunId, {
+    message: commitMessage,
+    authorName: author.name,
+    authorEmail: author.email
+  });
 
   stageProjectBundle(config);
   const diff = runGit(["diff", "--cached", "--quiet"], config.storePath, { allowFail: true });
@@ -404,7 +410,7 @@ function pushCommand(gitRoot, options = {}) {
     console.log(`agent-sync: no sidecar changes (${copied.length} matched session(s), ${pruned.removedFiles} archived removed, ${foreignPruned.removedFiles} foreign removed).`);
   } else {
     runGit(["-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "-m", commitMessage], config.storePath);
-    console.log(`agent-sync: committed ${copied.length} matched session file(s), ${bindingsAdded} new binding(s), ${pruned.removedFiles} archived removed, ${foreignPruned.removedFiles} foreign removed.`);
+    console.log(`agent-sync: committed ${copied.length} matched session file(s), ${bindingsAdded} new binding(s), ${eventStore.eventsWritten} event(s), ${eventStore.objectsWritten} object(s), ${pruned.removedFiles} archived removed, ${foreignPruned.removedFiles} foreign removed.`);
   }
 
   if (config.remote) {
@@ -538,7 +544,13 @@ function commitStoreCleanup(config, archivedPruned, manifestPruned, foreignPrune
 }
 
 function stageProjectBundle(config) {
-  runGit(["add", "--", ".gitignore", getProjectBundleStagePath(config)], config.storePath);
+  const paths = [".gitignore", getProjectBundleStagePath(config)];
+  for (const optionalPath of ["objects", "events", "conflicts"]) {
+    if (existsSync(join(config.storePath, optionalPath))) {
+      paths.push(optionalPath);
+    }
+  }
+  runGit(["add", "--", ...paths], config.storePath);
 }
 
 function getPushCommitMessage(config, gitContext, options) {

@@ -99,18 +99,30 @@ Agent session 文件里可能记录创建会话时的 shell、工作目录和项
 
 ```text
 .agent-sync-store/
+  objects/
+    codex/
+      sha256/<hash>.jsonl
+    claude/
+      sha256/<hash>.jsonl
+  events/
+    <machine-id>/
+      <sync-run-id>.jsonl
   projects/
     <project-id>/
       manifest.json
       bindings.jsonl
       bindings.idx.json
+      manifest.events.json
+      bindings.events.idx.json
       codex/
         codex-<hash>.jsonl
       claude/
         claude-<hash>.jsonl
 ```
 
-配置了 sidecar remote 时，`pull` 会启用 sparse checkout：本地 `.agent-sync-store/` 只完整展开当前项目的会话 bundle，其他项目只保留轻量 `manifest.json` 用于识别兼容项目。sidecar remote 也会保持 Git promisor remote 和 `blob:none` filter 配置，因此提交时可以安全引用仍留在远端的非当前项目 blob，而不必把它们全部展开到本机。
+`projects/<project-id>/manifest.json`、`bindings.jsonl` 和 `bindings.idx.json` 仍然是当前 `log` / `restore` 的兼容读路径。新的 `objects/` 会按内容 hash 保存不可变会话副本，`events/` 会按机器和同步批次写入 append-only 事件，`manifest.events.json` 与 `bindings.events.idx.json` 是由这些事件重建出来的索引。这样后续多设备并发同步可以先合并对象和事件，再逐步把主查询路径切到可重建索引上。
+
+配置了 sidecar remote 时，`pull` 会启用 sparse checkout：本地 `.agent-sync-store/` 会展开对象、事件、当前项目的会话 bundle，以及其他项目的轻量 `manifest.json` 用于识别兼容项目。sidecar remote 也会保持 Git promisor remote 和 `blob:none` filter 配置，因此提交时可以安全引用仍留在远端的非当前项目 blob，而不必把它们全部展开到本机。
 
 ## 隐私边界
 
