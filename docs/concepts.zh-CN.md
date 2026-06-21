@@ -93,26 +93,59 @@ Agent session 文件里可能记录创建会话时的 shell、工作目录和项
 .agent-sync/last-scan.json
 .agent-sync/scan-cache.json
 .agent-sync/archive-cache.json
+.agent-sync/queue/
+.agent-sync/daemon-state.json
 ```
+
+`queue/` 会保存后台同步任务的 `pending`、`running`、`done`、`failed` 状态。`daemon-state.json` 记录本机后台 worker 最近一次启动、停止和 flush 状态；这些都是本机运行状态，不进入业务 Git 历史。
 
 `.agent-sync-store/` 是一个独立的 sidecar Git 仓库：
 
 ```text
 .agent-sync-store/
+  objects/
+    codex/
+      sha256/<hash>.jsonl
+    claude/
+      sha256/<hash>.jsonl
+  events/
+    <machine-id>/
+      <sync-run-id>.jsonl
   projects/
     <project-id>/
       manifest.json
       bindings.jsonl
       bindings.idx.json
+      manifest.events.json
+      bindings.events.idx.json
       codex/
         codex-<hash>.jsonl
       claude/
         claude-<hash>.jsonl
 ```
 
-配置了 sidecar remote 时，`pull` 会启用 sparse checkout：本地 `.agent-sync-store/` 只完整展开当前项目的会话 bundle，其他项目只保留轻量 `manifest.json` 用于识别兼容项目。sidecar remote 也会保持 Git promisor remote 和 `blob:none` filter 配置，因此提交时可以安全引用仍留在远端的非当前项目 blob，而不必把它们全部展开到本机。
+`projects/<project-id>/manifest.json`、`bindings.jsonl` 和 `bindings.idx.json` 仍然是当前 `log` / `restore` 的兼容读路径。新的 `objects/` 会按内容 hash 保存不可变会话副本，`events/` 会按机器和同步批次写入 append-only 事件，`manifest.events.json` 与 `bindings.events.idx.json` 是由这些事件重建出来的索引。这样后续多设备并发同步可以先合并对象和事件，再逐步把主查询路径切到可重建索引上。
+
+配置了 sidecar remote 时，`pull` 会启用 sparse checkout：本地 `.agent-sync-store/` 会展开对象、事件、当前项目的会话 bundle，以及其他项目的轻量 `manifest.json` 用于识别兼容项目。sidecar remote 也会保持 Git promisor remote 和 `blob:none` filter 配置，因此提交时可以安全引用仍留在远端的非当前项目 blob，而不必把它们全部展开到本机。
+
+## Conversation IR
+
+Agent-Sync 用 Conversation IR 作为跨工具查看的统一模型。Codex 或 Claude 的原始 JSONL 仍然作为 sidecar store 中保真的 bundle 保存；IR 是 `git agent-sync tool inspect`、`tool convert` 和 `tool export` 按需派生出来的结构。
+
+IR 明确分成几块：
+
+- `conversation` 保存统一后的 id、来源 agent、标题和时间。
+- `project` 保存 binding 上下文里的当前项目身份、cwd、branch、commit 和 dirty 状态。
+- `events` 保存统一后的消息、工具调用和工具结果，同时保留每条原始 vendor event 作为 provenance。
+- `dependencies` 保存识别出的 skill、MCP/plugin 线索，以及未来判断能否继续 handoff 时需要检查的依赖。
+
+`tool convert --to ir --json` 会输出完整 IR。`tool export --to <codex|claude> --mode readable` 会输出另一个 UI 可以展示或归档的 JSONL 视图。这个 readable export 和真正可继续对话的 resumable handoff 是分开的：只有当目标工具能接受必要 schema、索引、provider/runtime 上下文和依赖时，Agent-Sync 才会把 handoff 标记成 resumable。
 
 ## 隐私边界
+
+`push` 默认使用 `--privacy review`。在写入 sidecar commit 前，Agent-Sync 会用内置规则扫描当前项目匹配到的会话，默认识别 OpenAI / Anthropic / GitHub token、AWS access key、private key、Bearer token 和常见 `api_key` / `token` / `secret` / `password` 赋值。命中后不会静默上传；用户可以先运行 `git agent-sync privacy scan` 查看命中项，或者显式使用 `git agent-sync push --privacy redact` 写入脱敏后的 sidecar 副本。
+
+脱敏只作用于 `.agent-sync-store/` 中的会话副本和对象副本，不会改写本机原始 Codex / Claude session 文件。`projects/<project-id>/privacy-report.json` 会记录命中的规则和位置，方便后续解释。
 
 Agent-Sync 不把下面这些 `.codex` 内容作为核心项目/session 判断依据：
 

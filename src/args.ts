@@ -1,6 +1,8 @@
 export type CliOptions = Record<string, string | boolean | undefined> & {
   all?: boolean;
+  background?: boolean;
   current?: boolean;
+  flush?: boolean;
   help?: boolean;
   json?: boolean;
   latest?: boolean;
@@ -22,7 +24,9 @@ export type CliOptions = Record<string, string | boolean | undefined> & {
   maxCount?: string;
   message?: string;
   mode?: string;
+  privacy?: string;
   remote?: string;
+  session?: string;
   store?: string;
   title?: string;
   to?: string;
@@ -59,6 +63,10 @@ export function parseArgs(rawArgs: string[]) {
       options.maxCount = arg.slice(1);
     } else if (arg === "--all") {
       options.all = true;
+    } else if (arg === "--background") {
+      options.background = true;
+    } else if (arg === "--flush") {
+      options.flush = true;
     } else if (arg === "--latest") {
       options.latest = true;
     } else if (arg === "--current") {
@@ -105,6 +113,14 @@ export function parseArgs(rawArgs: string[]) {
       options.mode = arg.slice("--mode=".length);
     } else if (arg === "--mode") {
       options.mode = rawArgs[++i];
+    } else if (arg.startsWith("--privacy=")) {
+      options.privacy = arg.slice("--privacy=".length);
+    } else if (arg === "--privacy") {
+      options.privacy = rawArgs[++i];
+    } else if (arg.startsWith("--session=")) {
+      options.session = arg.slice("--session=".length);
+    } else if (arg === "--session") {
+      options.session = rawArgs[++i];
     } else if (arg.startsWith("--interval=")) {
       options.interval = arg.slice("--interval=".length);
     } else if (arg === "--interval") {

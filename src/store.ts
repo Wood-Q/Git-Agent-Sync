@@ -172,6 +172,9 @@ function getStoreSparsePatterns(config) {
   const projectIds = unique([config.projectId, ...(config.legacyProjectIds || [])].filter(Boolean));
   return [
     "/.gitignore",
+    "/objects/**",
+    "/events/**",
+    "/conflicts/**",
     "/projects/*/manifest.json",
     ...projectIds.map((projectId) => `/projects/${projectId}/**`)
   ];

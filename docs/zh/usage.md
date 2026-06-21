@@ -95,9 +95,11 @@ git agent-sync restore --current --no-register
 ```bash
 git agent-sync clone-local
 git agent-sync clone-local openrouter
+git agent-sync clone-local openrouter --no-register
+git agent-sync repair-local
 ```
 
-省略目标 provider 时，Agent-Sync 会读取 `~/.codex/config.toml` 里的 `model_provider`。克隆后的 rollout 仍写在 `~/.codex/sessions`，会生成稳定的新 session id，并记录 `cloned_from`、`original_provider`、`clone_timestamp` 等元数据。命令只处理通过结构化项目元数据匹配当前 Git 项目的 Codex 会话。
+省略目标 provider 时，Agent-Sync 会读取 `~/.codex/config.toml` 里的 `model_provider`。克隆后的 rollout 仍写在 `~/.codex/sessions`，会生成稳定的新 session id，并记录 `cloned_from`、`original_provider`、`clone_timestamp` 等元数据。默认还会注册本机 `state_5.sqlite` 和 `session_index.jsonl`，让 Codex UI 能看到克隆会话；如果只想写文件，可以加 `--no-register`。如果底层文件已存在但 UI 看不到，运行 `repair-local` 会重新注册 Agent-Sync 生成的 provider 克隆。命令只处理通过结构化项目元数据匹配当前 Git 项目的 Codex 会话。
 
 切换 Codex API provider 时如果希望自动同步：
 
@@ -117,6 +119,18 @@ git agent-sync tui
 
 TUI 可以执行 status、最新 log、pull、push、按编号 restore、本机 clone/copy 和本机 watch。VS Code History 视图里也有 TUI 按钮，会在集成终端打开同一个菜单。
 
+## Conversation IR 与工具导出
+
+当你想用统一模型查看已经同步的 Codex 或 Claude bundle，可以使用 `tool` 命令：
+
+```bash
+git agent-sync tool inspect --session <bundle-id>
+git agent-sync tool convert --session <bundle-id> --to ir --json
+git agent-sync tool export --session <bundle-id> --to claude --mode readable
+```
+
+`inspect` 会输出来源 agent、标题、事件数量和工具调用数量。`convert` 会输出 Agent-Sync Conversation IR：原始 vendor JSONL 仍保存在 provenance/vendor 字段里，同时把消息、工具调用、工具结果、项目身份、runtime provider 和依赖线索映射成统一结构。`export --mode readable` 会写出可阅读/可归档的跨工具 JSONL；它不会宣称这是 Codex 或 Claude 可继续执行的 resumable handoff。
+
 ## 自动同步
 
 在需要自动同步会话的业务项目里安装 pre-push hook：
@@ -131,7 +145,28 @@ git agent-sync install-hooks
 git push
 ```
 
-hook 会先运行 `git-agent-sync push`。如果当前项目缺少 `.agent-sync/config.json`，或者 sidecar Git 仓库还不存在，hook 会直接成功退出，不会阻塞业务仓库自己的 `git push`。
+hook 会把同步任务放入本地队列，并启动后台 worker，而不是在 `git push` 过程中直接执行耗时的 sidecar push。如果当前项目缺少 `.agent-sync/config.json`，或者 sidecar Git 仓库还不存在，hook 会直接成功退出，不会阻塞业务仓库自己的 `git push`。
+
+也可以手动管理队列和后台 worker：
+
+```bash
+git agent-sync sync --background
+git agent-sync sync status
+git agent-sync sync --flush
+git agent-sync daemon start
+git agent-sync daemon status
+git agent-sync daemon stop
+```
+
+推送前会默认执行隐私 review。命中常见 API key、token、private key 时，`push` 会停止并提示先检查：
+
+```bash
+git agent-sync privacy scan
+git agent-sync push --privacy redact
+git agent-sync push --privacy allow
+```
+
+`--privacy redact` 会把 sidecar store 中的会话副本和对象副本写成脱敏内容；原始本机会话文件不会被改写。
 
 移除 hook：
 

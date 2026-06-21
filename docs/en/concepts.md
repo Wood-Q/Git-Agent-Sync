@@ -93,26 +93,59 @@ Both directories are added to the project `.gitignore`.
 .agent-sync/last-scan.json
 .agent-sync/scan-cache.json
 .agent-sync/archive-cache.json
+.agent-sync/queue/
+.agent-sync/daemon-state.json
 ```
+
+`queue/` stores background sync jobs in `pending`, `running`, `done`, and `failed` states. `daemon-state.json` records the local worker's latest start, stop, and flush state; these are local runtime files and are not committed to the business Git history.
 
 `.agent-sync-store/` is an independent Git repository:
 
 ```text
 .agent-sync-store/
+  objects/
+    codex/
+      sha256/<hash>.jsonl
+    claude/
+      sha256/<hash>.jsonl
+  events/
+    <machine-id>/
+      <sync-run-id>.jsonl
   projects/
     <project-id>/
       manifest.json
       bindings.jsonl
       bindings.idx.json
+      manifest.events.json
+      bindings.events.idx.json
       codex/
         codex-<hash>.jsonl
       claude/
         claude-<hash>.jsonl
 ```
 
-When a sidecar remote is configured, `pull` uses sparse checkout so the local `.agent-sync-store/` keeps only this project's full session bundle plus lightweight `manifest.json` files for other projects. The sidecar remote is also kept as a Git promisor remote with a `blob:none` filter, so commits can safely reference non-current project blobs that remain on the remote instead of being expanded locally.
+`projects/<project-id>/manifest.json`, `bindings.jsonl`, and `bindings.idx.json` remain the compatibility read path for today's `log` and `restore` commands. The new `objects/` tree stores immutable content-addressed session copies, `events/` writes append-only event shards per machine and sync run, and `manifest.events.json` plus `bindings.events.idx.json` are rebuilt from those events. That lets later multi-device sync merge objects and events first, then move the primary query path to rebuildable indexes.
+
+When a sidecar remote is configured, `pull` uses sparse checkout so the local `.agent-sync-store/` expands objects, events, this project's full session bundle, and lightweight `manifest.json` files for other projects. The sidecar remote is also kept as a Git promisor remote with a `blob:none` filter, so commits can safely reference non-current project blobs that remain on the remote instead of being expanded locally.
+
+## Conversation IR
+
+Agent-Sync uses Conversation IR as the shared model for cross-tool inspection. The source Codex or Claude JSONL remains the preserved bundle in the sidecar store; IR is derived on demand by `git agent-sync tool inspect`, `tool convert`, and `tool export`.
+
+The IR keeps four boundaries explicit:
+
+- `conversation` stores the normalized id, source agent, title, and timestamps.
+- `project` stores the matched current-project identity, cwd, branch, commit, and dirty state from the binding context.
+- `events` stores normalized messages, tool calls, and tool results while keeping each original vendor event attached for provenance.
+- `dependencies` stores detected skills, MCP/plugin hints, and other requirements that affect whether a future handoff can be resumed.
+
+`tool convert --to ir --json` emits the full IR. `tool export --to <codex|claude> --mode readable` emits a JSONL view that another UI can display or archive. That readable export is deliberately separate from resumable handoff: Agent-Sync only marks a handoff resumable when the target tool can accept the required schema, indexes, provider/runtime context, and dependencies.
 
 ## Privacy Boundaries
+
+`push` defaults to `--privacy review`. Before writing a sidecar commit, Agent-Sync scans matched current-project sessions with built-in rules for OpenAI / Anthropic / GitHub tokens, AWS access keys, private keys, Bearer tokens, and common `api_key` / `token` / `secret` / `password` assignments. Findings are not uploaded silently; run `git agent-sync privacy scan` to inspect them, or explicitly use `git agent-sync push --privacy redact` to write redacted sidecar copies.
+
+Redaction only affects the copies inside `.agent-sync-store/`, including object-store copies. It does not rewrite the original local Codex / Claude session files. `projects/<project-id>/privacy-report.json` records the matched rule and location for later explanation.
 
 Agent-Sync intentionally does not use these `.codex` files as core project/session truth:
 

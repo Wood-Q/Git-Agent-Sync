@@ -13,6 +13,7 @@ const zhSidebar = [
     text: "深入了解",
     items: [
       { text: "工具执行链路", link: "/zh/execution-flow" },
+      { text: "平台发展规划", link: "/zh/agent-conversation-platform" },
       { text: "开发说明", link: "/zh/development" },
       { text: "发布与发版指南", link: "/zh/publishing" }
     ]

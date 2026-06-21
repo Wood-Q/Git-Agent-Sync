@@ -95,9 +95,11 @@ Use local clone when you switch Codex API providers and want current-project Cod
 ```bash
 git agent-sync clone-local
 git agent-sync clone-local openrouter
+git agent-sync clone-local openrouter --no-register
+git agent-sync repair-local
 ```
 
-When the target provider is omitted, Agent-Sync reads `model_provider` from `~/.codex/config.toml`. The cloned rollout stays in `~/.codex/sessions`, gets a new stable session id, and records `cloned_from`, `original_provider`, and `clone_timestamp` metadata. Only sessions that match the current Git project through structured metadata are cloned.
+When the target provider is omitted, Agent-Sync reads `model_provider` from `~/.codex/config.toml`. The cloned rollout stays in `~/.codex/sessions`, gets a new stable session id, and records `cloned_from`, `original_provider`, and `clone_timestamp` metadata. By default it also registers local `state_5.sqlite` and `session_index.jsonl` entries so the Codex UI can see the clone; use `--no-register` when you only want to write the file. If the file exists but the UI cannot see it, run `repair-local` to re-register Agent-Sync provider clones. Only sessions that match the current Git project through structured metadata are cloned.
 
 To keep Codex sessions available while switching API providers:
 
@@ -117,6 +119,18 @@ git agent-sync tui
 
 The TUI can run status, latest log, pull, push, restore by index, local clone/copy, and local watch actions. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
 
+## Conversation IR and Tool Export
+
+Use `tool` commands when you want to inspect a synced Codex or Claude bundle through one normalized conversation model:
+
+```bash
+git agent-sync tool inspect --session <bundle-id>
+git agent-sync tool convert --session <bundle-id> --to ir --json
+git agent-sync tool export --session <bundle-id> --to claude --mode readable
+```
+
+`inspect` prints a short summary of the source agent, title, event count, and tool-call count. `convert` emits Agent-Sync Conversation IR, preserving the original vendor JSONL under provenance/vendor fields while normalizing messages, tool calls, tool results, project identity, runtime provider, and dependency hints. `export --mode readable` writes JSONL that another surface can display or archive; it is intentionally not marked as a resumable Codex or Claude handoff.
+
 ## Automatic Push
 
 Install a pre-push hook in each project where you want automatic session sync:
@@ -125,13 +139,34 @@ Install a pre-push hook in each project where you want automatic session sync:
 git agent-sync install-hooks
 ```
 
-After that, normal project pushes run `git-agent-sync push` first:
+After that, normal project pushes enqueue a background Agent-Sync job:
 
 ```bash
 git push
 ```
 
-The hook exits successfully without syncing when `.agent-sync/config.json` or the sidecar Git repo is missing, so it does not block normal project pushes before `init` has been completed.
+The hook queues a local sync job and starts a background worker instead of running the potentially slow sidecar push inside `git push`. It exits successfully without syncing when `.agent-sync/config.json` or the sidecar Git repo is missing, so it does not block normal project pushes before `init` has been completed.
+
+You can also manage the queue manually:
+
+```bash
+git agent-sync sync --background
+git agent-sync sync status
+git agent-sync sync --flush
+git agent-sync daemon start
+git agent-sync daemon status
+git agent-sync daemon stop
+```
+
+Before pushing, Agent-Sync runs privacy review by default. If common API keys, tokens, or private keys are found, `push` stops and asks you to inspect or redact:
+
+```bash
+git agent-sync privacy scan
+git agent-sync push --privacy redact
+git agent-sync push --privacy allow
+```
+
+`--privacy redact` writes redacted session and object copies to the sidecar store; it does not rewrite your original local agent session files.
 
 Remove the hook with:
 

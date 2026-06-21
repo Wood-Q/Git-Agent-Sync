@@ -34,8 +34,29 @@ import {
   DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS,
   checkLocalTransferWatch,
   normalizeWatchOptions,
+  runLocalRepair,
   runLocalTransfer
 } from "./local-transfer.js";
+import {
+  enqueueSyncJob,
+  flushSyncQueue,
+  formatSyncQueueStatus,
+  getSyncQueueStatus,
+  runDaemonLoop,
+  startBackgroundSync,
+  startDaemonProcess,
+  stopDaemon
+} from "./daemon.js";
+import { writeEventStoreSnapshot } from "./event-store.js";
+import {
+  applyPrivacyRedactionsToStore,
+  assertPrivacyAllowsPush,
+  createPrivacyReport,
+  loadPrivacyPolicy,
+  normalizePrivacyMode,
+  scanPrivacyMatches,
+  writePrivacyReport
+} from "./privacy.js";
 import { restoreCommand } from "./restore.js";
 import { runTui } from "./tui.js";
 import {
@@ -55,6 +76,7 @@ import {
 } from "./store.js";
 import { normalizePath, readJson, unique, writeJson } from "./utils.js";
 import { getCodexArchiveInfo, isArchivedCodexSessionPath, summarizeCodexArchiveInfo } from "./codex-archive.js";
+import { convertSessionToIr, exportIrReadable } from "./conversation-ir.js";
 
 export async function main(argv) {
   const { command, args, options } = parseArgs(argv.slice(2));
@@ -82,9 +104,14 @@ export async function main(argv) {
     show: () => showCommand(gitRoot, args, options),
     push: () => pushCommand(gitRoot, options),
     pull: () => pullCommand(gitRoot),
+    sync: () => syncCommand(gitRoot, args, options),
+    daemon: () => daemonCommand(gitRoot, args, options),
+    privacy: () => privacyCommand(gitRoot, args, options),
+    tool: () => toolCommand(gitRoot, args, options),
     scan: () => scanCommand(gitRoot, options),
     "clone-local": () => localTransferCommand(gitRoot, args, options),
     "watch-local": () => localTransferWatchCommand(gitRoot, options),
+    "repair-local": () => localRepairCommand(gitRoot, options),
     tui: () => tuiCommand(gitRoot),
     "install-hooks": () => installHooksCommand(gitRoot),
     "uninstall-hooks": () => uninstallHooksCommand(gitRoot),
@@ -113,11 +140,16 @@ Usage:
   git agent-sync status [--json]
   git agent-sync log [--latest|--current|--branch <name>|--commit <sha>] [--agent <name>] [--author <text>] [--bundle <prefix>] [--date <YYYY-MM-DD>] [--title <text>] [--oneline] [-n <count>|-<count>] [--json]
   git agent-sync show <bundle-id>|[filters] <index> [--json]
-  git agent-sync push [--m <message>]
+  git agent-sync push [--m <message>] [--privacy review|redact|allow|off]
   git agent-sync pull
+  git agent-sync sync [status|--background|--flush] [--json]
+  git agent-sync daemon <start|status|stop> [--once] [--interval <seconds>] [--json]
+  git agent-sync privacy <scan|redact> [--dry-run] [--json]
+  git agent-sync tool <inspect|convert|export> --session <bundle-id> [--to ir|codex|claude] [--json]
   git agent-sync scan [--json]
-  git agent-sync clone-local [target-provider] [--dry-run] [--json]
+  git agent-sync clone-local [target-provider] [--dry-run] [--no-register] [--json]
   git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
+  git agent-sync repair-local [--dry-run] [--json]
   git agent-sync tui
   git agent-sync restore <bundle-id>|--index <n>|--i <n>|--all|[filters] [index] [--no-adapt] [--no-register]
   git agent-sync install-hooks
@@ -187,27 +219,55 @@ Formats:
 Prints one agent session snapshot detail without restoring it.
 Aligns with: git show <object>.`,
     push: `Usage:
-  git agent-sync push [--m <message>]
+  git agent-sync push [--m <message>] [--privacy review|redact|allow|off]
 
 Copies matching agent session snapshots into the sidecar repo and commits them.
 Use --m to set the sidecar commit message for this sync.
-Aligns with: git push. The sidecar commit records the current project HEAD commit.`,
+Aligns with: git push. The sidecar commit records the current project HEAD commit.
+Privacy defaults to review; use --privacy redact to write redacted sidecar copies.`,
     pull: `Usage:
   git agent-sync pull
 
 Fast-forwards the sidecar repo from its remote.
 Run log or restore after pull to inspect or recover sessions.`,
+    sync: `Usage:
+  git agent-sync sync status [--json]
+  git agent-sync sync --background [--json]
+  git agent-sync sync --flush [--json]
+
+Queues or flushes sidecar sync jobs without blocking normal project work.`,
+    daemon: `Usage:
+  git agent-sync daemon start [--once] [--interval <seconds>] [--json]
+  git agent-sync daemon status [--json]
+  git agent-sync daemon stop [--json]
+
+Starts, inspects, or stops the local Agent-Sync background worker.`,
+    privacy: `Usage:
+  git agent-sync privacy scan [--json]
+  git agent-sync privacy redact [--dry-run] [--json]
+
+Scans current-project agent sessions with the local redaction policy.`,
+    tool: `Usage:
+  git agent-sync tool inspect --session <bundle-id> [--json]
+  git agent-sync tool convert --session <bundle-id> [--to ir] [--json]
+  git agent-sync tool export --session <bundle-id> --to <codex|claude> [--mode readable]
+
+Converts a sidecar bundle into Agent-Sync Conversation IR or readable cross-tool JSONL.`,
     "clone-local": `Usage:
-  git agent-sync clone-local [target-provider] [--dry-run] [--json]
+  git agent-sync clone-local [target-provider] [--dry-run] [--no-register] [--json]
 
 Clones current-project Codex sessions to the target Codex model_provider.
 When target-provider is omitted, Agent-Sync reads ~/.codex/config.toml.
-The cloned rollout stays inside ~/.codex/sessions and records cloned_from/original_provider metadata.`,
+The cloned rollout stays inside ~/.codex/sessions, records cloned_from/original_provider metadata, and registers Codex UI indexes unless --no-register is used.`,
     "watch-local": `Usage:
   git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
 
 Watches ~/.codex/config.toml for model_provider changes and clones current-project Codex sessions to the active provider.
 Defaults to an interval of ${DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS} seconds.`,
+    "repair-local": `Usage:
+  git agent-sync repair-local [--dry-run] [--json]
+
+Repairs local Codex UI registration for Agent-Sync provider clones without rewriting the rollout files.`,
     tui: `Usage:
   git agent-sync tui
 
@@ -307,12 +367,83 @@ function scanCommand(gitRoot, options) {
   return statusCommand(gitRoot, options);
 }
 
+function privacyCommand(gitRoot, args, options) {
+  const action = args[0] || "scan";
+  if (!["scan", "redact"].includes(action)) {
+    throw new Error(`unknown privacy action "${action}". Run "git agent-sync privacy --help".`);
+  }
+  const config = readConfigWithBundle(gitRoot);
+  const scan = scanSessions(gitRoot, config);
+  const policy = loadPrivacyPolicy(gitRoot);
+  const report = scanPrivacyMatches(scan.matches, policy);
+  report.mode = action;
+  if (action === "redact") {
+    report.redacted = !options.dryRun;
+  }
+  if (options.json) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+  printPrivacyReport(report, { dryRun: options.dryRun, action });
+}
+
+function toolCommand(gitRoot, args, options) {
+  const action = args[0] || "inspect";
+  if (!["inspect", "convert", "export"].includes(action)) {
+    throw new Error(`unknown tool action "${action}". Run "git agent-sync tool --help".`);
+  }
+  const config = readConfigWithBundle(gitRoot);
+  const bundleId = options.session || args[1];
+  const binding = findBindingByBundleId(config, bundleId);
+  if (!binding) {
+    throw new Error(`no bundle found for "${bundleId || ""}"`);
+  }
+  const sourcePath = join(config.storePath, binding.storeRelativePath);
+  const content = readFileSync(sourcePath, "utf8");
+  const ir = convertSessionToIr(binding.agent, content, {
+    ...binding,
+    sourcePath,
+    projectRoot: config.projectRoot,
+    projectIdentity: config.projectIdentity
+  });
+
+  if (action === "export") {
+    const exported = exportIrReadable(ir, {
+      to: options.to || "ir",
+      mode: options.mode || "readable"
+    });
+    if (options.json) {
+      console.log(JSON.stringify({ ok: true, format: "jsonl", content: exported }, null, 2));
+    } else {
+      process.stdout.write(exported);
+    }
+    return;
+  }
+
+  if (options.json || action === "convert") {
+    console.log(JSON.stringify(ir, null, 2));
+    return;
+  }
+
+  console.log(`bundle: ${binding.bundleId}`);
+  console.log(`agent:  ${binding.agent}`);
+  console.log(`title:  ${ir.conversation.title || binding.title || binding.bundleId}`);
+  console.log(`events: ${ir.events.length}`);
+  console.log(`tools:  ${ir.events.filter((event) => event.type === "tool_call").length} call(s), ${ir.events.filter((event) => event.type === "tool_result").length} result(s)`);
+}
+
 function localTransferCommand(gitRoot, args, options) {
   const config = readConfigWithBundle(gitRoot);
   const result = runLocalTransfer(gitRoot, config, {
     ...options,
     targetProvider: args[0] || ""
   });
+  printLocalTransferResult(result, options);
+}
+
+function localRepairCommand(gitRoot, options) {
+  const config = readConfigWithBundle(gitRoot);
+  const result = runLocalRepair(gitRoot, config, options);
   printLocalTransferResult(result, options);
 }
 
@@ -374,7 +505,7 @@ function showCommand(gitRoot, args, options) {
   printBindingDetail(config, match);
 }
 
-function pushCommand(gitRoot, options = {}) {
+function pushCommand(gitRoot, options: Record<string, any> = {}) {
   const config = readConfigWithBundle(gitRoot);
   ensureStoreRepo(config.storePath, config.remote);
   syncStoreFromRemote(config);
@@ -385,10 +516,25 @@ function pushCommand(gitRoot, options = {}) {
   const archiveInfo = getCodexArchiveInfo(getAgentRoot("codex"), { gitRoot });
   const scan = scanSessions(gitRoot, config, archiveInfo);
   writeJson(join(gitRoot, CACHE_FILE), scan);
+  const privacyMode = normalizePrivacyMode(options.privacy);
+  const privacyPolicy = loadPrivacyPolicy(gitRoot);
+  const privacyReport: Record<string, any> = privacyMode === "off" || privacyMode === "allow"
+    ? createPrivacyReport([], privacyPolicy, { mode: privacyMode })
+    : scanPrivacyMatches(scan.matches, privacyPolicy);
+  privacyReport.mode = privacyMode;
+  assertPrivacyAllowsPush(privacyReport, privacyMode);
 
   const pruned = pruneArchivedSidecarEntries(config, archiveInfo);
   const foreignPruned = pruneForeignProjectSidecarEntries(config);
   const copied = copyMatchesToStore(config, scan, archiveInfo);
+  const redactions = privacyMode === "redact"
+    ? applyPrivacyRedactionsToStore(config, scan.matches, privacyPolicy)
+    : { filesChanged: 0 };
+  if (privacyMode !== "off" && privacyReport.totalFindings > 0) {
+    privacyReport.redacted = privacyMode === "redact";
+    privacyReport.filesChanged = redactions.filesChanged;
+    writePrivacyReport(config, privacyReport);
+  }
   writeManifest(config, scan, gitContext);
   const commitMessage = getPushCommitMessage(config, gitContext, options);
   const author = getProjectGitAuthor(gitRoot);
@@ -397,6 +543,12 @@ function pushCommand(gitRoot, options = {}) {
     authorName: author.name,
     authorEmail: author.email
   });
+  const eventStore = writeEventStoreSnapshot(config, scan.matches, gitContext, syncRunId, {
+    message: commitMessage,
+    authorName: author.name,
+    authorEmail: author.email,
+    preferStoreContent: privacyMode === "redact"
+  });
 
   stageProjectBundle(config);
   const diff = runGit(["diff", "--cached", "--quiet"], config.storePath, { allowFail: true });
@@ -404,7 +556,7 @@ function pushCommand(gitRoot, options = {}) {
     console.log(`agent-sync: no sidecar changes (${copied.length} matched session(s), ${pruned.removedFiles} archived removed, ${foreignPruned.removedFiles} foreign removed).`);
   } else {
     runGit(["-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "-m", commitMessage], config.storePath);
-    console.log(`agent-sync: committed ${copied.length} matched session file(s), ${bindingsAdded} new binding(s), ${pruned.removedFiles} archived removed, ${foreignPruned.removedFiles} foreign removed.`);
+    console.log(`agent-sync: committed ${copied.length} matched session file(s), ${bindingsAdded} new binding(s), ${eventStore.eventsWritten} event(s), ${eventStore.objectsWritten} object(s), ${redactions.filesChanged} redacted file(s), ${pruned.removedFiles} archived removed, ${foreignPruned.removedFiles} foreign removed.`);
   }
 
   if (config.remote) {
@@ -454,6 +606,80 @@ function pullCommand(gitRoot) {
   }
 }
 
+async function syncCommand(gitRoot, args, options) {
+  const action = args[0] || "";
+  if (action === "status" || (options.json && !options.background && !options.flush)) {
+    printQueueStatus(gitRoot, options);
+    return;
+  }
+  if (action && !["background", "flush"].includes(action)) {
+    throw new Error(`unknown sync action "${action}". Run "git agent-sync sync --help".`);
+  }
+
+  const config = readConfigWithBundle(gitRoot);
+  if (options.flush || action === "flush") {
+    const result = flushSyncQueue(gitRoot);
+    printSyncResult(result, options);
+    return;
+  }
+
+  const job = enqueueSyncJob(gitRoot, config, {
+    action: "push",
+    reason: options.background || action === "background" ? "background-sync" : "manual-sync"
+  });
+  let worker = null;
+  if (options.background || action === "background") {
+    worker = startBackgroundSync(gitRoot);
+  }
+  const result = { version: 1, job, worker };
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  console.log(`agent-sync: queued sync job ${job.id}.`);
+  if (worker) {
+    console.log(`agent-sync: started background worker pid ${worker.pid}.`);
+  } else {
+    console.log("agent-sync: run git agent-sync sync --flush to process the queue.");
+  }
+}
+
+async function daemonCommand(gitRoot, args, options) {
+  const action = args[0] || "status";
+  if (action === "status") {
+    printQueueStatus(gitRoot, options);
+    return;
+  }
+  if (action === "stop") {
+    const result = stopDaemon(gitRoot);
+    printDaemonResult(result, options);
+    return;
+  }
+  if (action === "start") {
+    if (options.once) {
+      const result = await runDaemonLoop(gitRoot, {
+        once: true,
+        intervalSeconds: parseDaemonInterval(options)
+      });
+      printDaemonResult({ mode: "foreground-once", result }, options);
+      return;
+    }
+    const result = startDaemonProcess(gitRoot, {
+      intervalSeconds: parseDaemonInterval(options)
+    });
+    printDaemonResult(result, options);
+    return;
+  }
+  if (action === "run") {
+    const result = await runDaemonLoop(gitRoot, {
+      intervalSeconds: parseDaemonInterval(options)
+    });
+    printDaemonResult(result, options);
+    return;
+  }
+  throw new Error(`unknown daemon action "${action}". Run "git agent-sync daemon --help".`);
+}
+
 function installHooksCommand(gitRoot) {
   const hookPath = resolveHookPath(gitRoot);
   mkdirSync(dirname(hookPath), { recursive: true });
@@ -478,11 +704,11 @@ if [ -z "$STORE_PATH" ] || [ ! -d "$STORE_PATH/.git" ]; then
 fi
 
 if command -v git-agent-sync >/dev/null 2>&1; then
-  git-agent-sync push
+  git-agent-sync sync --background >/dev/null 2>&1 || true
 elif command -v agent-sync >/dev/null 2>&1; then
-  agent-sync push
+  agent-sync sync --background >/dev/null 2>&1 || true
 else
-  echo "agent-sync: git-agent-sync not found; skipping session sync" >&2
+  echo "agent-sync: git-agent-sync not found; skipping background session sync" >&2
 fi
 `;
   writeFileSync(hookPath, hook, { mode: 0o755 });
@@ -538,7 +764,13 @@ function commitStoreCleanup(config, archivedPruned, manifestPruned, foreignPrune
 }
 
 function stageProjectBundle(config) {
-  runGit(["add", "--", ".gitignore", getProjectBundleStagePath(config)], config.storePath);
+  const paths = [".gitignore", getProjectBundleStagePath(config)];
+  for (const optionalPath of ["objects", "events", "conflicts"]) {
+    if (existsSync(join(config.storePath, optionalPath))) {
+      paths.push(optionalPath);
+    }
+  }
+  runGit(["add", "--", ...paths], config.storePath);
 }
 
 function getPushCommitMessage(config, gitContext, options) {
@@ -729,6 +961,19 @@ function printLocalTransferResult(result, options: Record<string, any> = {}) {
     return;
   }
 
+  if (result.mode === "repair") {
+    console.log("agent-sync: repair local Codex provider clone registration");
+    console.log(`repaired: ${result.stats.repaired}, dry-run: ${result.stats.dry_run}, skipped: ${result.stats.skipped_unmarked + result.stats.skipped_foreign}, errors: ${result.stats.error}`);
+    for (const item of result.results) {
+      if (item.action === "repaired" || item.action === "dry_run") {
+        console.log(`[${item.action}] ${item.path}`);
+      } else if (item.action === "error") {
+        console.log(`[error] ${item.path}: ${item.message}`);
+      }
+    }
+    return;
+  }
+
   console.log(`agent-sync: clone Codex sessions to provider ${result.provider}`);
   console.log(`candidates: ${result.candidates}`);
   console.log(`cloned: ${result.stats.cloned}, skipped: ${result.stats.skipped_exists + result.stats.skipped_target + result.stats.skipped_collision}, errors: ${result.stats.error}`);
@@ -757,6 +1002,53 @@ function printLocalTransferWatchEvent(event, options: Record<string, any> = {}) 
   printLocalTransferResult(event.result, options);
 }
 
+function printQueueStatus(gitRoot, options) {
+  const status = getSyncQueueStatus(gitRoot);
+  if (options.json) {
+    console.log(JSON.stringify(status, null, 2));
+    return;
+  }
+  console.log(formatSyncQueueStatus(status));
+}
+
+function printSyncResult(result, options) {
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  if (result.locked) {
+    console.log(`agent-sync: ${result.message}`);
+    return;
+  }
+  console.log(`agent-sync: processed ${result.processed} sync job(s), ${result.succeeded} succeeded, ${result.retried} queued for retry, ${result.failed} failed.`);
+}
+
+function printDaemonResult(result, options) {
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  if (result.mode === "background") {
+    console.log(`agent-sync: daemon started with pid ${result.pid}.`);
+  } else if (result.mode === "foreground-once") {
+    console.log("agent-sync: daemon flushed the queue once.");
+  } else if (result.status) {
+    console.log(`agent-sync: daemon ${result.status}.`);
+  } else {
+    console.log("agent-sync: daemon command complete.");
+  }
+}
+
+function parseDaemonInterval(options) {
+  if (!options.interval) {
+    return undefined;
+  }
+  if (!/^\d+$/.test(String(options.interval)) || Number(options.interval) < 1) {
+    throw new Error("daemon --interval must be a positive number of seconds");
+  }
+  return Number(options.interval);
+}
+
 function sleep(ms) {
   return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 }
@@ -775,6 +1067,22 @@ function printScan(scan, config) {
   }
   for (const match of scan.matches) {
     console.log(`- ${match.bundleId} ${match.agent} ${match.originalPath} (${match.bytes} bytes)`);
+  }
+}
+
+function printPrivacyReport(report, options: Record<string, any> = {}) {
+  const action = options.action || "scan";
+  console.log(`privacy: ${report.totalFindings} finding(s)`);
+  if (action === "redact" && options.dryRun) {
+    console.log("mode:    dry-run redaction preview");
+  } else if (action === "redact") {
+    console.log("mode:    redaction preview; use push --privacy redact to write sidecar copies");
+  }
+  for (const finding of report.findings.slice(0, 50)) {
+    console.log(`- ${finding.rule} ${finding.path}:${finding.line}:${finding.column} ${finding.preview}`);
+  }
+  if (report.findings.length > 50) {
+    console.log(`... ${report.findings.length - 50} more finding(s)`);
   }
 }
 

@@ -85,6 +85,17 @@ git agent-sync install-hooks
 git push
 ```
 
+hook 会把同步任务放入后台队列，而不是在 `git push` 过程中直接执行 sidecar push。也可以手动管理队列：
+
+```bash
+git agent-sync sync --background
+git agent-sync sync status
+git agent-sync sync --flush
+git agent-sync daemon start
+git agent-sync daemon status
+git agent-sync daemon stop
+```
+
 移除 hook：
 
 ```bash
@@ -110,8 +121,18 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 | `git agent-sync scan [--json]` | 扫描匹配当前项目的 Codex / Claude session |
 | `git agent-sync push [--m <message>]` | 写入会话快照并推送 sidecar remote |
 | `git agent-sync pull` | 拉取当前项目可用的 sidecar 快照 |
+| `git agent-sync sync --background` | 入队 sidecar 同步任务并启动后台 worker |
+| `git agent-sync sync status` | 查看 pending、running、done、failed 同步任务 |
+| `git agent-sync sync --flush` | 在当前终端处理队列中的同步任务 |
+| `git agent-sync daemon <start\|status\|stop>` | 管理本地后台同步 worker |
+| `git agent-sync privacy scan` | 扫描当前项目会话里的常见密钥 |
+| `git agent-sync push --privacy redact` | 命中密钥时写入脱敏后的 sidecar 副本 |
+| `git agent-sync tool inspect --session <bundle-id>` | 用 Conversation IR 汇总一个 sidecar bundle |
+| `git agent-sync tool convert --session <bundle-id> --to ir` | 把 Codex 或 Claude bundle 转成 Agent-Sync Conversation IR |
+| `git agent-sync tool export --session <bundle-id> --to <codex\|claude> --mode readable` | 从 IR 导出可阅读的跨工具 JSONL |
 | `git agent-sync clone-local [target-provider]` | 把本机当前项目的 Codex 会话克隆到指定或当前 Codex `model_provider` |
 | `git agent-sync watch-local [--interval <seconds>]` | 监视 Codex `model_provider` 变化，并自动克隆到当前 provider |
+| `git agent-sync repair-local` | 修复本机 Codex provider 克隆会话的 UI 注册 |
 | `git agent-sync tui` | 打开交互式终端菜单，集中执行常用 Agent-Sync 操作 |
 | `git agent-sync log [--oneline] [-n <count>\|-<count>] [--json]` | 浏览可恢复会话历史 |
 | `git agent-sync log --latest [--oneline] [-n <count>\|-<count>] [--json]` | 浏览最近一次同步批次 |
@@ -146,6 +167,6 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 
 ## 隐私提醒
 
-当前 MVP 会复制原始项目会话文件。它们可能包含私有代码、密钥片段、本地路径、prompt、终端输出和调试信息。Agent-Sync 不会复制 Claude 账号、token、全局配置、缓存、遥测、插件、技能、IDE lock 或运行态 session 文件。
+当前 `push` 默认使用 `--privacy review`，扫描到常见密钥时会阻止推送；可以用 `git agent-sync privacy scan` 查看命中项，或用 `git agent-sync push --privacy redact` 写入脱敏后的 sidecar 副本。项目会话仍可能包含私有代码、本地路径、prompt、终端输出和调试信息。Agent-Sync 不会复制 Claude 账号、token、全局配置、缓存、遥测、插件、技能、IDE lock 或运行态 session 文件。
 
 请务必使用私有远程仓库保存 sidecar session store。后续生产化版本应加入默认加密和 secret redaction。

@@ -2,7 +2,7 @@ import { basename, join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { getAgentRoot, scanSessions } from "./agents.js";
 import { extractCodexSessionMetadata, registerRestoredCodexSession, resolveCodexHome } from "./codex-session.js";
-import { normalizePath, sha256, writeFileAtomic } from "./utils.js";
+import { normalizePath, sha256, walk, writeFileAtomic } from "./utils.js";
 
 export const DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS = 2;
 export const DEFAULT_CODEX_MODEL_PROVIDER = "openai";
@@ -12,6 +12,7 @@ const TRANSFER_MARKER = "agentSyncLocalTransfer";
 type LocalTransferOptions = {
   targetProvider: string;
   dryRun: boolean;
+  register: boolean;
 };
 
 type WatchOptions = LocalTransferOptions & {
@@ -46,6 +47,63 @@ export function runLocalTransfer(gitRoot, config, rawOptions) {
     dryRun: options.dryRun,
     scannedAt: new Date().toISOString(),
     candidates: matches.length,
+    stats,
+    results
+  };
+}
+
+export function runLocalRepair(gitRoot, config, rawOptions: Record<string, any> = {}) {
+  const options = normalizeRepairOptions(rawOptions);
+  const codexRoot = getAgentRoot("codex");
+  const results = [];
+  const stats = {
+    repaired: 0,
+    dry_run: 0,
+    skipped_foreign: 0,
+    skipped_unmarked: 0,
+    error: 0
+  };
+
+  for (const path of walk(codexRoot).filter((file) => file.endsWith(".jsonl"))) {
+    try {
+      const content = readFileSync(path, "utf8");
+      const meta = getFirstSessionMeta(content);
+      const marker = meta.payload?.[TRANSFER_MARKER];
+      if (!marker || marker.type !== "codex-provider-clone") {
+        stats.skipped_unmarked += 1;
+        continue;
+      }
+      if (!isCurrentProjectClone(config, meta.payload)) {
+        stats.skipped_foreign += 1;
+        continue;
+      }
+      const match = buildRegistrationMatch({ bundleId: marker.sourceSessionId || meta.payload.id }, content);
+      const registered = options.dryRun
+        ? { registered: false, reason: "dry-run", sessionId: meta.payload.id }
+        : registerRestoredCodexSession(content, path, config, match, codexRoot);
+      stats[options.dryRun ? "dry_run" : "repaired"] += 1;
+      results.push({
+        action: options.dryRun ? "dry_run" : "repaired",
+        path: normalizePath(path),
+        sessionId: meta.payload.id,
+        provider: meta.payload.model_provider || null,
+        registered
+      });
+    } catch (error) {
+      stats.error += 1;
+      results.push({
+        action: "error",
+        path: normalizePath(path),
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  return {
+    version: 1,
+    mode: "repair",
+    dryRun: options.dryRun,
+    scannedAt: new Date().toISOString(),
     stats,
     results
   };
@@ -94,6 +152,13 @@ function normalizeLocalTransferOptions(rawOptions): LocalTransferOptions {
   }
   return {
     targetProvider: detectCodexModelProvider(rawOptions.targetProvider || rawOptions.provider || ""),
+    dryRun: Boolean(rawOptions.dryRun),
+    register: !rawOptions.noRegister
+  };
+}
+
+function normalizeRepairOptions(rawOptions) {
+  return {
     dryRun: Boolean(rawOptions.dryRun)
   };
 }
@@ -160,9 +225,7 @@ function cloneCodexProviderMatch(config, match, options: LocalTransferOptions, c
 
     const existingClone = cloneIndex.get(sourceId);
     if (existingClone) {
-      const registered = options.dryRun
-        ? null
-        : registerRestoredCodexSession(existingClone.content, existingClone.path, config, buildRegistrationMatch(match, existingClone.content), getAgentRoot("codex"));
+      const registered = registerLocalClone(config, match, existingClone.content, existingClone.path, options);
       return createTransferResult("skipped_exists", match, existingClone.path, "already cloned for target provider", registered);
     }
 
@@ -181,9 +244,7 @@ function cloneCodexProviderMatch(config, match, options: LocalTransferOptions, c
       const existingContent = readFileSync(targetPath, "utf8");
       if (isSameCodexProviderClone(existingContent, sourceId, options.targetProvider)) {
         cloneIndex.set(sourceId, { path: targetPath, content: existingContent });
-        const registered = options.dryRun
-          ? null
-          : registerRestoredCodexSession(existingContent, targetPath, config, buildRegistrationMatch(match, existingContent), getAgentRoot("codex"));
+        const registered = registerLocalClone(config, match, existingContent, targetPath, options);
         return createTransferResult("skipped_exists", match, targetPath, "already cloned for target provider", registered);
       }
       return createTransferResult("skipped_collision", match, targetPath, "target rollout file exists for a different session");
@@ -193,13 +254,21 @@ function cloneCodexProviderMatch(config, match, options: LocalTransferOptions, c
       writeFileAtomic(targetPath, targetContent);
     }
     cloneIndex.set(sourceId, { path: targetPath, content: targetContent });
-    const registered = options.dryRun
-      ? null
-      : registerRestoredCodexSession(targetContent, targetPath, config, buildRegistrationMatch(match, targetContent), getAgentRoot("codex"));
+    const registered = registerLocalClone(config, match, targetContent, targetPath, options);
     return createTransferResult("cloned", match, targetPath, `cloned Codex session to provider ${options.targetProvider}`, registered);
   } catch (error) {
     return createTransferResult("error", match, null, error instanceof Error ? error.message : String(error));
   }
+}
+
+function registerLocalClone(config, match, content, targetPath, options: LocalTransferOptions) {
+  if (options.dryRun) {
+    return { registered: false, reason: "dry-run" };
+  }
+  if (!options.register) {
+    return { registered: false, reason: "disabled" };
+  }
+  return registerRestoredCodexSession(content, targetPath, config, buildRegistrationMatch(match, content), getAgentRoot("codex"));
 }
 
 function getFirstSessionMeta(content: string) {
@@ -281,6 +350,14 @@ function buildRegistrationMatch(match, content: string) {
     title: metadata.title || match.title || match.bundleId,
     sessionId: metadata.sessionId
   };
+}
+
+function isCurrentProjectClone(config, payload) {
+  const cwd = payload.cwd || payload.projectRoot || "";
+  if (!cwd) {
+    return false;
+  }
+  return normalizePath(cwd) === normalizePath(config.projectRoot);
 }
 
 function createTransferResult(action: string, match, targetPath, message: string, registered = null) {

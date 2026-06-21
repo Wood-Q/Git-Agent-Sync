@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { registerRestoredCodexSession } from "../dist/codex-session.js";
-import { checkLocalTransferWatch, runLocalTransfer } from "../dist/local-transfer.js";
+import { checkLocalTransferWatch, runLocalRepair, runLocalTransfer } from "../dist/local-transfer.js";
 
 const base = mkdtempSync(join(tmpdir(), "agent-sync-local-transfer-"));
 const projectRoot = join(base, "project");
@@ -54,6 +54,7 @@ const cloneResult = runLocalTransfer(projectRoot, config, {
 assert.equal(cloneResult.provider, "anthropic");
 assert.equal(cloneResult.stats.cloned, 1);
 assert.equal(existsSync(cloneResult.results[0].targetPath), true);
+assert.equal(cloneResult.results[0].registered.registered, true);
 
 const clonedCodex = parseJsonl(readFileSync(cloneResult.results[0].targetPath, "utf8"));
 assert.notEqual(clonedCodex[0].payload.id, sourceId);
@@ -67,6 +68,11 @@ const cloneAgain = runLocalTransfer(projectRoot, config, {
   targetProvider: "anthropic"
 });
 assert.equal(cloneAgain.stats.skipped_exists, 1);
+assert.equal(cloneAgain.results[0].registered.registered, true);
+
+const repairResult = runLocalRepair(projectRoot, config);
+assert.equal(repairResult.stats.repaired >= 1, true);
+assert.equal(repairResult.results.some((item) => item.registered?.registered), true);
 
 writeFileSync(join(codexHome, "config.toml"), "model_provider = \"openrouter\"\n");
 const watchEvent = checkLocalTransferWatch(projectRoot, config, {
@@ -76,6 +82,12 @@ assert.equal(watchEvent.provider, "openrouter");
 assert.equal(watchEvent.previousProvider, "anthropic");
 assert.equal(watchEvent.changed, true);
 assert.equal(watchEvent.result.stats.cloned, 2);
+
+const noRegister = runLocalTransfer(projectRoot, config, {
+  targetProvider: "localai",
+  noRegister: true
+});
+assert.equal(noRegister.results.some((item) => item.registered?.reason === "disabled"), true);
 
 console.log("local transfer test passed");
 
