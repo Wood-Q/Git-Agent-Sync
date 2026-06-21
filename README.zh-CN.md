@@ -150,7 +150,7 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 | `git agent-sync register-local` | 把 Agent-Sync 本机 provider 克隆注册进本机 Codex UI 索引 |
 | `git agent-sync repair-local` | 修复本机 Codex provider 克隆会话的 UI 注册 |
 | `git agent-sync clean-local [--force]` | 预览或删除当前项目由 Agent-Sync 生成的本机 Codex provider 克隆 |
-| `git agent-sync tui [--cn]` | 打开交互式终端菜单；`--cn` 使用中文界面 |
+| `git agent-sync tui [--cn]` | 打开带远程/本地两级分区的交互式终端 TUI；`--cn` 使用中文界面 |
 | `git agent-sync log [--oneline] [-n <count>\|-<count>] [--json]` | 浏览可恢复会话历史 |
 | `git agent-sync log --latest [--oneline] [-n <count>\|-<count>] [--json]` | 浏览最近一次同步批次 |
 | `git agent-sync log --current [--json]` | 浏览当前业务 commit 对应会话 |

@@ -23,10 +23,22 @@ type TuiChoice = {
   confirm?: string;
 };
 
+type TuiCategoryId = "remote" | "local";
+
 type TuiView = {
   id: string;
   title: string;
   subtitle: string;
+  category: TuiCategoryId;
+};
+
+type TuiCategory = {
+  id: TuiCategoryId;
+  index: number;
+  key: string;
+  title: string;
+  subtitle: string;
+  accent: string;
 };
 
 type TuiCommandResult = number | {
@@ -49,6 +61,17 @@ const CN_VIEW_TEXT = {
   privacy: { title: "隐私检查", subtitle: "sidecar push 前扫描或脱敏" },
   conflicts: { title: "冲突处理", subtitle: "查看 sidecar 冲突隔离区和解决状态" },
   ops: { title: "设置", subtitle: "doctor 检查和 hook 管理" }
+};
+
+const CN_CATEGORY_TEXT = {
+  remote: {
+    title: "远程对话同步",
+    subtitle: "推送、拉取、隐私脱敏、冲突处理和后台守护"
+  },
+  local: {
+    title: "本地对话同步",
+    subtitle: "本机 Codex provider、会话历史与跨工具转换"
+  }
 };
 
 const CN_CHOICE_TEXT = {
@@ -183,6 +206,29 @@ const EN_COPY = {
   menuTitle(projectName) {
     return `Agent Sync TUI - ${projectName || "project"}`;
   },
+  hero: "AGENT-SYNC",
+  tagline: "Agent conversation sync platform",
+  homeTitle: "Choose a workspace",
+  homeSubtitle: "Pick remote sync or local sessions to drill in",
+  homeFooter: "Up/Down or A-B / 1-2 select, Enter or Right opens, q exits",
+  homeShortcuts: ["  ↑/↓ or 1-2  Select", "  Enter / →   Open", "  q           Quit"],
+  homeHelpLines: [
+    "Keyboard",
+    "  Up/Down moves between sections",
+    "  Enter or Right opens the selected section",
+    "  1/2 or A/B jumps directly into a section",
+    "  ? toggles this help",
+    "  q exits"
+  ],
+  categoryLabel: "Section",
+  categoriesHeading: "Sections",
+  homeReady: "Ready - choose a section",
+  backHint: "Esc / Backspace returns to home",
+  categoryFooter: "Esc back, ↑↓ actions, ←→/Tab views, / search, ? help, Enter run, q exits",
+  remoteCategoryTitle: "Remote conversation sync",
+  remoteCategorySubtitle: "Push, pull, privacy review, conflicts and background daemon",
+  localCategoryTitle: "Local conversation sync",
+  localCategorySubtitle: "Local Codex provider, session history and tool conversion",
   projectRoot: "Project root",
   store: "Store",
   shortcuts: "Shortcuts",
@@ -237,8 +283,11 @@ const EN_COPY = {
   status: "Status",
   search: "Search",
   searchPlaceholder: "type to filter actions",
+  selectCategory: "Select a section",
   selectAction: "Select an action",
+  selectActionWithHome: "Select an action (or type home)",
   unknownSelection: "Unknown selection.",
+  unknownCategory: "Unknown section.",
   bye: "Bye.",
   commandLabel: "Command",
   confirmQuestion(confirm) {
@@ -257,6 +306,29 @@ const CN_COPY = {
   menuTitle(projectName) {
     return `Agent Sync 中文 TUI - ${projectName || "项目"}`;
   },
+  hero: "AGENT-SYNC",
+  tagline: "全能 Agent 对话同步平台",
+  homeTitle: "选择工作区",
+  homeSubtitle: "先选远程对话同步或本地对话同步，再进入具体动作",
+  homeFooter: "上下方向键或 A-B / 1-2 选择，Enter 或 → 进入，q 退出",
+  homeShortcuts: ["  ↑/↓ 或 1-2  选择", "  Enter / →    进入", "  q            退出"],
+  homeHelpLines: [
+    "键盘",
+    "  上/下方向键切换分区",
+    "  Enter 或右方向键进入当前分区",
+    "  1/2 或 A/B 直接进入分区",
+    "  ? 打开或关闭帮助",
+    "  q 退出"
+  ],
+  categoryLabel: "分区",
+  categoriesHeading: "分区",
+  homeReady: "就绪 - 请选择分区",
+  backHint: "Esc / Backspace 返回主菜单",
+  categoryFooter: "Esc 返回，↑↓ 选动作，←→/Tab 切换视图，/ 搜索，? 帮助，Enter 执行，q 退出",
+  remoteCategoryTitle: "远程对话同步",
+  remoteCategorySubtitle: "推送、拉取、隐私脱敏、冲突处理与后台守护",
+  localCategoryTitle: "本地对话同步",
+  localCategorySubtitle: "本机 Codex provider、会话历史与跨工具转换",
   projectRoot: "项目根目录",
   store: "Sidecar 仓库",
   shortcuts: "快捷键",
@@ -277,8 +349,11 @@ const CN_COPY = {
     "  / 筛选当前视图动作",
     "  ? 打开或关闭帮助",
     "  y/n 回答确认提示",
+    "  Esc / Backspace 返回主菜单",
     "  q 退出"
   ],
+  selectCategory: "选择分区（输入 1 或 2）：",
+  unknownCategory: "未知分区。",
   ready: "就绪",
   actionCancelled: "操作已取消",
   confirmHint: "按 y 确认，按 n 取消",
@@ -312,6 +387,7 @@ const CN_COPY = {
   search: "搜索",
   searchPlaceholder: "输入关键词筛选动作",
   selectAction: "选择一个动作",
+  selectActionWithHome: "选择一个动作（输入 home 返回主菜单）",
   unknownSelection: "未知选择。",
   bye: "再见。",
   commandLabel: "命令",
@@ -327,14 +403,33 @@ const CN_COPY = {
 };
 
 const TUI_VIEWS: TuiView[] = [
-  { id: "dashboard", title: "Dashboard", subtitle: "Project scan, sidecar sync, and quick recovery" },
-  { id: "queue", title: "Sync Queue", subtitle: "Background jobs, daemon state, and flush controls" },
-  { id: "history", title: "Session History", subtitle: "Browse bindings and restore by visible index" },
-  { id: "local", title: "Local Provider", subtitle: "Local-only Codex provider cloning and registration" },
-  { id: "tool", title: "Tool Convert", subtitle: "Inspect bundles through Conversation IR" },
-  { id: "privacy", title: "Privacy Review", subtitle: "Scan or redact before sidecar push" },
-  { id: "conflicts", title: "Conflicts", subtitle: "Review sidecar conflict quarantine and resolution state" },
-  { id: "ops", title: "Settings", subtitle: "Doctor checks and hook management" }
+  { id: "dashboard", title: "Dashboard", subtitle: "Project scan, sidecar sync, and quick recovery", category: "remote" },
+  { id: "queue", title: "Sync Queue", subtitle: "Background jobs, daemon state, and flush controls", category: "remote" },
+  { id: "privacy", title: "Privacy Review", subtitle: "Scan or redact before sidecar push", category: "remote" },
+  { id: "conflicts", title: "Conflicts", subtitle: "Review sidecar conflict quarantine and resolution state", category: "remote" },
+  { id: "history", title: "Session History", subtitle: "Browse bindings and restore by visible index", category: "local" },
+  { id: "local", title: "Local Provider", subtitle: "Local-only Codex provider cloning and registration", category: "local" },
+  { id: "tool", title: "Tool Convert", subtitle: "Inspect bundles through Conversation IR", category: "local" },
+  { id: "ops", title: "Settings", subtitle: "Doctor checks and hook management", category: "local" }
+];
+
+const TUI_CATEGORIES: TuiCategory[] = [
+  {
+    id: "remote",
+    index: 1,
+    key: "A",
+    title: "Remote conversation sync",
+    subtitle: "Push, pull, privacy review, conflicts and background daemon",
+    accent: "cyan"
+  },
+  {
+    id: "local",
+    index: 2,
+    key: "B",
+    title: "Local conversation sync",
+    subtitle: "Local Codex provider, session history and tool conversion",
+    accent: "blue"
+  }
 ];
 
 const MENU_CHOICES: TuiChoice[] = [
@@ -565,12 +660,25 @@ export function getTuiViews(options: Record<string, any> = {}) {
   return TUI_VIEWS.map((view) => localizeView(view, locale));
 }
 
+export function getTuiCategories(options: Record<string, any> = {}) {
+  const locale = normalizeTuiLocale(options);
+  return TUI_CATEGORIES.map((category) => localizeCategory(category, locale));
+}
+
 export function resolveTuiChoice(value: string, viewId = "", options: Record<string, any> = {}) {
   const key = String(value || "").trim();
   const choices = getTuiChoices(options);
   return choices.find((choice) => choice.key === key && (!viewId || choice.view === viewId)) ||
     choices.find((choice) => choice.key === key) ||
     null;
+}
+
+export function resolveTuiCategory(value: string, options: Record<string, any> = {}) {
+  const key = String(value || "").trim().toLowerCase();
+  const categories = getTuiCategories(options);
+  return categories.find((category) => {
+    return key === String(category.index) || key === category.id || key === category.key.toLowerCase();
+  }) || null;
 }
 
 export function filterTuiChoices(choices: TuiChoice[], query = "") {
@@ -603,30 +711,61 @@ export function formatTuiCommand(choice: TuiChoice, prompted = "") {
 export function renderTuiMenu(config, options: Record<string, any> = {}) {
   const locale = normalizeTuiLocale(options);
   const copy = getTuiCopy(locale);
-  const views = getTuiViews({ locale });
-  const choices = getTuiChoices({ locale });
+  const categories = getTuiCategories({ locale });
+  const categoryViews = getTuiViews({ locale });
+  const categoryId = options.categoryId as TuiCategoryId | undefined;
+  if (categoryId) {
+    const category = categories.find((entry) => entry.id === categoryId);
+    const views = categoryViews.filter((view) => view.category === categoryId);
+    const choices = getTuiChoices({ locale });
+    const title = `${copy.hero} - ${category?.title || copy.categoriesHeading}`;
+    const lines = [
+      title,
+      "=".repeat(title.length),
+      category?.subtitle || "",
+      `${copy.projectRoot}: ${config.projectRoot}`,
+      `${copy.store}: ${config.storePath}`,
+      copy.backHint,
+      ""
+    ].filter(Boolean);
+    for (const view of views) {
+      const viewChoices = choices.filter((choice) => choice.view === view.id && !choice.exits);
+      if (!viewChoices.length) {
+        continue;
+      }
+      lines.push(`${view.title} (${copy.categoryLabel}: ${category?.index ?? ""})`);
+      lines.push(`  ${view.subtitle}`);
+      for (const choice of viewChoices) {
+        lines.push(`  ${choice.key.padEnd(2)} ${choice.label}`);
+        lines.push(`     ${formatTuiCommand(choice)}${choice.confirm ? copy.confirmSuffix : ""}`);
+      }
+      lines.push("");
+    }
+    lines.push(copy.shortcuts);
+    lines.push(...copy.shortcutLines);
+    return lines.join("\n");
+  }
+
   const title = copy.menuTitle(config.projectName);
   const lines = [
     title,
     "=".repeat(title.length),
+    copy.hero,
+    copy.tagline,
+    "",
     `${copy.projectRoot}: ${config.projectRoot}`,
     `${copy.store}: ${config.storePath}`,
+    "",
+    copy.homeTitle,
+    copy.homeSubtitle,
     ""
   ];
-  for (const view of views) {
-    const viewChoices = choices.filter((choice) => choice.view === view.id && !choice.exits);
-    if (!viewChoices.length) {
-      continue;
-    }
-    lines.push(view.title);
-    for (const choice of viewChoices) {
-      lines.push(`  ${choice.key.padEnd(2)} ${choice.label}`);
-      lines.push(`     ${formatTuiCommand(choice)}${choice.confirm ? copy.confirmSuffix : ""}`);
-    }
+  for (const category of categories) {
+    lines.push(`  ${category.index}. ${category.title} [${category.key}]`);
+    lines.push(`     ${category.subtitle}`);
     lines.push("");
   }
-  lines.push(copy.shortcuts);
-  lines.push(...copy.shortcutLines);
+  lines.push(copy.homeFooter);
   return lines.join("\n");
 }
 
@@ -650,7 +789,12 @@ export async function runTui(gitRoot, config, options: Record<string, any> = {})
 function AgentSyncTuiApp({ gitRoot, config, runner, locale }: { gitRoot: string; config: Record<string, any>; runner: TuiRunner; locale: TuiLocale }) {
   const { exit } = useApp();
   const copy = getTuiCopy(locale);
-  const views = useMemo(() => getTuiViews({ locale }), [locale]);
+  const categories = useMemo(() => getTuiCategories({ locale }), [locale]);
+  const allViews = useMemo(() => getTuiViews({ locale }), [locale]);
+  const [screen, setScreen] = useState<"home" | "category">("home");
+  const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
+  const activeCategory = categories[activeCategoryIndex];
+  const views = useMemo(() => allViews.filter((view) => view.category === activeCategory?.id), [allViews, activeCategory]);
   const [activeViewIndex, setActiveViewIndex] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [promptChoice, setPromptChoice] = useState<TuiChoice | null>(null);
@@ -660,12 +804,38 @@ function AgentSyncTuiApp({ gitRoot, config, runner, locale }: { gitRoot: string;
   const [searchQuery, setSearchQuery] = useState("");
   const [showHelp, setShowHelp] = useState(false);
   const [running, setRunning] = useState(false);
-  const [status, setStatus] = useState(copy.ready);
+  const [status, setStatus] = useState(copy.homeReady);
   const [output, setOutput] = useState("");
   const activeView = views[activeViewIndex];
   const baseChoices = useMemo(() => getChoicesForView(activeView.id, locale), [activeView.id, locale]);
   const choices = useMemo(() => filterTuiChoices(baseChoices, searchQuery), [baseChoices, searchQuery]);
   const selectedChoice = choices[Math.min(selectedIndex, Math.max(choices.length - 1, 0))];
+
+  function enterCategory(index: number) {
+    setActiveCategoryIndex(index);
+    setActiveViewIndex(0);
+    setSelectedIndex(0);
+    setSearchMode(false);
+    setSearchQuery("");
+    setShowHelp(false);
+    setScreen("category");
+    const category = categories[index];
+    setStatus(category ? category.title : copy.ready);
+  }
+
+  function goHome(nextStatus = copy.homeReady) {
+    setScreen("home");
+    setSelectedIndex(0);
+    setActiveViewIndex(0);
+    setSearchMode(false);
+    setSearchQuery("");
+    setShowHelp(false);
+    setPromptChoice(null);
+    setPromptValue("");
+    setConfirmRequest(null);
+    setStatus(nextStatus);
+    setOutput("");
+  }
 
   useInput((input, key) => {
     if (running) {
@@ -742,6 +912,35 @@ function AgentSyncTuiApp({ gitRoot, config, runner, locale }: { gitRoot: string;
       exit();
       return;
     }
+    if (screen === "home") {
+      if (key.upArrow) {
+        setActiveCategoryIndex((index) => wrap(index - 1, categories.length));
+        return;
+      }
+      if (key.downArrow) {
+        setActiveCategoryIndex((index) => wrap(index + 1, categories.length));
+        return;
+      }
+      if (key.return || key.rightArrow) {
+        enterCategory(activeCategoryIndex);
+        return;
+      }
+      if (input) {
+        const quickCategory = resolveTuiCategory(input, { locale });
+        if (quickCategory) {
+          const categoryIndex = categories.findIndex((category) => category.id === quickCategory.id);
+          if (categoryIndex >= 0) {
+            enterCategory(categoryIndex);
+            return;
+          }
+        }
+      }
+      return;
+    }
+    if ((key.escape || key.backspace) && !promptChoice && !confirmRequest) {
+      goHome(copy.backHint);
+      return;
+    }
     if (key.leftArrow) {
       setActiveViewIndex((index) => wrap(index - 1, views.length));
       setSelectedIndex(0);
@@ -815,20 +1014,24 @@ function AgentSyncTuiApp({ gitRoot, config, runner, locale }: { gitRoot: string;
   }
 
   return h(Box, { flexDirection: "column", gap: 1 },
-    h(Header, { config, copy }),
-    h(Box, { flexDirection: "row", gap: 2 },
-      h(ViewRail, { activeViewIndex, views, copy }),
-      h(ActionPanel, { view: activeView, choices, selectedIndex, running, searchMode, searchQuery, copy })
-    ),
-    showHelp ? h(HelpPanel, { copy }) : null,
-    h(StatusPanel, { status, output, promptChoice, promptValue, confirmRequest, searchMode, searchQuery, running, copy })
+    h(Header, { config, copy, category: screen === "category" ? activeCategory : null }),
+    screen === "home"
+      ? h(HomePanel, { categories, activeCategoryIndex, copy })
+      : h(Box, { flexDirection: "row", gap: 2 },
+        h(ViewRail, { activeViewIndex, views, copy, category: activeCategory }),
+        h(ActionPanel, { view: activeView, choices, selectedIndex, running, searchMode, searchQuery, copy, category: activeCategory })
+      ),
+    showHelp ? h(HelpPanel, { copy, screen }) : null,
+    h(StatusPanel, { status, output, promptChoice, promptValue, confirmRequest, searchMode, searchQuery, running, copy, screen })
   );
 }
 
-function Header({ config, copy }: { config: Record<string, any>; copy: any }) {
-  return h(Box, { borderStyle: "round", borderColor: "cyan", paddingX: 1, flexDirection: "column" },
+function Header({ config, copy, category }: { config: Record<string, any>; copy: any; category: TuiCategory | null }) {
+  return h(Box, { borderStyle: "round", borderColor: category?.accent || "cyan", paddingX: 1, flexDirection: "column" },
+    h(Text, { color: "cyan", bold: true }, copy.hero),
+    h(Text, { color: "gray" }, copy.tagline),
     h(Box, { justifyContent: "space-between" },
-      h(Text, { color: "cyan", bold: true }, "Agent Sync"),
+      h(Text, { color: category?.accent || "cyan", bold: true }, category ? category.title : copy.homeTitle),
       h(Text, { color: "gray" }, config.projectName || "project")
     ),
     h(Text, { color: "white" }, `${copy.projectRoot}: ${trimMiddle(config.projectRoot || "", 84)}`),
@@ -836,12 +1039,31 @@ function Header({ config, copy }: { config: Record<string, any>; copy: any }) {
   );
 }
 
-function ViewRail({ activeViewIndex, views, copy }: { activeViewIndex: number; views: TuiView[]; copy: any }) {
+function HomePanel({ categories, activeCategoryIndex, copy }: { categories: TuiCategory[]; activeCategoryIndex: number; copy: any }) {
+  return h(Box, { borderStyle: "round", borderColor: "cyan", paddingX: 1, paddingY: 1, flexDirection: "column" },
+    h(Text, { color: "white", bold: true }, copy.homeTitle),
+    h(Text, { color: "gray" }, copy.homeSubtitle),
+    h(Box, { flexDirection: "column", marginTop: 1 },
+      ...categories.map((category, index) => h(CategoryRow, {
+        key: category.id,
+        category,
+        selected: index === activeCategoryIndex
+      }))
+    ),
+    h(Box, { marginTop: 1 },
+      h(Text, { color: "gray" }, copy.homeFooter)
+    )
+  );
+}
+
+function ViewRail({ activeViewIndex, views, copy, category }: { activeViewIndex: number; views: TuiView[]; copy: any; category: TuiCategory }) {
   return h(Box, { borderStyle: "round", borderColor: "gray", paddingX: 1, flexDirection: "column", width: 26 },
+    h(Text, { color: "gray" }, `${copy.categoryLabel} ${category.index}`),
+    h(Text, { color: category.accent as any, bold: true }, trimMiddle(category.title, 22)),
     h(Text, { color: "gray" }, copy.views),
     ...views.map((view, index) => h(Text, {
       key: view.id,
-      color: index === activeViewIndex ? "cyan" : "white",
+      color: index === activeViewIndex ? (category.accent as any) : "white",
       bold: index === activeViewIndex
     }, `${index === activeViewIndex ? ">" : " "} ${view.title}`))
   );
@@ -854,7 +1076,8 @@ function ActionPanel({
   running,
   searchMode,
   searchQuery,
-  copy
+  copy,
+  category
 }: {
   view: TuiView;
   choices: TuiChoice[];
@@ -863,10 +1086,11 @@ function ActionPanel({
   searchMode: boolean;
   searchQuery: string;
   copy: any;
+  category: TuiCategory;
 }) {
-  return h(Box, { borderStyle: "round", borderColor: "cyan", paddingX: 1, flexDirection: "column", flexGrow: 1 },
+  return h(Box, { borderStyle: "round", borderColor: category.accent as any, paddingX: 1, flexDirection: "column", flexGrow: 1 },
     h(Box, { flexDirection: "column", marginBottom: 1 },
-      h(Text, { color: "cyan", bold: true }, view.title),
+      h(Text, { color: category.accent as any, bold: true }, view.title),
       h(Text, { color: "gray" }, view.subtitle)
     ),
     choices.length ? null : h(Text, { color: "gray" }, copy.noActions(searchQuery)),
@@ -874,34 +1098,49 @@ function ActionPanel({
       key: `${choice.view}:${choice.key}`,
       choice,
       selected: index === selectedIndex,
-      disabled: running
+      disabled: running,
+      accent: category.accent
     })),
     h(Box, { marginTop: 1 },
-      h(Text, { color: searchMode ? "yellow" : "gray" }, searchMode ? copy.searchInline(searchQuery) : copy.footerIdle)
+      h(Text, { color: searchMode ? "yellow" : "gray" }, searchMode ? copy.searchInline(searchQuery) : copy.categoryFooter)
     )
   );
 }
 
-function ActionRow({ choice, selected, disabled }: { choice: TuiChoice; selected: boolean; disabled: boolean }) {
+function CategoryRow({ category, selected }: { category: TuiCategory; selected: boolean }) {
+  const color = selected ? "black" : "white";
+  const backgroundColor = selected ? category.accent : undefined;
+  return h(Box, { flexDirection: "column", marginBottom: 1, borderStyle: "round", borderColor: selected ? category.accent : "gray", paddingX: 1 },
+    h(Box, {},
+      h(Text, { color, backgroundColor, bold: true }, ` ${category.index}. `),
+      h(Text, { color: selected ? (category.accent as any) : "white", bold: true }, category.title)
+    ),
+    h(Box, { paddingLeft: 4 },
+      h(Text, { color: "gray" }, `${category.subtitle} [${category.key}]`)
+    )
+  );
+}
+
+function ActionRow({ choice, selected, disabled, accent }: { choice: TuiChoice; selected: boolean; disabled: boolean; accent: string }) {
   const color = disabled ? "gray" : selected ? "black" : "white";
-  const backgroundColor = selected && !disabled ? "cyan" : undefined;
+  const backgroundColor = selected && !disabled ? accent : undefined;
   return h(Box, { flexDirection: "column", marginY: 0 },
     h(Box, {},
       h(Text, { color, backgroundColor, bold: selected }, ` ${choice.key} `),
       h(Text, { color: "gray" }, ` ${choice.badge.padEnd(8)} `),
-      h(Text, { color: selected ? "cyan" : "white", bold: selected }, `${choice.label}${choice.confirm ? " [confirm]" : ""}`)
+      h(Text, { color: selected ? (accent as any) : "white", bold: selected }, `${choice.label}${choice.confirm ? " [confirm]" : ""}`)
     ),
     h(Box, { paddingLeft: 15 },
       h(Text, { color: "gray" }, choice.description)
     ),
     h(Box, { paddingLeft: 15 },
-      h(Text, { color: selected ? "cyan" : "gray" }, formatTuiCommand(choice))
+      h(Text, { color: selected ? (accent as any) : "gray" }, formatTuiCommand(choice))
     )
   );
 }
 
-function HelpPanel({ copy }: { copy: any }) {
-  const lines = copy.helpLines;
+function HelpPanel({ copy, screen }: { copy: any; screen: "home" | "category" }) {
+  const lines = screen === "home" ? copy.homeHelpLines : copy.helpLines;
   return h(Box, { borderStyle: "round", borderColor: "gray", paddingX: 1, flexDirection: "column" },
     ...lines.map((line, index) => h(Text, { key: String(index), color: index === 0 ? "cyan" : "gray", bold: index === 0 }, line))
   );
@@ -916,7 +1155,8 @@ function StatusPanel({
   searchMode,
   searchQuery,
   running,
-  copy
+  copy,
+  screen
 }: {
   status: string;
   output: string;
@@ -927,12 +1167,16 @@ function StatusPanel({
   searchQuery: string;
   running: boolean;
   copy: any;
+  screen: "home" | "category";
 }) {
   return h(Box, { borderStyle: "round", borderColor: running ? "yellow" : confirmRequest ? "red" : "gray", paddingX: 1, flexDirection: "column" },
     h(Box, {},
       h(Text, { color: running ? "yellow" : confirmRequest ? "red" : "green", bold: true }, running ? copy.running : confirmRequest ? copy.confirm : copy.status),
       h(Text, { color: "white" }, `  ${status}`)
     ),
+    screen === "home" && !searchMode && !promptChoice && !confirmRequest ? h(Box, { marginTop: 1 },
+      h(Text, { color: "gray" }, copy.homeFooter)
+    ) : null,
     searchMode ? h(Box, {},
       h(Text, { color: "cyan" }, `${copy.search}: `),
       h(Text, { color: searchQuery ? "white" : "gray" }, searchQuery || copy.searchPlaceholder)
@@ -952,48 +1196,74 @@ async function runPromptTui(gitRoot, config, options: Record<string, any> = {}) 
   const runner = options.runner || ((args: string[], cwd: string) => runCliCommand(args, cwd));
   const locale = normalizeTuiLocale(options);
   const copy = getTuiCopy(locale);
+  const categories = getTuiCategories({ locale });
   const shouldClose = !options.io;
   try {
     while (true) {
       console.log("");
       console.log(renderTuiMenu(config, { locale }));
-      const answer = await io.question(`\n${copy.selectAction}: `);
-      const choice = resolveTuiChoice(answer, "", { locale });
-      if (!choice) {
-        console.log(copy.unknownSelection);
-        continue;
-      }
-      if (choice.exits) {
+      const categoryAnswer = await io.question(`\n${copy.selectCategory}: `);
+      if (String(categoryAnswer || "").trim().toLowerCase() === "q") {
         console.log(copy.bye);
         return;
       }
-
-      let prompted = "";
-      if (choice.prompt) {
-        prompted = String(await io.question(`${choice.prompt.label}: `)).trim();
-        if (!prompted) {
-          console.log(copy.valueRequired(choice.prompt.label));
+      const category = resolveTuiCategory(categoryAnswer, { locale });
+      if (!category) {
+        console.log(copy.unknownCategory);
+        continue;
+      }
+      while (true) {
+        console.log("");
+        console.log(renderTuiMenu(config, { locale, categoryId: category.id }));
+        const answer = await io.question(`\n${copy.selectActionWithHome}: `);
+        const normalizedAnswer = String(answer || "").trim().toLowerCase();
+        if (normalizedAnswer === "home" || normalizedAnswer === "back") {
+          break;
+        }
+        if (normalizedAnswer === "q") {
+          console.log(copy.bye);
+          return;
+        }
+        const choice = resolveTuiChoice(answer, "", { locale });
+        if (!choice || !viewBelongsToCategory(choice.view, category.id, locale)) {
+          console.log(copy.unknownSelection);
           continue;
         }
-      }
+        if (choice.exits) {
+          console.log(copy.bye);
+          return;
+        }
 
-      console.log(`${copy.commandLabel}: ${formatTuiCommand(choice, prompted)}`);
-      if (choice.confirm) {
-        const confirmation = String(await io.question(copy.confirmQuestion(choice.confirm))).trim();
-        if (!isConfirmAccepted(confirmation)) {
-          console.log(copy.cancelled);
+        let prompted = "";
+        if (choice.prompt) {
+          prompted = String(await io.question(`${choice.prompt.label}: `)).trim();
+          if (!prompted) {
+            console.log(copy.valueRequired(choice.prompt.label));
+            continue;
+          }
+        }
+
+        console.log(`${copy.commandLabel}: ${formatTuiCommand(choice, prompted)}`);
+        if (choice.confirm) {
+          const confirmation = String(await io.question(copy.confirmQuestion(choice.confirm))).trim();
+          if (!isConfirmAccepted(confirmation)) {
+            console.log(copy.cancelled);
+            continue;
+          }
+        }
+
+        const result = normalizeCommandResult(await runner(buildChoiceArgs(choice, prompted), gitRoot));
+        if (result.status !== 0) {
+          console.log(copy.commandExitedLine(result.status));
+        }
+        if (!isWatchChoice(choice)) {
+          await io.question(`\n${copy.pressEnter}`);
+        } else {
+          return;
+        }
+        if (normalizedAnswer === "home") {
           continue;
         }
-      }
-
-      const result = normalizeCommandResult(await runner(buildChoiceArgs(choice, prompted), gitRoot));
-      if (result.status !== 0) {
-        console.log(copy.commandExitedLine(result.status));
-      }
-      if (!isWatchChoice(choice)) {
-        await io.question(`\n${copy.pressEnter}`);
-      } else {
-        return;
       }
     }
   } finally {
@@ -1004,7 +1274,14 @@ async function runPromptTui(gitRoot, config, options: Record<string, any> = {}) 
 }
 
 function getChoicesForView(viewId: string, locale: TuiLocale) {
-  return MENU_CHOICES.filter((choice) => choice.view === viewId || choice.exits).map((choice) => localizeChoice(choice, locale));
+  if (!viewId) {
+    return [];
+  }
+  return MENU_CHOICES.filter((choice) => choice.view === viewId).map((choice) => localizeChoice(choice, locale));
+}
+
+function viewBelongsToCategory(viewId: string, categoryId: TuiCategoryId, locale: TuiLocale) {
+  return getTuiViews({ locale }).some((view) => view.id === viewId && view.category === categoryId);
 }
 
 function normalizeTuiLocale(options: Record<string, any> = {}): TuiLocale {
@@ -1013,6 +1290,17 @@ function normalizeTuiLocale(options: Record<string, any> = {}): TuiLocale {
 
 function getTuiCopy(locale: TuiLocale) {
   return locale === "cn" ? CN_COPY : EN_COPY;
+}
+
+function localizeCategory(category: TuiCategory, locale: TuiLocale) {
+  if (locale !== "cn") {
+    return { ...category };
+  }
+  const override = CN_CATEGORY_TEXT[category.id] || {};
+  return {
+    ...category,
+    ...override
+  };
 }
 
 function localizeView(view: TuiView, locale: TuiLocale) {
