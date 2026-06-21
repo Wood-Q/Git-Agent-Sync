@@ -1,6 +1,6 @@
 {
   "name": "git-agent-sync",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "A toolbox for everything around AI coding-agent conversations — sync, migrate, transform, and diagnose Codex and Claude Code sessions.",
   "type": "module",
   "files": [
