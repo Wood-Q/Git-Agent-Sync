@@ -68,6 +68,17 @@ async function main() {
   assert.deepEqual(normalizeLogFilter({ selector: "latest" }), { selector: "latest" });
   assert.match(buildCliCommandLine(["watch-local"]), /watch-local/);
   assert.match(buildCliCommandLine(["tui"]), /tui/);
+  assert.match(buildCliCommandLine(["privacy", "scan"]), /privacy scan/);
+  assert.match(buildCliCommandLine(["privacy", "allow-pattern-local", "example=sk-example-[a-z]+"]), /privacy allow-pattern-local/);
+  assert.match(buildCliCommandLine(["sync", "retry", "all"]), /sync retry all/);
+  assert.match(buildCliCommandLine(["sync", "cancel", "all"]), /sync cancel all/);
+  assert.match(buildCliCommandLine(["conflicts", "list"]), /conflicts list/);
+  assert.match(buildCliCommandLine(["conflicts", "diff", "1"]), /conflicts diff 1/);
+  assert.match(buildCliCommandLine(["conflicts", "resolve", "1", "--strategy", "keep-latest"]), /keep-latest/);
+  assert.match(buildCliCommandLine(["register-local"]), /register-local/);
+  assert.match(buildCliCommandLine(["clean-local"]), /clean-local/);
+  assert.match(buildCliCommandLine(["tool", "inspect", "--session", "bundle-1"]), /tool inspect/);
+  assert.match(buildCliCommandLine(["show", "bundle-1"]), /show bundle-1/);
 
   const html = renderHistoryHtml({ cspSource: "vscode-resource:" }, [{
     title: "Restore <this>",
@@ -82,22 +93,44 @@ async function main() {
   assert.match(html, /Agent Sync History/);
   assert.match(html, /id="pull"/);
   assert.match(html, /id="push"/);
+  assert.match(html, /id="syncStatus"/);
+  assert.match(html, /id="privacyScan"/);
+  assert.match(html, /id="privacyAllowPattern"/);
+  assert.match(html, /id="conflictsList"/);
+  assert.match(html, /id="conflictsDiff"/);
+  assert.match(html, /id="conflictsResolve"/);
+  assert.match(html, /id="toolInspect"/);
+  assert.match(html, /id="search"/);
   assert.match(html, /id="localClone"/);
+  assert.match(html, /id="registerLocal"/);
+  assert.match(html, /id="cleanLocal"/);
   assert.match(html, /id="watchLocalCopy"/);
   assert.match(html, /id="openTui"/);
   assert.match(html, /command: 'pull'/);
   assert.match(html, /command: 'push'/);
+  assert.match(html, /command: 'syncStatus'/);
+  assert.match(html, /command: 'privacyScan'/);
+  assert.match(html, /command: 'privacyAllowPattern'/);
+  assert.match(html, /command: 'conflictsList'/);
+  assert.match(html, /command: 'conflictsDiff'/);
+  assert.match(html, /command: 'conflictsResolve'/);
+  assert.match(html, /command: 'toolInspect'/);
+  assert.match(html, /command: 'showBundle'/);
   assert.match(html, /command: 'localClone'/);
+  assert.match(html, /command: 'registerLocal'/);
+  assert.match(html, /command: 'cleanLocal'/);
   assert.match(html, /command: 'watchLocalCopy'/);
   assert.match(html, /command: 'openTui'/);
   assert.match(html, /data-filter-column="author"/);
   assert.match(html, /data-filter-column="branch"/);
+  assert.match(html, /data-search="restore &lt;this&gt;/);
   assert.match(html, /data-author="Agent Sync Test"/);
   assert.match(html, /data-branch="main"/);
   assert.match(html, /class="cellText"/);
   assert.match(html, /sync message with a deliberately long explanation that should be clippe…/);
   assert.match(html, /title="sync message with a deliberately long explanation that should be clipped before it can dominate the history table row layout"/);
   assert.match(html, /Restore &lt;this&gt;/);
+  assert.match(html, /data-show-bundle="bundle-1"/);
   assert.match(html, /data-restore-index="1"/);
 
   console.log("agent-sync vscode extension tests passed");

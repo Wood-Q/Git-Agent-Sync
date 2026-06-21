@@ -9,6 +9,8 @@ import {
 } from "./agentSyncCli";
 import { HistoryView } from "./historyView";
 
+const CONFLICT_RESOLUTION_STRATEGIES = ["keep-all", "keep-latest", "keep-local", "keep-remote"];
+
 export function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel("Agent Sync");
   const cli = new AgentSyncCli(output);
@@ -42,6 +44,62 @@ export function activate(context: vscode.ExtensionContext) {
     await withErrorHandling(output, async () => {
       const cwd = getWorkspaceRoot();
       await syncSidecarAndRefresh(cli, historyView, cwd, "push");
+    });
+  }));
+
+  registerCliAction(context, output, cli, "agentSync.syncStatus", "Sync Status", ["sync", "status"]);
+  registerCliAction(context, output, cli, "agentSync.syncBackground", "Background Sync", ["sync", "--background"]);
+  registerCliAction(context, output, cli, "agentSync.syncFlush", "Flush Sync Queue", ["sync", "--flush"]);
+  registerCliAction(context, output, cli, "agentSync.syncRetry", "Retry Failed Sync Jobs", ["sync", "retry", "all"]);
+  registerCliAction(context, output, cli, "agentSync.syncCancel", "Cancel Pending Sync Jobs", ["sync", "cancel", "all"]);
+  registerCliAction(context, output, cli, "agentSync.daemonStatus", "Daemon Status", ["daemon", "status"]);
+  registerCliAction(context, output, cli, "agentSync.privacyScan", "Privacy Scan", ["privacy", "scan"]);
+  registerCliAction(context, output, cli, "agentSync.privacyRedactDryRun", "Privacy Redaction Preview", ["privacy", "redact", "--dry-run"]);
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.privacyAllowPattern", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runPrivacyAllowPattern(cli, output, cwd);
+    });
+  }));
+  registerCliAction(context, output, cli, "agentSync.conflictsList", "Conflicts", ["conflicts", "list"]);
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.conflictsDiff", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runConflictDiff(cli, output, cwd);
+    });
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.conflictsResolve", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runConflictResolve(cli, output, cwd);
+    });
+  }));
+  registerCliAction(context, output, cli, "agentSync.registerLocal", "Register Local Codex Clones", ["register-local"]);
+  registerCliAction(context, output, cli, "agentSync.repairLocal", "Repair Local Codex Registration", ["repair-local"]);
+  registerCliAction(context, output, cli, "agentSync.cleanLocal", "Preview Local Clone Cleanup", ["clean-local"]);
+
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.toolInspect", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runToolCommand(cli, output, cwd, "inspect");
+    });
+  }));
+
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.toolExportReadable", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runToolCommand(cli, output, cwd, "export-readable");
+    });
+  }));
+
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.showBundle", async (bundleId?: string) => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      const selectedBundleId = bundleId || await pickBundleId(cli, cwd);
+      if (!selectedBundleId) {
+        return;
+      }
+      await runCliAction(cli, output, cwd, "Show Bundle", ["show", selectedBundleId]);
     });
   }));
 
@@ -114,6 +172,136 @@ async function runLocalProviderClone(cli: AgentSyncCli, output: vscode.OutputCha
       output.show();
     }
   });
+}
+
+function registerCliAction(
+  context: vscode.ExtensionContext,
+  output: vscode.OutputChannel,
+  cli: AgentSyncCli,
+  command: string,
+  label: string,
+  args: string[]
+) {
+  context.subscriptions.push(vscode.commands.registerCommand(command, async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runCliAction(cli, output, cwd, label, args);
+    });
+  }));
+}
+
+async function runCliAction(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string, label: string, args: string[]) {
+  const stdout = await vscode.window.withProgress({
+    location: vscode.ProgressLocation.Notification,
+    title: `Agent Sync: ${label}`,
+    cancellable: false
+  }, () => cli.run(cwd, args));
+  const summary = summarizeCliOutput(label, stdout);
+  vscode.window.showInformationMessage(summary, "Show Output").then((selection) => {
+    if (selection === "Show Output") {
+      output.show();
+    }
+  });
+}
+
+async function runPrivacyAllowPattern(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string) {
+  const value = await vscode.window.showInputBox({
+    title: "Agent Sync: Add Privacy Allow Pattern",
+    prompt: "Enter a reviewed false-positive allow rule as name=regex.",
+    placeHolder: "documented_example=sk-example-[a-z]+",
+    validateInput(input) {
+      const trimmed = input.trim();
+      if (!trimmed) {
+        return "Enter name=regex.";
+      }
+      if (!trimmed.includes("=")) {
+        return "Use name=regex so the policy entry is explainable.";
+      }
+      return null;
+    }
+  });
+  if (!value?.trim()) {
+    return;
+  }
+  await runCliAction(cli, output, cwd, "Add Privacy Allow Pattern", ["privacy", "allow-pattern-local", value.trim()]);
+}
+
+async function runConflictDiff(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string) {
+  const selector = await pickConflictSelector("Conflict id or list index to diff");
+  if (!selector) {
+    return;
+  }
+  await runCliAction(cli, output, cwd, "Conflict Diff Summary", ["conflicts", "diff", selector]);
+}
+
+async function runConflictResolve(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string) {
+  const selector = await pickConflictSelector("Conflict id or list index to resolve");
+  if (!selector) {
+    return;
+  }
+  const strategy = await vscode.window.showQuickPick(CONFLICT_RESOLUTION_STRATEGIES, {
+    title: "Agent Sync: Conflict Resolution Strategy",
+    placeHolder: "Choose how to mark this quarantined conflict"
+  });
+  if (!strategy) {
+    return;
+  }
+  await runCliAction(cli, output, cwd, "Resolve Conflict", ["conflicts", "resolve", selector, "--strategy", strategy]);
+}
+
+async function pickConflictSelector(prompt: string) {
+  const value = await vscode.window.showInputBox({
+    title: "Agent Sync: Conflict Selector",
+    prompt,
+    placeHolder: "1 or codex-session-id-prefix",
+    validateInput(input) {
+      return input.trim() ? null : "Enter a conflict id or list index.";
+    }
+  });
+  return value?.trim() || "";
+}
+
+async function runToolCommand(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string, mode: "inspect" | "export-readable") {
+  const bindings = await cli.log(cwd);
+  const picked = await pickBinding(bindings, mode === "inspect" ? "Inspect Agent-Sync Bundle IR" : "Export Readable Claude JSONL");
+  if (!picked?.bundleId) {
+    return;
+  }
+  const args = mode === "inspect"
+    ? ["tool", "inspect", "--session", picked.bundleId]
+    : ["tool", "export", "--to", "claude", "--mode", "readable", "--session", picked.bundleId];
+  await runCliAction(cli, output, cwd, mode === "inspect" ? "Tool Inspect" : "Tool Export Readable", args);
+}
+
+async function pickBinding(bindings: AgentSyncBinding[], title: string) {
+  if (!bindings.length) {
+    vscode.window.showInformationMessage("Agent Sync: no sessions found.");
+    return null;
+  }
+  return vscode.window.showQuickPick(bindings.map((binding, index) => ({
+    label: `${index + 1}. ${binding.title || "(untitled session)"}`,
+    description: [binding.agent, shortCommit(binding.projectCommit), binding.projectBranch || "detached"].filter(Boolean).join(" · "),
+    detail: `${binding.bundleId || ""} · ${formatDate(binding.conversationAt || binding.syncedAt || binding.boundAt || "")}`,
+    binding
+  })), {
+    title,
+    placeHolder: "Select a synced session"
+  }).then((picked) => picked?.binding || null);
+}
+
+async function pickBundleId(cli: AgentSyncCli, cwd: string): Promise<string | null> {
+  const bindings = await cli.log(cwd);
+  const picked = await pickBinding(bindings, "Show Agent-Sync Bundle");
+  return picked?.bundleId || null;
+}
+
+function summarizeCliOutput(label: string, stdout: string) {
+  const firstLine = stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+  if (!firstLine) {
+    return `Agent Sync: ${label} complete.`;
+  }
+  const clipped = firstLine.length > 120 ? `${firstLine.slice(0, 119)}…` : firstLine;
+  return `Agent Sync: ${label} complete. ${clipped}`;
 }
 
 async function startLocalWatchTerminal(cwd: string) {

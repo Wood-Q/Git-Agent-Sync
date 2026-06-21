@@ -15,7 +15,7 @@ VS Code 插件已经发布到 Marketplace：
 - Marketplace：[Git Agent Sync](https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode)
 - 扩展 ID：`mokio.agent-sync-vscode`
 
-插件会从 `agentSync.cliPath` 调用 CLI，默认命令是 `agent-sync`。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。History 视图顶部工具栏可以对当前 workspace 执行 pull、push、刷新、清空筛选和恢复会话。
+插件会从 `agentSync.cliPath` 调用 CLI，默认命令是 `agent-sync`。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。History 视图顶部工具栏可以对当前 workspace 执行 pull、push、查看同步状态、隐私扫描、添加隐私 allow pattern、列出/diff/resolve sidecar 冲突、Conversation IR 检查、本机 provider clone / register / clean、打开 TUI、刷新、搜索或清空筛选、show bundle 详情和恢复会话；Command Palette 还提供后台同步、队列 flush/retry/cancel、daemon 状态、register-local、repair-local、clean-local 预览、隐私脱敏预览、隐私 allow pattern、冲突 diff/resolve、show bundle 和 readable tool export。
 
 本地开发阶段：
 
@@ -96,10 +96,13 @@ git agent-sync restore --current --no-register
 git agent-sync clone-local
 git agent-sync clone-local openrouter
 git agent-sync clone-local openrouter --no-register
+git agent-sync register-local
 git agent-sync repair-local
+git agent-sync clean-local
+git agent-sync clean-local --force
 ```
 
-省略目标 provider 时，Agent-Sync 会读取 `~/.codex/config.toml` 里的 `model_provider`。克隆后的 rollout 仍写在 `~/.codex/sessions`，会生成稳定的新 session id，并记录 `cloned_from`、`original_provider`、`clone_timestamp` 等元数据。默认还会注册本机 `state_5.sqlite` 和 `session_index.jsonl`，让 Codex UI 能看到克隆会话；如果只想写文件，可以加 `--no-register`。如果底层文件已存在但 UI 看不到，运行 `repair-local` 会重新注册 Agent-Sync 生成的 provider 克隆。命令只处理通过结构化项目元数据匹配当前 Git 项目的 Codex 会话。
+省略目标 provider 时，Agent-Sync 会读取 `~/.codex/config.toml` 里的 `model_provider`。克隆后的 rollout 仍写在 `~/.codex/sessions`，会生成稳定的新 session id，并记录 `cloned_from`、`original_provider`、`clone_timestamp` 等元数据。默认还会注册本机 `state_5.sqlite` 和 `session_index.jsonl`，让 Codex UI 能看到克隆会话；如果只想写文件，可以加 `--no-register`。运行 `register-local` 可以显式把本机已存在的 Agent-Sync provider 克隆注册进 Codex UI 索引。如果底层文件已存在但 UI 看不到，运行 `repair-local` 会重新注册 Agent-Sync 生成的 provider 克隆。`clean-local` 默认只预览当前项目生成的 provider clone；加 `--force` 后才会删除这些 Agent-Sync 生成的 rollout 文件。命令只处理通过结构化项目元数据匹配当前 Git 项目的 Codex 会话或克隆。
 
 切换 Codex API provider 时如果希望自动同步：
 
@@ -115,9 +118,12 @@ git agent-sync watch-local
 
 ```bash
 git agent-sync tui
+git agent-sync tui --cn
 ```
 
-TUI 可以执行 status、最新 log、pull、push、按编号 restore、本机 clone/copy 和本机 watch。VS Code History 视图里也有 TUI 按钮，会在集成终端打开同一个菜单。
+TUI 可以执行 status、最新 log、pull、push、按编号 restore、同步队列 status/flush/retry/cancel、`clone-local`、`register-local`、`repair-local`、`clean-local` 预览、本机 watch，以及冲突 list/show/diff/resolve。VS Code History 视图里也有 TUI 按钮，会在集成终端打开同一个菜单。
+
+这个终端 UI 使用 React Ink 构建，现在是工具箱风格布局。大字标题由 `figlet` 生成，并在终端支持颜色时通过 `gradient-string` 渲染渐变。首页会显示 Agent Sync 终端标题、`Sidecar Sync Toolkit` 和 `Codex Session Toolkit` 两张编号工具箱卡片，以及当前项目的信息框。进入工具箱后，再通过功能页 tabs 和功能域导航切换 Sync / Browse、Queue / Daemon、Privacy / Redact、Conflict / Resolve、Session / Browse、Provider / Clone、Bundle / Transfer、Repair / Maintenance 等功能域。默认界面是英文，`--cn` 会启用中文界面。方向键移动，Enter 或右方向键进入工具箱，Tab 或左右方向键切换功能域，`/` 搜索动作，`?` 打开帮助，Enter 执行当前动作；每个动作都会显示等价 CLI，restore、push、隐私 allow-pattern-local、冲突解决和 hook 操作会在执行前二次确认。长时间运行的 provider watch 会交给普通 CLI 命令继续执行。
 
 ## Conversation IR 与工具导出
 
@@ -129,7 +135,7 @@ git agent-sync tool convert --session <bundle-id> --to ir --json
 git agent-sync tool export --session <bundle-id> --to claude --mode readable
 ```
 
-`inspect` 会输出来源 agent、标题、事件数量和工具调用数量。`convert` 会输出 Agent-Sync Conversation IR：原始 vendor JSONL 仍保存在 provenance/vendor 字段里，同时把消息、工具调用、工具结果、项目身份、runtime provider 和依赖线索映射成统一结构。`export --mode readable` 会写出可阅读/可归档的跨工具 JSONL；它不会宣称这是 Codex 或 Claude 可继续执行的 resumable handoff。
+`inspect` 会输出来源 agent、标题、事件数量和工具调用数量。`convert` 会输出 Agent-Sync Conversation IR：原始 vendor JSONL 仍保存在 provenance/vendor 字段里，同时把消息、工具调用、工具结果、项目身份、runtime provider 和依赖线索映射成统一结构。`export --mode readable` 会写出可阅读/可归档的跨工具 JSONL；如果在目标 adapter 还不能安全续聊时请求 `--mode resumable`，导出 header 会记录 `requestedMode: "resumable"`，但保持 `mode: "readable"`、`resumable: false`，并写明 readable-only 原因。
 
 ## 自动同步
 
@@ -147,26 +153,46 @@ git push
 
 hook 会把同步任务放入本地队列，并启动后台 worker，而不是在 `git push` 过程中直接执行耗时的 sidecar push。如果当前项目缺少 `.agent-sync/config.json`，或者 sidecar Git 仓库还不存在，hook 会直接成功退出，不会阻塞业务仓库自己的 `git push`。
 
+当两台机器从同一个 sidecar base 分别提交并推送时，如果 sidecar push 遇到 non-fast-forward 拒绝，Agent-Sync 会自动 fetch `origin/main`，合并对象/事件分片，重建事件索引，然后再次 push。完全 unrelated 的 sidecar 历史仍会明确停止，不会猜测合并。
+
+如果事件重放发现同一个 agent session id 对应多个对象 hash，原始对象会保持不变，Agent-Sync 会写入冲突隔离记录：
+
+```bash
+git agent-sync conflicts list
+git agent-sync conflicts show 1
+git agent-sync conflicts diff 1
+git agent-sync conflicts resolve 1 --strategy keep-all
+```
+
+`conflicts list` 默认只显示 active 记录；加 `--all` 可以看到已解决历史。`conflicts diff` 会比较隔离对象的大小、行数和首个不同的行号，不打印原始会话内容。`resolve` 只会用选择的策略（`keep-all`、`keep-latest`、`keep-local`、`keep-remote`）和可选 `--notes` 更新冲突元数据，不会删除任一对象。需要发布这条 sidecar 元数据时，再运行 `git agent-sync push`。
+
 也可以手动管理队列和后台 worker：
 
 ```bash
 git agent-sync sync --background
 git agent-sync sync status
 git agent-sync sync --flush
+git agent-sync sync retry all
+git agent-sync sync cancel all
 git agent-sync daemon start
 git agent-sync daemon status
 git agent-sync daemon stop
 ```
 
+flush 时如果发现上一次 daemon 崩溃留下的 `running` 任务，会在持有同步锁后恢复回 `pending`，并在同一轮继续处理。
+
 推送前会默认执行隐私 review。命中常见 API key、token、private key 时，`push` 会停止并提示先检查：
 
 ```bash
 git agent-sync privacy scan
+git agent-sync privacy allow-pattern-local documented_example=sk-example-[a-z]+
 git agent-sync push --privacy redact
 git agent-sync push --privacy allow
 ```
 
 `--privacy redact` 会把 sidecar store 中的会话副本和对象副本写成脱敏内容；原始本机会话文件不会被改写。
+
+可以用 `.agent-sync/privacy.json` 调整项目策略。`denyPatterns` 增加额外 secret 规则，`allowPatterns` 会让已知安全的示例值或 fixture 同时跳过扫描和脱敏。`git agent-sync privacy allow-pattern-local <name>=<regex>` 可以追加一条确认过的本地 allow rule，不需要手工改 JSON。
 
 移除 hook：
 

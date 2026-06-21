@@ -23,6 +23,7 @@ It solves one specific problem: source code can move with `git clone`, but local
 - Adapts restored session paths across machines and operating systems
 - Records the business repo branch, `HEAD` commit, dirty state, and sync message for each snapshot
 - Lets you browse and restore by latest sync, current commit, branch, commit, bundle id, or log index
+- Provides a React Ink toolbox-style TUI with figlet-generated gradient headers, numbered toolkit cards, section tabs, project info panels, function-domain navigation, search, help, equivalent CLI display, Chinese UI via `--cn`, and confirmation for risky actions
 
 ## Install
 
@@ -44,7 +45,10 @@ cd ~/Agent-Sync
 npm install
 npm link
 git agent-sync --help
+npm run test
 ```
+
+The full test suite includes CLI, daemon, privacy, TUI, E2E, and VS Code adapter coverage.
 
 ## Basic Workflow
 
@@ -89,10 +93,14 @@ The hook queues a background sync job instead of running the sidecar push inline
 git agent-sync sync --background
 git agent-sync sync status
 git agent-sync sync --flush
+git agent-sync sync retry all
+git agent-sync sync cancel all
 git agent-sync daemon start
 git agent-sync daemon status
 git agent-sync daemon stop
 ```
+
+During a flush, stale `running` jobs left by a crashed daemon are recovered back to `pending` under the sync lock and processed again in the same queue pass.
 
 Remove the hook with:
 
@@ -106,7 +114,7 @@ Agent-Sync treats agent conversations like Git-adjacent project artifacts, not a
 
 Project ownership is intentionally conservative. Codex sessions are matched with Codex state and JSONL project metadata such as `cwd`, Git remote, branch, commit, and rollout path. Claude Code sessions are matched with JSONL fields such as `cwd`, Git metadata, and tool-use `cwd` / `workdir`. Transcript text alone is never used as proof that a session belongs to the current project.
 
-Each `push` copies accepted session files into the sidecar store and appends a Git-context binding that records the current business repo branch, `HEAD` commit, dirty state, bundle id, titles, and sync message. `pull` fetches the sidecar store, and `restore` writes selected sessions back into the current machine's Codex or Claude Code session directory, adapting source-machine paths when needed. For local-only Codex provider switches, `clone-local` and `watch-local` can clone current-project Codex sessions to the active `model_provider` without using the sidecar remote.
+Each `push` copies accepted session files into the sidecar store and appends a Git-context binding that records the current business repo branch, `HEAD` commit, dirty state, bundle id, titles, and sync message. `pull` fetches the sidecar store, and `restore` writes selected sessions back into the current machine's Codex or Claude Code session directory, adapting source-machine paths when needed. If event replay detects the same agent session id with multiple object hashes, Agent-Sync writes a non-destructive conflict quarantine record that you can inspect and mark resolved with `conflicts`. For local-only Codex provider switches, `clone-local` and `watch-local` can clone current-project Codex sessions to the active `model_provider` without using the sidecar remote.
 
 Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](docs/execution-flow.md).
 
@@ -120,18 +128,27 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync push [--m <message>]` | Snapshot matched sessions into the sidecar store and push the sidecar remote |
 | `git agent-sync pull` | Pull sidecar snapshots for this project |
 | `git agent-sync sync --background` | Queue a sidecar sync job and start a background worker |
-| `git agent-sync sync status` | Show queued, running, completed, and failed sync jobs |
-| `git agent-sync sync --flush` | Process queued sync jobs in the current terminal |
+| `git agent-sync sync status` | Show queued, running, completed, failed, and cancelled sync jobs |
+| `git agent-sync sync --flush` | Process queued sync jobs in the current terminal, recovering stale running jobs first |
+| `git agent-sync sync retry [id\|all]` | Move failed or cancelled sync jobs back to pending |
+| `git agent-sync sync cancel [id\|all]` | Cancel matching pending sync jobs without touching running jobs |
 | `git agent-sync daemon <start\|status\|stop>` | Manage the local background sync worker |
 | `git agent-sync privacy scan` | Scan current-project sessions for common secrets |
+| `git agent-sync privacy allow-pattern-local <name>=<regex>` | Add a reviewed false-positive regex to the local privacy allowlist |
 | `git agent-sync push --privacy redact` | Write redacted sidecar copies when secrets are found |
+| `git agent-sync conflicts list` | List active sidecar conflict quarantine records |
+| `git agent-sync conflicts show <id\|index>` | Inspect a quarantined sidecar conflict |
+| `git agent-sync conflicts diff <id\|index>` | Compare quarantined object summaries without printing raw session content |
+| `git agent-sync conflicts resolve <id\|index> --strategy keep-all\|keep-latest\|keep-local\|keep-remote` | Mark a conflict resolved without deleting either object |
 | `git agent-sync tool inspect --session <bundle-id>` | Summarize a sidecar bundle as Conversation IR |
 | `git agent-sync tool convert --session <bundle-id> --to ir` | Convert a Codex or Claude bundle to Agent-Sync Conversation IR |
 | `git agent-sync tool export --session <bundle-id> --to <codex\|claude> --mode readable` | Export readable cross-tool JSONL from the IR |
 | `git agent-sync clone-local [target-provider]` | Clone local current-project Codex sessions to a Codex `model_provider` |
 | `git agent-sync watch-local [--interval <seconds>]` | Watch Codex `model_provider` changes and clone sessions to the active provider |
+| `git agent-sync register-local` | Register Agent-Sync local Codex provider clones in local Codex UI indexes |
 | `git agent-sync repair-local` | Repair local Codex UI registration for provider clones |
-| `git agent-sync tui` | Open an interactive terminal menu for common Agent-Sync operations |
+| `git agent-sync clean-local [--force]` | Preview or remove generated local Codex provider clones for the current project |
+| `git agent-sync tui [--cn]` | Open the toolbox-style terminal TUI with Sidecar Sync and Codex Session toolkits; `--cn` uses the Chinese UI |
 | `git agent-sync log [--oneline] [-n <count>\|-<count>] [--json]` | Browse restorable session history |
 | `git agent-sync log --latest [--oneline] [-n <count>\|-<count>] [--json]` | Browse sessions from the latest sync batch |
 | `git agent-sync log --current [--json]` | Browse sessions bound to the current business repo commit |
@@ -165,6 +182,6 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 
 ## Security Note
 
-This MVP copies project conversation files. `push` defaults to `--privacy review`, which blocks when common secrets are detected; use `git agent-sync privacy scan` to inspect findings or `git agent-sync push --privacy redact` to write redacted sidecar copies. Conversation files may still include code snippets, local paths, prompts, and terminal output. Agent-Sync does not copy Claude account, token, global config, cache, telemetry, plugin, skill, IDE lock, or runtime session files.
+This MVP copies project conversation files. `push` defaults to `--privacy review`, which blocks when common secrets are detected; use `git agent-sync privacy scan` to inspect findings, `git agent-sync privacy allow-pattern-local <name>=<regex>` for reviewed false positives, or `git agent-sync push --privacy redact` to write redacted sidecar copies. Project-level `.agent-sync/privacy.json` can add `denyPatterns` or skip known safe fixtures with `allowPatterns`. Conversation files may still include code snippets, local paths, prompts, and terminal output. Agent-Sync does not copy Claude account, token, global config, cache, telemetry, plugin, skill, IDE lock, or runtime session files.
 
 Use a private remote for the sidecar session store. A production version should add default encryption and secret redaction before remote push.

@@ -23,13 +23,15 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "smoke": "node ./bin/git-agent-sync.js --help",
-    "test": "npm run check && npm run smoke && npm run test:bindings && npm run test:codex-session && npm run test:claude-session && npm run test:dependencies && npm run test:local-transfer && npm run test:event-store && npm run test:daemon && npm run test:privacy && npm run test:conversation-ir && npm run test:tui && npm run test:scan-cache && npm run test:archive-cache && npm run test:hooks && npm run test:store-promisor && npm run test:e2e",
+    "test": "npm run check && npm run smoke && npm run test:bindings && npm run test:codex-session && npm run test:claude-session && npm run test:dependencies && npm run test:local-transfer && npm run test:event-store && npm run test:conflicts && npm run test:store-merge && npm run test:daemon && npm run test:privacy && npm run test:conversation-ir && npm run test:tui && npm run test:scan-cache && npm run test:archive-cache && npm run test:hooks && npm run test:store-promisor && npm run test:e2e && npm run test:vscode",
     "test:bindings": "node ./scripts/test-bindings.js",
     "test:codex-session": "node ./scripts/test-codex-session.js",
     "test:claude-session": "node ./scripts/test-claude-session.js",
     "test:dependencies": "node ./scripts/test-dependencies.js",
     "test:local-transfer": "node ./scripts/test-local-transfer.js",
     "test:event-store": "node ./scripts/test-event-store.js",
+    "test:conflicts": "node ./scripts/test-conflicts.js",
+    "test:store-merge": "node ./scripts/test-store-merge.js",
     "test:daemon": "node ./scripts/test-daemon.js",
     "test:privacy": "node ./scripts/test-privacy.js",
     "test:conversation-ir": "node ./scripts/test-conversation-ir.js",
@@ -39,6 +41,7 @@
     "test:hooks": "node ./scripts/test-hooks.js",
     "test:store-promisor": "node ./scripts/test-store-promisor.js",
     "test:e2e": "node ./scripts/test-e2e.js",
+    "test:vscode": "npm --prefix extensions/vscode test",
     "prepare": "npm run build"
   },
   "keywords": [
@@ -61,11 +64,17 @@
     "node": ">=18"
   },
   "dependencies": {
-    "better-sqlite3": "^11.10.0"
+    "better-sqlite3": "^11.10.0",
+    "figlet": "^1.8.2",
+    "gradient-string": "^3.0.0",
+    "ink": "^5.2.1",
+    "react": "^18.3.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
+    "@types/figlet": "^1.7.0",
     "@types/node": "^26.0.0",
+    "@types/react": "^18.3.31",
     "typescript": "^6.0.3",
     "vitepress": "^1.6.4"
   }

@@ -111,6 +111,9 @@ Agent session 文件里可能记录创建会话时的 shell、工作目录和项
   events/
     <machine-id>/
       <sync-run-id>.jsonl
+  conflicts/
+    <project-id>/
+      <agent>-<session-id>-<conflict-id>.json
   projects/
     <project-id>/
       manifest.json
@@ -124,9 +127,11 @@ Agent session 文件里可能记录创建会话时的 shell、工作目录和项
         claude-<hash>.jsonl
 ```
 
-`projects/<project-id>/manifest.json`、`bindings.jsonl` 和 `bindings.idx.json` 仍然是当前 `log` / `restore` 的兼容读路径。新的 `objects/` 会按内容 hash 保存不可变会话副本，`events/` 会按机器和同步批次写入 append-only 事件，`manifest.events.json` 与 `bindings.events.idx.json` 是由这些事件重建出来的索引。这样后续多设备并发同步可以先合并对象和事件，再逐步把主查询路径切到可重建索引上。
+`projects/<project-id>/manifest.json`、`bindings.jsonl` 和 `bindings.idx.json` 仍然是当前 `log` / `restore` 的兼容读路径。新的 `objects/` 会按内容 hash 保存不可变会话副本，`events/` 会按机器和同步批次写入 append-only 事件，`manifest.events.json` 与 `bindings.events.idx.json` 是由这些事件重建出来的索引。如果重放时发现同一个 agent/session id 指向多个对象 hash，会在 `conflicts/<project-id>/` 写入 review 记录，而不是覆盖任意一边对象。这样后续多设备并发同步可以先合并对象和事件，再逐步把主查询路径切到可重建索引上。
 
 配置了 sidecar remote 时，`pull` 会启用 sparse checkout：本地 `.agent-sync-store/` 会展开对象、事件、当前项目的会话 bundle，以及其他项目的轻量 `manifest.json` 用于识别兼容项目。sidecar remote 也会保持 Git promisor remote 和 `blob:none` filter 配置，因此提交时可以安全引用仍留在远端的非当前项目 blob，而不必把它们全部展开到本机。
+
+push 时，如果 sidecar remote 返回 non-fast-forward 拒绝，并且本地和远端有共同历史，Agent-Sync 会把它当作业务层合并：fetch 远端分支，合并对象/事件分片和本地 sidecar commit，重建事件派生索引，必要时提交这些重建索引，然后重试 push。若 sidecar 历史完全 unrelated，仍会停止并要求人类明确决策。
 
 ## Conversation IR
 
@@ -139,11 +144,13 @@ IR 明确分成几块：
 - `events` 保存统一后的消息、工具调用和工具结果，同时保留每条原始 vendor event 作为 provenance。
 - `dependencies` 保存识别出的 skill、MCP/plugin 线索，以及未来判断能否继续 handoff 时需要检查的依赖。
 
-`tool convert --to ir --json` 会输出完整 IR。`tool export --to <codex|claude> --mode readable` 会输出另一个 UI 可以展示或归档的 JSONL 视图。这个 readable export 和真正可继续对话的 resumable handoff 是分开的：只有当目标工具能接受必要 schema、索引、provider/runtime 上下文和依赖时，Agent-Sync 才会把 handoff 标记成 resumable。
+`tool convert --to ir --json` 会输出完整 IR。`tool export --to <codex|claude> --mode readable` 会输出另一个 UI 可以展示或归档的 JSONL 视图。这个 readable export 和真正可继续对话的 resumable handoff 是分开的：只有当目标工具能接受必要 schema、索引、provider/runtime 上下文和依赖时，Agent-Sync 才会把 handoff 标记成 resumable。如果在这些保证还不存在时请求 `--mode resumable`，导出仍会保持 `mode: "readable"`、报告 `resumable: false`，并记录为什么只能 readable-only。
 
 ## 隐私边界
 
 `push` 默认使用 `--privacy review`。在写入 sidecar commit 前，Agent-Sync 会用内置规则扫描当前项目匹配到的会话，默认识别 OpenAI / Anthropic / GitHub token、AWS access key、private key、Bearer token 和常见 `api_key` / `token` / `secret` / `password` 赋值。命中后不会静默上传；用户可以先运行 `git agent-sync privacy scan` 查看命中项，或者显式使用 `git agent-sync push --privacy redact` 写入脱敏后的 sidecar 副本。
+
+项目策略文件是 `.agent-sync/privacy.json`。`denyPatterns` 用来增加项目自己的 secret 规则，`allowPatterns` 用来标记已知安全的示例值或测试 fixture；命中 allowlist 的片段会同时跳过 `privacy scan` 和 `--privacy redact`。
 
 脱敏只作用于 `.agent-sync-store/` 中的会话副本和对象副本，不会改写本机原始 Codex / Claude session 文件。`projects/<project-id>/privacy-report.json` 会记录命中的规则和位置，方便后续解释。
 

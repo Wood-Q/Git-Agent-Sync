@@ -30,7 +30,7 @@ export function ensureStoreRepo(storePath, remote) {
   }
 }
 
-export function syncStoreFromRemote(config) {
+export function syncStoreFromRemote(config, options: Record<string, any> = {}) {
   const { storePath, remote } = config;
   if (!remote) {
     return false;
@@ -62,13 +62,41 @@ export function syncStoreFromRemote(config) {
     throw new Error(`sidecar store history is unrelated to origin/${DEFAULT_STORE_BRANCH}; back up .agent-sync-store, then explicitly merge with --allow-unrelated-histories or reset to the remote before pushing`);
   }
   if (relation === "diverged") {
-    throw new Error(`sidecar store has diverged from origin/${DEFAULT_STORE_BRANCH}; resolve the sidecar Git history before pushing`);
+    const merged = mergeStoreBranchFromRemote(config);
+    if (options.onMerge) {
+      options.onMerge(merged);
+    }
+    return true;
   }
   runGit(["merge", "--ff-only", `origin/${DEFAULT_STORE_BRANCH}`], storePath);
   if (sparse.enabled) {
     applyStoreSparseCheckout(config);
   }
   return true;
+}
+
+export function mergeStoreBranchFromRemote(config) {
+  const { storePath } = config;
+  fetchStoreBranch(storePath);
+  const relation = getStoreBranchRelation(storePath);
+  if (relation === "unrelated") {
+    throw new Error(`sidecar store history is unrelated to origin/${DEFAULT_STORE_BRANCH}; back up .agent-sync-store, then explicitly merge with --allow-unrelated-histories or reset to the remote before pushing`);
+  }
+  if (relation !== "diverged") {
+    if (relation === "local-behind") {
+      runGit(["merge", "--ff-only", `origin/${DEFAULT_STORE_BRANCH}`], storePath);
+      applyStoreSparseCheckout(config);
+    }
+    return { status: relation };
+  }
+
+  const merge = runGit(["merge", "--no-edit", "-X", "ours", `origin/${DEFAULT_STORE_BRANCH}`], storePath, { allowFail: true });
+  if (merge.status !== 0) {
+    runGit(["merge", "--abort"], storePath, { allowFail: true });
+    throw new Error(`sidecar store has diverged from origin/${DEFAULT_STORE_BRANCH} and automatic event merge failed: ${(merge.stderr || merge.stdout || "").trim()}`);
+  }
+  applyStoreSparseCheckout(config);
+  return { status: "merged", stdout: merge.stdout, stderr: merge.stderr };
 }
 
 export function syncNewStoreFromRemote(config) {

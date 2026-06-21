@@ -37,8 +37,28 @@ export class HistoryView {
           vscode.commands.executeCommand("agentSync.pull");
         } else if (message?.command === "push") {
           vscode.commands.executeCommand("agentSync.push");
+        } else if (message?.command === "syncStatus") {
+          vscode.commands.executeCommand("agentSync.syncStatus");
+        } else if (message?.command === "privacyScan") {
+          vscode.commands.executeCommand("agentSync.privacyScan");
+        } else if (message?.command === "privacyAllowPattern") {
+          vscode.commands.executeCommand("agentSync.privacyAllowPattern");
+        } else if (message?.command === "conflictsList") {
+          vscode.commands.executeCommand("agentSync.conflictsList");
+        } else if (message?.command === "conflictsDiff") {
+          vscode.commands.executeCommand("agentSync.conflictsDiff");
+        } else if (message?.command === "conflictsResolve") {
+          vscode.commands.executeCommand("agentSync.conflictsResolve");
+        } else if (message?.command === "toolInspect") {
+          vscode.commands.executeCommand("agentSync.toolInspect");
+        } else if (message?.command === "showBundle" && typeof message.bundleId === "string") {
+          vscode.commands.executeCommand("agentSync.showBundle", message.bundleId);
         } else if (message?.command === "localClone") {
           vscode.commands.executeCommand("agentSync.localClone");
+        } else if (message?.command === "registerLocal") {
+          vscode.commands.executeCommand("agentSync.registerLocal");
+        } else if (message?.command === "cleanLocal") {
+          vscode.commands.executeCommand("agentSync.cleanLocal");
         } else if (message?.command === "watchLocalCopy") {
           vscode.commands.executeCommand("agentSync.watchLocalCopy");
         } else if (message?.command === "openTui") {
@@ -99,13 +119,17 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
       margin-right: auto;
       min-width: 170px;
     }
-    select {
+    select,
+    input[type="search"] {
       height: 28px;
       border: 1px solid var(--vscode-input-border, transparent);
       color: var(--vscode-input-foreground);
       background: var(--vscode-input-background);
       padding: 3px 8px;
       font: inherit;
+    }
+    input[type="search"] {
+      min-width: 180px;
     }
     button {
       border: 1px solid var(--vscode-button-border, transparent);
@@ -251,14 +275,15 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     .bundle {
       width: 11%;
     }
-    .restore {
+    .actions {
       width: 10%;
       text-align: right;
     }
-    .restore button {
+    .actions button {
       max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
+      margin-left: 4px;
     }
     .empty {
       padding: 24px 14px;
@@ -274,7 +299,7 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
       .bundle {
         display: none;
       }
-      .restore {
+      .actions {
         width: 11%;
       }
     }
@@ -286,7 +311,7 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
       .agent {
         width: 9%;
       }
-      .restore button {
+      .actions button {
         padding-inline: 6px;
       }
     }
@@ -296,9 +321,19 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
   <div class="toolbar">
     <div class="title">Agent Sync History</div>
     <div class="count"><span id="visibleCount">${bindings.length}</span> / ${bindings.length}</div>
+    <input type="search" id="search" aria-label="Search sessions" placeholder="Search sessions">
     <button type="button" id="pull" title="Pull sidecar sessions">Pull</button>
     <button type="button" id="push" title="Push local sessions">Push</button>
+    <button type="button" id="syncStatus" title="Show sync queue status">Sync</button>
+    <button type="button" id="privacyScan" title="Scan sessions for secrets">Privacy</button>
+    <button type="button" id="privacyAllowPattern" title="Add a reviewed false-positive privacy allow pattern">Allow</button>
+    <button type="button" id="conflictsList" title="List sidecar conflict quarantine records">Conflicts</button>
+    <button type="button" id="conflictsDiff" title="Show a sidecar conflict diff summary">Diff</button>
+    <button type="button" id="conflictsResolve" title="Resolve a sidecar conflict with a chosen strategy">Resolve</button>
+    <button type="button" id="toolInspect" title="Inspect selected bundle as Conversation IR">IR</button>
     <button type="button" id="localClone" title="Clone Codex sessions to current provider">Clone</button>
+    <button type="button" id="registerLocal" title="Register local Codex provider clones">Register</button>
+    <button type="button" id="cleanLocal" title="Preview local clone cleanup">Clean</button>
     <button type="button" id="watchLocalCopy" title="Watch Codex provider changes">Watch</button>
     <button type="button" id="openTui" title="Open Agent Sync TUI">TUI</button>
     <button type="button" id="refresh">Refresh</button>
@@ -316,7 +351,7 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
         ${renderFilterHeader("Commit", "commit", options.commit)}
         ${renderFilterHeader("Agent", "agent", options.agent)}
         ${renderFilterHeader("Bundle", "bundle", options.bundle)}
-        <th class="restore">Restore</th>
+        <th class="actions">Actions</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -327,6 +362,7 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     let menu = null;
     const rows = Array.from(document.querySelectorAll('tbody tr'));
     const visibleCount = document.getElementById('visibleCount');
+    const searchInput = document.getElementById('search');
 
     const closeMenu = () => {
       if (menu) {
@@ -336,10 +372,13 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     };
     const applyFilters = () => {
       let visible = 0;
+      const search = (searchInput.value || '').trim().toLowerCase();
       rows.forEach((row) => {
-        const shown = Object.entries(filters).every(([column, value]) => {
+        const columnMatch = Object.entries(filters).every(([column, value]) => {
           return !value || row.dataset[column] === value;
         });
+        const searchMatch = !search || (row.dataset.search || '').includes(search);
+        const shown = columnMatch && searchMatch;
         row.hidden = !shown;
         if (shown) {
           visible += 1;
@@ -350,6 +389,7 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
         button.classList.toggle('active', Boolean(filters[button.dataset.filterColumn]));
       });
     };
+    searchInput.addEventListener('input', applyFilters);
     const openMenu = (button) => {
       closeMenu();
       const column = button.dataset.filterColumn;
@@ -396,8 +436,35 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     document.getElementById('push').addEventListener('click', () => {
       vscode.postMessage({ command: 'push' });
     });
+    document.getElementById('syncStatus').addEventListener('click', () => {
+      vscode.postMessage({ command: 'syncStatus' });
+    });
+    document.getElementById('privacyScan').addEventListener('click', () => {
+      vscode.postMessage({ command: 'privacyScan' });
+    });
+    document.getElementById('privacyAllowPattern').addEventListener('click', () => {
+      vscode.postMessage({ command: 'privacyAllowPattern' });
+    });
+    document.getElementById('conflictsList').addEventListener('click', () => {
+      vscode.postMessage({ command: 'conflictsList' });
+    });
+    document.getElementById('conflictsDiff').addEventListener('click', () => {
+      vscode.postMessage({ command: 'conflictsDiff' });
+    });
+    document.getElementById('conflictsResolve').addEventListener('click', () => {
+      vscode.postMessage({ command: 'conflictsResolve' });
+    });
+    document.getElementById('toolInspect').addEventListener('click', () => {
+      vscode.postMessage({ command: 'toolInspect' });
+    });
     document.getElementById('localClone').addEventListener('click', () => {
       vscode.postMessage({ command: 'localClone' });
+    });
+    document.getElementById('registerLocal').addEventListener('click', () => {
+      vscode.postMessage({ command: 'registerLocal' });
+    });
+    document.getElementById('cleanLocal').addEventListener('click', () => {
+      vscode.postMessage({ command: 'cleanLocal' });
     });
     document.getElementById('watchLocalCopy').addEventListener('click', () => {
       vscode.postMessage({ command: 'watchLocalCopy' });
@@ -407,8 +474,16 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     });
     document.getElementById('clear').addEventListener('click', () => {
       Object.keys(filters).forEach((key) => delete filters[key]);
+      searchInput.value = '';
       closeMenu();
       applyFilters();
+    });
+    document.querySelectorAll('[data-show-bundle]').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (button.dataset.showBundle) {
+          vscode.postMessage({ command: 'showBundle', bundleId: button.dataset.showBundle });
+        }
+      });
     });
     document.querySelectorAll('[data-restore-index]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -428,7 +503,19 @@ function renderRow(binding: AgentSyncBinding, index: number): string {
   const dateKey = formatDateKey(date);
   const commit = binding.projectCommit ? binding.projectCommit.slice(0, 12) : "";
   const message = truncateText(binding.commitMessage || "", 72);
-  return `<tr data-author="${escapeHtml(binding.authorName || "")}" data-date="${escapeHtml(dateKey)}" data-branch="${escapeHtml(binding.projectBranch || "detached")}" data-commit="${escapeHtml(commit)}" data-agent="${escapeHtml(binding.agent || "")}" data-bundle="${escapeHtml(binding.bundleId || "")}">
+  const bundleId = binding.bundleId || "";
+  const searchText = [
+    title,
+    binding.authorName || "",
+    binding.authorEmail || "",
+    displayDate,
+    binding.projectBranch || "detached",
+    binding.projectCommit || "",
+    binding.agent || "",
+    bundleId,
+    binding.commitMessage || ""
+  ].join(" ").toLowerCase();
+  return `<tr data-search="${escapeHtml(searchText)}" data-author="${escapeHtml(binding.authorName || "")}" data-date="${escapeHtml(dateKey)}" data-branch="${escapeHtml(binding.projectBranch || "detached")}" data-commit="${escapeHtml(commit)}" data-agent="${escapeHtml(binding.agent || "")}" data-bundle="${escapeHtml(bundleId)}">
     <td class="index"><span class="cellText">${index}</span></td>
     <td class="titleCell" title="${escapeHtml(title)}">
       <div class="titleText">${escapeHtml(title)}</div>
@@ -439,8 +526,11 @@ function renderRow(binding: AgentSyncBinding, index: number): string {
     <td class="branch"><span class="cellText">${escapeHtml(binding.projectBranch || "detached")}</span></td>
     <td class="mono commit" title="${escapeHtml(binding.projectCommit || "")}"><span class="cellText">${escapeHtml(commit)}</span></td>
     <td class="agent"><span class="cellText">${escapeHtml(binding.agent || "")}</span></td>
-    <td class="mono bundle" title="${escapeHtml(binding.bundleId || "")}"><span class="cellText">${escapeHtml(binding.bundleId || "")}</span></td>
-    <td class="restore"><button type="button" data-restore-index="${index}" title="Restore session ${index}">Restore</button></td>
+    <td class="mono bundle" title="${escapeHtml(bundleId)}"><span class="cellText">${escapeHtml(bundleId)}</span></td>
+    <td class="actions">
+      <button type="button" data-show-bundle="${escapeHtml(bundleId)}" title="Show bundle ${escapeHtml(bundleId)}"${bundleId ? "" : " disabled"}>Show</button>
+      <button type="button" data-restore-index="${index}" title="Restore session ${index}">Restore</button>
+    </td>
   </tr>`;
 }
 

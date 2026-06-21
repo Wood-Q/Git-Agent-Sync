@@ -24,6 +24,24 @@
     "onCommand:agentSync.refreshHistory",
     "onCommand:agentSync.pull",
     "onCommand:agentSync.push",
+    "onCommand:agentSync.syncStatus",
+    "onCommand:agentSync.syncBackground",
+    "onCommand:agentSync.syncFlush",
+    "onCommand:agentSync.syncRetry",
+    "onCommand:agentSync.syncCancel",
+    "onCommand:agentSync.daemonStatus",
+    "onCommand:agentSync.privacyScan",
+    "onCommand:agentSync.privacyRedactDryRun",
+    "onCommand:agentSync.privacyAllowPattern",
+    "onCommand:agentSync.conflictsList",
+    "onCommand:agentSync.conflictsDiff",
+    "onCommand:agentSync.conflictsResolve",
+    "onCommand:agentSync.registerLocal",
+    "onCommand:agentSync.repairLocal",
+    "onCommand:agentSync.cleanLocal",
+    "onCommand:agentSync.toolInspect",
+    "onCommand:agentSync.toolExportReadable",
+    "onCommand:agentSync.showBundle",
     "onCommand:agentSync.localClone",
     "onCommand:agentSync.watchLocalCopy",
     "onCommand:agentSync.openTui"
@@ -58,6 +76,96 @@
         "command": "agentSync.push",
         "title": "Agent Sync: Push",
         "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "agentSync.syncStatus",
+        "title": "Agent Sync: Sync Queue Status",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "agentSync.syncBackground",
+        "title": "Agent Sync: Sync in Background",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "agentSync.syncFlush",
+        "title": "Agent Sync: Flush Sync Queue",
+        "icon": "$(run)"
+      },
+      {
+        "command": "agentSync.syncRetry",
+        "title": "Agent Sync: Retry Failed Sync Jobs",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "agentSync.syncCancel",
+        "title": "Agent Sync: Cancel Pending Sync Jobs",
+        "icon": "$(circle-slash)"
+      },
+      {
+        "command": "agentSync.daemonStatus",
+        "title": "Agent Sync: Daemon Status",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "agentSync.privacyScan",
+        "title": "Agent Sync: Privacy Scan",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "agentSync.privacyRedactDryRun",
+        "title": "Agent Sync: Preview Privacy Redaction",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "agentSync.privacyAllowPattern",
+        "title": "Agent Sync: Add Privacy Allow Pattern",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "agentSync.conflictsList",
+        "title": "Agent Sync: List Conflicts",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "agentSync.conflictsDiff",
+        "title": "Agent Sync: Show Conflict Diff Summary",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "agentSync.conflictsResolve",
+        "title": "Agent Sync: Resolve Conflict",
+        "icon": "$(check)"
+      },
+      {
+        "command": "agentSync.registerLocal",
+        "title": "Agent Sync: Register Local Codex Clones",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "agentSync.repairLocal",
+        "title": "Agent Sync: Repair Local Codex Registration",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "agentSync.cleanLocal",
+        "title": "Agent Sync: Preview Local Clone Cleanup",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "agentSync.toolInspect",
+        "title": "Agent Sync: Inspect Conversation IR",
+        "icon": "$(inspect)"
+      },
+      {
+        "command": "agentSync.toolExportReadable",
+        "title": "Agent Sync: Export Readable Claude JSONL",
+        "icon": "$(export)"
+      },
+      {
+        "command": "agentSync.showBundle",
+        "title": "Agent Sync: Show Bundle",
+        "icon": "$(file-code)"
       },
       {
         "command": "agentSync.localClone",

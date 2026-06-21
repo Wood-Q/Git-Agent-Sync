@@ -23,6 +23,7 @@
 - 支持跨机器、跨操作系统恢复时做项目路径适配
 - 为每次会话快照记录业务项目 branch、`HEAD` commit、dirty 状态和同步说明
 - 支持按 latest/current/branch/commit/bundle id/log index 浏览和恢复会话
+- 提供工具箱风格的 React Ink TUI，包含 figlet 生成的渐变大字标题、编号工具箱卡片、功能页 tabs、项目信息框、功能域导航，并支持 `--cn` 中文界面、搜索、帮助、等价 CLI 展示和高风险动作确认
 
 ## 安装
 
@@ -44,7 +45,10 @@ cd ~/Agent-Sync
 npm install
 npm link
 git agent-sync --help
+npm run test
 ```
+
+完整测试会覆盖 CLI、daemon、privacy、TUI、E2E 和 VS Code adapter。
 
 ## 基础使用
 
@@ -91,10 +95,14 @@ hook 会把同步任务放入后台队列，而不是在 `git push` 过程中直
 git agent-sync sync --background
 git agent-sync sync status
 git agent-sync sync --flush
+git agent-sync sync retry all
+git agent-sync sync cancel all
 git agent-sync daemon start
 git agent-sync daemon status
 git agent-sync daemon stop
 ```
+
+flush 时如果发现上一次 daemon 崩溃留下的 `running` 任务，会在持有同步锁后恢复回 `pending`，并在同一轮继续处理。
 
 移除 hook：
 
@@ -108,7 +116,7 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 
 项目归属判断很保守。Codex 会话优先使用 Codex state 和 JSONL 里的 `cwd`、Git remote、branch、commit、`rollout_path` 等结构化信息。Claude Code 会话使用 JSONL 的 `cwd`、Git 字段，以及 tool-use input 里的 `cwd` / `workdir`。正文里提到项目名，不会被当作归属证明。
 
-每次 `push` 会把通过校验的 session 文件复制到 sidecar store，并追加一条 Git context binding，记录业务仓库当时的 branch、`HEAD` commit、dirty 状态、bundle id、会话标题和同步说明。`pull` 拉取 sidecar store，`restore` 再把选中的会话写回当前机器的 Codex / Claude Code 会话目录，并在需要时适配源机器路径。切换 Codex API 来源时，`clone-local` 和 `watch-local` 可以不经过 sidecar remote，把当前项目的 Codex 会话克隆到当前 `model_provider`。
+每次 `push` 会把通过校验的 session 文件复制到 sidecar store，并追加一条 Git context binding，记录业务仓库当时的 branch、`HEAD` commit、dirty 状态、bundle id、会话标题和同步说明。`pull` 拉取 sidecar store，`restore` 再把选中的会话写回当前机器的 Codex / Claude Code 会话目录，并在需要时适配源机器路径。如果事件重放发现同一个 agent session id 对应多个对象 hash，Agent-Sync 会写入非破坏性的冲突隔离记录，可以用 `conflicts` 查看并标记解决。切换 Codex API 来源时，`clone-local` 和 `watch-local` 可以不经过 sidecar remote，把当前项目的 Codex 会话克隆到当前 `model_provider`。
 
 完整设计细节见：[概念说明](docs/concepts.zh-CN.md) 和 [工具执行链路](docs/execution-flow.zh-CN.md)。
 
@@ -122,18 +130,27 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 | `git agent-sync push [--m <message>]` | 写入会话快照并推送 sidecar remote |
 | `git agent-sync pull` | 拉取当前项目可用的 sidecar 快照 |
 | `git agent-sync sync --background` | 入队 sidecar 同步任务并启动后台 worker |
-| `git agent-sync sync status` | 查看 pending、running、done、failed 同步任务 |
-| `git agent-sync sync --flush` | 在当前终端处理队列中的同步任务 |
+| `git agent-sync sync status` | 查看 pending、running、done、failed、cancelled 同步任务 |
+| `git agent-sync sync --flush` | 在当前终端处理队列中的同步任务，并先恢复 stale running 任务 |
+| `git agent-sync sync retry [id\|all]` | 把 failed 或 cancelled 同步任务重新放回 pending |
+| `git agent-sync sync cancel [id\|all]` | 取消匹配的 pending 同步任务，不中断 running 任务 |
 | `git agent-sync daemon <start\|status\|stop>` | 管理本地后台同步 worker |
 | `git agent-sync privacy scan` | 扫描当前项目会话里的常见密钥 |
+| `git agent-sync privacy allow-pattern-local <name>=<regex>` | 把确认过的误报正则加入本地隐私 allowlist |
 | `git agent-sync push --privacy redact` | 命中密钥时写入脱敏后的 sidecar 副本 |
+| `git agent-sync conflicts list` | 列出 active 的 sidecar 冲突隔离记录 |
+| `git agent-sync conflicts show <id\|index>` | 查看某条隔离冲突的对象和事件详情 |
+| `git agent-sync conflicts diff <id\|index>` | 对比隔离对象摘要，不打印原始会话内容 |
+| `git agent-sync conflicts resolve <id\|index> --strategy keep-all\|keep-latest\|keep-local\|keep-remote` | 在不删除任一对象的前提下标记冲突已解决 |
 | `git agent-sync tool inspect --session <bundle-id>` | 用 Conversation IR 汇总一个 sidecar bundle |
 | `git agent-sync tool convert --session <bundle-id> --to ir` | 把 Codex 或 Claude bundle 转成 Agent-Sync Conversation IR |
 | `git agent-sync tool export --session <bundle-id> --to <codex\|claude> --mode readable` | 从 IR 导出可阅读的跨工具 JSONL |
 | `git agent-sync clone-local [target-provider]` | 把本机当前项目的 Codex 会话克隆到指定或当前 Codex `model_provider` |
 | `git agent-sync watch-local [--interval <seconds>]` | 监视 Codex `model_provider` 变化，并自动克隆到当前 provider |
+| `git agent-sync register-local` | 把 Agent-Sync 本机 provider 克隆注册进本机 Codex UI 索引 |
 | `git agent-sync repair-local` | 修复本机 Codex provider 克隆会话的 UI 注册 |
-| `git agent-sync tui` | 打开交互式终端菜单，集中执行常用 Agent-Sync 操作 |
+| `git agent-sync clean-local [--force]` | 预览或删除当前项目由 Agent-Sync 生成的本机 Codex provider 克隆 |
+| `git agent-sync tui [--cn]` | 打开工具箱风格终端 TUI，入口包含 Sidecar Sync 和 Codex Session 两个工具箱；`--cn` 使用中文界面 |
 | `git agent-sync log [--oneline] [-n <count>\|-<count>] [--json]` | 浏览可恢复会话历史 |
 | `git agent-sync log --latest [--oneline] [-n <count>\|-<count>] [--json]` | 浏览最近一次同步批次 |
 | `git agent-sync log --current [--json]` | 浏览当前业务 commit 对应会话 |
@@ -167,6 +184,6 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 
 ## 隐私提醒
 
-当前 `push` 默认使用 `--privacy review`，扫描到常见密钥时会阻止推送；可以用 `git agent-sync privacy scan` 查看命中项，或用 `git agent-sync push --privacy redact` 写入脱敏后的 sidecar 副本。项目会话仍可能包含私有代码、本地路径、prompt、终端输出和调试信息。Agent-Sync 不会复制 Claude 账号、token、全局配置、缓存、遥测、插件、技能、IDE lock 或运行态 session 文件。
+当前 `push` 默认使用 `--privacy review`，扫描到常见密钥时会阻止推送；可以用 `git agent-sync privacy scan` 查看命中项，用 `git agent-sync privacy allow-pattern-local <name>=<regex>` 记录确认过的误报，或用 `git agent-sync push --privacy redact` 写入脱敏后的 sidecar 副本。项目级 `.agent-sync/privacy.json` 可以用 `denyPatterns` 增加规则，也可以用 `allowPatterns` 跳过已知安全的 fixture。项目会话仍可能包含私有代码、本地路径、prompt、终端输出和调试信息。Agent-Sync 不会复制 Claude 账号、token、全局配置、缓存、遥测、插件、技能、IDE lock 或运行态 session 文件。
 
 请务必使用私有远程仓库保存 sidecar session store。后续生产化版本应加入默认加密和 secret redaction。

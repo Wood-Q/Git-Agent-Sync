@@ -34,21 +34,26 @@ import {
   DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS,
   checkLocalTransferWatch,
   normalizeWatchOptions,
+  runLocalClean,
   runLocalRepair,
+  runLocalRegister,
   runLocalTransfer
 } from "./local-transfer.js";
 import {
+  cancelSyncJobs,
   enqueueSyncJob,
   flushSyncQueue,
   formatSyncQueueStatus,
   getSyncQueueStatus,
+  retrySyncJobs,
   runDaemonLoop,
   startBackgroundSync,
   startDaemonProcess,
   stopDaemon
 } from "./daemon.js";
-import { writeEventStoreSnapshot } from "./event-store.js";
+import { rebuildEventIndexes, writeEventStoreSnapshot } from "./event-store.js";
 import {
+  addPrivacyAllowPattern,
   applyPrivacyRedactionsToStore,
   assertPrivacyAllowsPush,
   createPrivacyReport,
@@ -77,6 +82,13 @@ import {
 import { normalizePath, readJson, unique, writeJson } from "./utils.js";
 import { getCodexArchiveInfo, isArchivedCodexSessionPath, summarizeCodexArchiveInfo } from "./codex-archive.js";
 import { convertSessionToIr, exportIrReadable } from "./conversation-ir.js";
+import {
+  CONFLICT_RESOLUTION_STRATEGIES,
+  diffConflict,
+  listConflicts,
+  resolveConflict,
+  showConflict
+} from "./conflicts.js";
 
 export async function main(argv) {
   const { command, args, options } = parseArgs(argv.slice(2));
@@ -108,11 +120,14 @@ export async function main(argv) {
     daemon: () => daemonCommand(gitRoot, args, options),
     privacy: () => privacyCommand(gitRoot, args, options),
     tool: () => toolCommand(gitRoot, args, options),
+    conflicts: () => conflictsCommand(gitRoot, args, options),
     scan: () => scanCommand(gitRoot, options),
     "clone-local": () => localTransferCommand(gitRoot, args, options),
     "watch-local": () => localTransferWatchCommand(gitRoot, options),
+    "register-local": () => localRegisterCommand(gitRoot, options),
     "repair-local": () => localRepairCommand(gitRoot, options),
-    tui: () => tuiCommand(gitRoot),
+    "clean-local": () => localCleanCommand(gitRoot, options),
+    tui: () => tuiCommand(gitRoot, options),
     "install-hooks": () => installHooksCommand(gitRoot),
     "uninstall-hooks": () => uninstallHooksCommand(gitRoot),
     restore: () => restoreCommand(gitRoot, args, options, readConfigWithBundle(gitRoot)),
@@ -142,15 +157,18 @@ Usage:
   git agent-sync show <bundle-id>|[filters] <index> [--json]
   git agent-sync push [--m <message>] [--privacy review|redact|allow|off]
   git agent-sync pull
-  git agent-sync sync [status|--background|--flush] [--json]
+  git agent-sync sync [status|retry [id|all]|cancel [id|all]|--background|--flush] [--json]
   git agent-sync daemon <start|status|stop> [--once] [--interval <seconds>] [--json]
-  git agent-sync privacy <scan|redact> [--dry-run] [--json]
+  git agent-sync privacy <scan|redact|allow-pattern-local> [--dry-run] [--json]
   git agent-sync tool <inspect|convert|export> --session <bundle-id> [--to ir|codex|claude] [--json]
+  git agent-sync conflicts <list|show|diff|resolve> [id|index] [--strategy keep-all|keep-latest|keep-local|keep-remote] [--all] [--json]
   git agent-sync scan [--json]
   git agent-sync clone-local [target-provider] [--dry-run] [--no-register] [--json]
   git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
+  git agent-sync register-local [--dry-run] [--json]
   git agent-sync repair-local [--dry-run] [--json]
-  git agent-sync tui
+  git agent-sync clean-local [--force] [--json]
+  git agent-sync tui [--cn]
   git agent-sync restore <bundle-id>|--index <n>|--i <n>|--all|[filters] [index] [--no-adapt] [--no-register]
   git agent-sync install-hooks
   git agent-sync uninstall-hooks
@@ -234,8 +252,10 @@ Run log or restore after pull to inspect or recover sessions.`,
   git agent-sync sync status [--json]
   git agent-sync sync --background [--json]
   git agent-sync sync --flush [--json]
+  git agent-sync sync retry [id|all] [--json]
+  git agent-sync sync cancel [id|all] [--json]
 
-Queues or flushes sidecar sync jobs without blocking normal project work.`,
+Queues, flushes, retries, or cancels local sidecar sync jobs without blocking normal project work.`,
     daemon: `Usage:
   git agent-sync daemon start [--once] [--interval <seconds>] [--json]
   git agent-sync daemon status [--json]
@@ -245,14 +265,24 @@ Starts, inspects, or stops the local Agent-Sync background worker.`,
     privacy: `Usage:
   git agent-sync privacy scan [--json]
   git agent-sync privacy redact [--dry-run] [--json]
+  git agent-sync privacy allow-pattern-local <name>=<regex> [--json]
+  git agent-sync privacy allow-pattern-local <name> <regex> [--json]
 
-Scans current-project agent sessions with the local redaction policy.`,
+Scans current-project agent sessions or updates the local privacy allowlist.`,
     tool: `Usage:
   git agent-sync tool inspect --session <bundle-id> [--json]
   git agent-sync tool convert --session <bundle-id> [--to ir] [--json]
   git agent-sync tool export --session <bundle-id> --to <codex|claude> [--mode readable]
 
 Converts a sidecar bundle into Agent-Sync Conversation IR or readable cross-tool JSONL.`,
+    conflicts: `Usage:
+  git agent-sync conflicts list [--all] [--json]
+  git agent-sync conflicts show <id|index> [--all] [--json]
+  git agent-sync conflicts diff <id|index> [--all] [--json]
+  git agent-sync conflicts resolve <id|index> [--strategy keep-all|keep-latest|keep-local|keep-remote] [--notes <text>] [--dry-run] [--json]
+
+Reviews sidecar conflict quarantine records without deleting any session objects.
+Resolve marks the conflict metadata as handled; run git agent-sync push afterwards to publish the sidecar metadata.`,
     "clone-local": `Usage:
   git agent-sync clone-local [target-provider] [--dry-run] [--no-register] [--json]
 
@@ -264,14 +294,24 @@ The cloned rollout stays inside ~/.codex/sessions, records cloned_from/original_
 
 Watches ~/.codex/config.toml for model_provider changes and clones current-project Codex sessions to the active provider.
 Defaults to an interval of ${DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS} seconds.`,
+    "register-local": `Usage:
+  git agent-sync register-local [--dry-run] [--json]
+
+Registers Agent-Sync local Codex provider clones in this machine's Codex UI indexes without rewriting rollout files.`,
     "repair-local": `Usage:
   git agent-sync repair-local [--dry-run] [--json]
 
 Repairs local Codex UI registration for Agent-Sync provider clones without rewriting the rollout files.`,
-    tui: `Usage:
-  git agent-sync tui
+    "clean-local": `Usage:
+  git agent-sync clean-local [--force] [--json]
 
-Opens an interactive terminal menu for status, log, pull, push, restore, local Codex provider clone, and local watch operations.`,
+Previews Agent-Sync local Codex provider clone cleanup by default.
+Use --force to remove only current-project rollout files created by clone-local.`,
+    tui: `Usage:
+  git agent-sync tui [--cn]
+
+Opens an interactive terminal menu for status, log, pull, push, restore, local Codex provider clone, and local watch operations.
+Use --cn for the Chinese interface.`,
     restore: `Usage:
   git agent-sync restore <bundle-id> [--no-adapt] [--no-register]
   git agent-sync restore --index <n> [--no-adapt] [--no-register]
@@ -369,8 +409,13 @@ function scanCommand(gitRoot, options) {
 
 function privacyCommand(gitRoot, args, options) {
   const action = args[0] || "scan";
-  if (!["scan", "redact"].includes(action)) {
+  if (!["scan", "redact", "allow-pattern-local"].includes(action)) {
     throw new Error(`unknown privacy action "${action}". Run "git agent-sync privacy --help".`);
+  }
+  if (action === "allow-pattern-local") {
+    const result = addPrivacyAllowPattern(gitRoot, args[1], args[2]);
+    printPrivacyAllowPatternResult(result, options);
+    return;
   }
   const config = readConfigWithBundle(gitRoot);
   const scan = scanSessions(gitRoot, config);
@@ -432,6 +477,60 @@ function toolCommand(gitRoot, args, options) {
   console.log(`tools:  ${ir.events.filter((event) => event.type === "tool_call").length} call(s), ${ir.events.filter((event) => event.type === "tool_result").length} result(s)`);
 }
 
+function conflictsCommand(gitRoot, args, options) {
+  const action = args[0] || "list";
+  if (!["list", "show", "diff", "resolve"].includes(action)) {
+    throw new Error(`unknown conflicts action "${action}". Run "git agent-sync conflicts --help".`);
+  }
+  const config = readConfigWithBundle(gitRoot);
+
+  if (action === "list") {
+    const conflicts = listConflicts(config, { all: options.all });
+    if (options.json) {
+      console.log(JSON.stringify(conflicts, null, 2));
+      return;
+    }
+    printConflictList(conflicts, options);
+    return;
+  }
+
+  if (action === "show") {
+    const conflict = showConflict(config, args[1], { all: options.all });
+    if (options.json) {
+      console.log(JSON.stringify(conflict.raw, null, 2));
+      return;
+    }
+    printConflictDetail(conflict);
+    return;
+  }
+
+  if (action === "diff") {
+    const conflict = diffConflict(config, args[1], { all: options.all });
+    if (options.json) {
+      console.log(JSON.stringify(conflict, null, 2));
+      return;
+    }
+    printConflictDiff(conflict);
+    return;
+  }
+
+  const conflict = resolveConflict(config, args[1], {
+    all: options.all,
+    dryRun: options.dryRun,
+    notes: options.notes,
+    strategy: options.strategy
+  });
+  if (options.json) {
+    console.log(JSON.stringify(conflict, null, 2));
+    return;
+  }
+  const prefix = conflict.dryRun ? "would mark" : "marked";
+  console.log(`agent-sync: ${prefix} conflict ${conflict.id} resolved with ${conflict.resolution?.strategy || "keep-all"}.`);
+  if (!conflict.dryRun) {
+    console.log("agent-sync: run git agent-sync push to publish this sidecar conflict metadata.");
+  }
+}
+
 function localTransferCommand(gitRoot, args, options) {
   const config = readConfigWithBundle(gitRoot);
   const result = runLocalTransfer(gitRoot, config, {
@@ -444,6 +543,18 @@ function localTransferCommand(gitRoot, args, options) {
 function localRepairCommand(gitRoot, options) {
   const config = readConfigWithBundle(gitRoot);
   const result = runLocalRepair(gitRoot, config, options);
+  printLocalTransferResult(result, options);
+}
+
+function localRegisterCommand(gitRoot, options) {
+  const config = readConfigWithBundle(gitRoot);
+  const result = runLocalRegister(gitRoot, config, options);
+  printLocalTransferResult(result, options);
+}
+
+function localCleanCommand(gitRoot, options) {
+  const config = readConfigWithBundle(gitRoot);
+  const result = runLocalClean(gitRoot, config, options);
   printLocalTransferResult(result, options);
 }
 
@@ -467,9 +578,9 @@ async function localTransferWatchCommand(gitRoot, options) {
   }
 }
 
-async function tuiCommand(gitRoot) {
+async function tuiCommand(gitRoot, options) {
   const config = readConfigWithBundle(gitRoot);
-  await runTui(gitRoot, config);
+  await runTui(gitRoot, config, { cn: options.cn });
 }
 
 function logCommand(gitRoot, options) {
@@ -508,7 +619,9 @@ function showCommand(gitRoot, args, options) {
 function pushCommand(gitRoot, options: Record<string, any> = {}) {
   const config = readConfigWithBundle(gitRoot);
   ensureStoreRepo(config.storePath, config.remote);
-  syncStoreFromRemote(config);
+  syncStoreFromRemote(config, {
+    onMerge: () => rebuildMergedEventIndexes(config)
+  });
   adoptExistingProjectBundle(config);
   writeConfig(gitRoot, config);
   const gitContext = getGitContext(gitRoot);
@@ -560,7 +673,7 @@ function pushCommand(gitRoot, options: Record<string, any> = {}) {
   }
 
   if (config.remote) {
-    runGit(["push", "-u", "origin", DEFAULT_STORE_BRANCH], config.storePath);
+    pushStoreWithRetry(config);
     console.log("agent-sync: pushed sidecar repo.");
   }
 }
@@ -606,23 +719,73 @@ function pullCommand(gitRoot) {
   }
 }
 
+function pushStoreWithRetry(config) {
+  const first = runGit(["push", "-u", "origin", DEFAULT_STORE_BRANCH], config.storePath, { allowFail: true });
+  if (first.status === 0) {
+    return { retried: false };
+  }
+  if (!isRejectedStorePush(first)) {
+    throw new Error(`git push -u origin ${DEFAULT_STORE_BRANCH} failed: ${(first.stderr || first.stdout || "").trim()}`);
+  }
+
+  console.log(`agent-sync: sidecar push was rejected; fetching ${DEFAULT_STORE_BRANCH}, replaying event indexes, and retrying.`);
+  syncStoreFromRemote(config, {
+    onMerge: () => rebuildMergedEventIndexes(config)
+  });
+  rebuildMergedEventIndexes(config);
+  const retry = runGit(["push", "-u", "origin", DEFAULT_STORE_BRANCH], config.storePath, { allowFail: true });
+  if (retry.status !== 0) {
+    throw new Error(`git push -u origin ${DEFAULT_STORE_BRANCH} failed after retry: ${(retry.stderr || retry.stdout || "").trim()}`);
+  }
+  return { retried: true };
+}
+
+function rebuildMergedEventIndexes(config) {
+  const rebuilt = rebuildEventIndexes(config);
+  stageProjectBundle(config);
+  const diff = runGit(["diff", "--cached", "--quiet"], config.storePath, { allowFail: true });
+  if (diff.status !== 0) {
+    runGit(["commit", "-m", `rebuild ${config.projectName} sidecar event indexes`], config.storePath);
+    console.log(`agent-sync: rebuilt event indexes from ${rebuilt.events} event(s), ${rebuilt.conflicts || 0} conflict(s).`);
+  }
+  return rebuilt;
+}
+
+function isRejectedStorePush(result) {
+  const output = `${result.stderr || ""}\n${result.stdout || ""}`.toLowerCase();
+  return output.includes("rejected") ||
+    output.includes("fetch first") ||
+    output.includes("non-fast-forward") ||
+    output.includes("failed to push some refs");
+}
+
 async function syncCommand(gitRoot, args, options) {
   const action = args[0] || "";
-  if (action === "status" || (options.json && !options.background && !options.flush)) {
+  if (action === "status" || (!action && options.json && !options.background && !options.flush)) {
     printQueueStatus(gitRoot, options);
     return;
   }
-  if (action && !["background", "flush"].includes(action)) {
+  if (action && !["background", "flush", "retry", "cancel"].includes(action)) {
     throw new Error(`unknown sync action "${action}". Run "git agent-sync sync --help".`);
   }
 
-  const config = readConfigWithBundle(gitRoot);
   if (options.flush || action === "flush") {
     const result = flushSyncQueue(gitRoot);
     printSyncResult(result, options);
     return;
   }
+  if (action === "retry") {
+    const result = retrySyncJobs(gitRoot, args[1] || "all");
+    printQueueMutationResult(result, options);
+    return;
+  }
+  if (action === "cancel") {
+    const result = cancelSyncJobs(gitRoot, args[1] || "all");
+    printQueueMutationResult(result, options);
+    return;
+  }
 
+  const config = readConfigWithBundle(gitRoot);
   const job = enqueueSyncJob(gitRoot, config, {
     action: "push",
     reason: options.background || action === "background" ? "background-sync" : "manual-sync"
@@ -961,6 +1124,19 @@ function printLocalTransferResult(result, options: Record<string, any> = {}) {
     return;
   }
 
+  if (result.mode === "register") {
+    console.log("agent-sync: register local Codex provider clone sessions");
+    console.log(`registered: ${result.stats.registered}, dry-run: ${result.stats.dry_run}, skipped: ${result.stats.skipped_unmarked + result.stats.skipped_foreign}, errors: ${result.stats.error}`);
+    for (const item of result.results) {
+      if (item.action === "registered" || item.action === "dry_run") {
+        console.log(`[${item.action}] ${item.path}`);
+      } else if (item.action === "error") {
+        console.log(`[error] ${item.path}: ${item.message}`);
+      }
+    }
+    return;
+  }
+
   if (result.mode === "repair") {
     console.log("agent-sync: repair local Codex provider clone registration");
     console.log(`repaired: ${result.stats.repaired}, dry-run: ${result.stats.dry_run}, skipped: ${result.stats.skipped_unmarked + result.stats.skipped_foreign}, errors: ${result.stats.error}`);
@@ -970,6 +1146,22 @@ function printLocalTransferResult(result, options: Record<string, any> = {}) {
       } else if (item.action === "error") {
         console.log(`[error] ${item.path}: ${item.message}`);
       }
+    }
+    return;
+  }
+
+  if (result.mode === "clean") {
+    console.log(`agent-sync: ${result.dryRun ? "preview" : "clean"} local Codex provider clones`);
+    console.log(`removed: ${result.stats.removed}, dry-run: ${result.stats.dry_run}, skipped: ${result.stats.skipped_unmarked + result.stats.skipped_foreign}, errors: ${result.stats.error}`);
+    for (const item of result.results) {
+      if (item.action === "removed" || item.action === "dry_run") {
+        console.log(`[${item.action}] ${item.path}`);
+      } else if (item.action === "error") {
+        console.log(`[error] ${item.path}: ${item.message}`);
+      }
+    }
+    if (result.dryRun) {
+      console.log("agent-sync: dry run, add --force to remove generated local clone files.");
     }
     return;
   }
@@ -1020,7 +1212,24 @@ function printSyncResult(result, options) {
     console.log(`agent-sync: ${result.message}`);
     return;
   }
-  console.log(`agent-sync: processed ${result.processed} sync job(s), ${result.succeeded} succeeded, ${result.retried} queued for retry, ${result.failed} failed.`);
+  const recovered = result.recovered ? `recovered ${result.recovered} stale running sync job(s), ` : "";
+  console.log(`agent-sync: ${recovered}processed ${result.processed} sync job(s), ${result.succeeded} succeeded, ${result.retried} queued for retry, ${result.failed} failed.`);
+}
+
+function printQueueMutationResult(result, options) {
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  if (result.locked) {
+    console.log(`agent-sync: ${result.message}`);
+    return;
+  }
+  const verb = result.action === "retry" ? "queued for retry" : "cancelled";
+  console.log(`agent-sync: ${verb} ${result.changed} sync job(s).`);
+  if (!result.changed) {
+    console.log(`agent-sync: no matching ${result.action === "retry" ? "failed or cancelled" : "pending"} job found for "${result.selector}".`);
+  }
 }
 
 function printDaemonResult(result, options) {
@@ -1084,6 +1293,72 @@ function printPrivacyReport(report, options: Record<string, any> = {}) {
   if (report.findings.length > 50) {
     console.log(`... ${report.findings.length - 50} more finding(s)`);
   }
+}
+
+function printPrivacyAllowPatternResult(result, options: Record<string, any> = {}) {
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  const status = result.changed ? "added" : "already exists";
+  console.log(`privacy: ${status} allow pattern ${result.rule.name}`);
+  console.log(`pattern: ${result.rule.pattern}`);
+  console.log(`policy:  ${result.path}`);
+}
+
+function printConflictList(conflicts, options: Record<string, any> = {}) {
+  const scope = options.all ? "all" : "active";
+  console.log(`conflicts: ${conflicts.length} ${scope} conflict(s)`);
+  if (!conflicts.length) {
+    console.log(options.all ? "agent-sync: no conflicts found." : "agent-sync: no active conflicts found.");
+    return;
+  }
+  for (const conflict of conflicts) {
+    console.log(`${conflict.index}. ${conflict.id} ${conflict.agent}/${conflict.sessionId} ${conflict.status} ${conflict.objectHashes.length} object(s), ${conflict.eventCount} event(s)`);
+    console.log(`   show:    git agent-sync conflicts show ${conflict.index}`);
+    console.log(`   resolve: git agent-sync conflicts resolve ${conflict.index} --strategy keep-all`);
+  }
+}
+
+function printConflictDetail(conflict) {
+  console.log(`id:       ${conflict.id}`);
+  console.log(`status:   ${conflict.status}`);
+  console.log(`type:     ${conflict.type}`);
+  console.log(`agent:    ${conflict.agent}`);
+  console.log(`session:  ${conflict.sessionId}`);
+  console.log(`path:     ${conflict.relativePath}`);
+  console.log(`objects:  ${conflict.objectHashes.length}`);
+  for (const hash of conflict.objectHashes) {
+    console.log(`  - ${hash}`);
+  }
+  console.log(`events:   ${conflict.eventCount}`);
+  for (const event of conflict.events) {
+    console.log(`  - ${event.syncedAt || "unknown"} ${event.machineId || "unknown"} ${event.bundleId || "unknown"} ${event.objectHash || "unknown"}`);
+  }
+  if (conflict.resolution) {
+    console.log(`resolved: ${conflict.resolvedAt || "unknown"} (${conflict.resolution.strategy || "unknown"})`);
+    if (conflict.resolution.notes) {
+      console.log(`notes:    ${conflict.resolution.notes}`);
+    }
+  } else {
+    console.log(`resolve:  git agent-sync conflicts resolve ${conflict.id} --strategy keep-all`);
+    console.log(`strategies: ${CONFLICT_RESOLUTION_STRATEGIES.join(", ")}`);
+  }
+}
+
+function printConflictDiff(conflict) {
+  console.log(`id:      ${conflict.id}`);
+  console.log(`agent:   ${conflict.agent}`);
+  console.log(`session: ${conflict.sessionId}`);
+  console.log(`objects: ${conflict.objects.length}`);
+  for (const object of conflict.objects) {
+    console.log(`  - ${object.hash} ${object.exists ? `${object.lines} line(s), ${object.bytes} byte(s)` : "missing"} ${object.relativePath}`);
+  }
+  for (const comparison of conflict.comparisons) {
+    const line = comparison.firstDifferentLine ? `line ${comparison.firstDifferentLine}` : "no line delta";
+    console.log(`diff:    ${comparison.left} <> ${comparison.right}: ${comparison.comparable ? line : "not comparable"}, lineDelta=${comparison.lineDelta}, byteDelta=${comparison.byteDelta}`);
+  }
+  console.log("note:    raw session content is not printed; run conflicts show for object paths if manual inspection is needed.");
 }
 
 function limitBindings(bindings, options) {
@@ -1236,8 +1511,7 @@ function findBindingByBundleId(config, bundleId) {
   if (!bundleId) {
     throw new Error("show requires a bundle id or selector index");
   }
-  const summary = inspectBindings(config);
-  return summary.bindings.find((binding) => binding.bundleId === bundleId) || null;
+  return readAllBindings(config).find((binding) => binding.bundleId === bundleId) || null;
 }
 
 function getBindingTitle(config, binding, titles) {

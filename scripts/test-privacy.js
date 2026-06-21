@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import {
+  addPrivacyAllowPattern,
   applyPrivacyRedactionsToStore,
   assertPrivacyAllowsPush,
   loadPrivacyPolicy,
@@ -64,6 +65,51 @@ assert.equal(redacted.includes(secret), false);
 assert.equal(redacted.includes(githubToken), false);
 assert.match(redacted, /\[REDACTED:openai_api_key\]/);
 
+const allowRoot = join(base, "allow-project");
+mkdirSync(join(allowRoot, ".agent-sync"), { recursive: true });
+const allowedSecret = "sk-" + "c".repeat(32);
+const blockedSecret = "sk-" + "d".repeat(32);
+const allowSourcePath = join(base, "allow-session.jsonl");
+const allowContent = [
+  JSON.stringify({ type: "session_meta", payload: { id: "allow-session", cwd: allowRoot } }),
+  JSON.stringify({ type: "message", payload: { text: `example=${allowedSecret}` } }),
+  JSON.stringify({ type: "message", payload: { text: `real=${blockedSecret}` } })
+].join("\n") + "\n";
+writeFileSync(allowSourcePath, allowContent);
+writeFileSync(join(allowRoot, ".agent-sync", "privacy.json"), JSON.stringify({
+  version: 1,
+  allowPatterns: [
+    { name: "documented_example_token", pattern: "sk-c{32}" }
+  ]
+}, null, 2));
+const allowPolicy = loadPrivacyPolicy(allowRoot);
+const allowReport = scanPrivacyMatches([{
+  agent: "codex",
+  bundleId: "allow-secret",
+  originalPath: allowSourcePath
+}], allowPolicy);
+assert.equal(allowReport.allowPatterns.includes("documented_example_token"), true);
+assert.equal(allowReport.findings.some((finding) => finding.preview.includes("cccc")), false);
+assert.equal(allowReport.findings.some((finding) => finding.preview.includes("dddd")), true);
+const allowRedacted = redactText(allowContent, allowPolicy);
+assert.equal(allowRedacted.includes(allowedSecret), true);
+assert.equal(allowRedacted.includes(blockedSecret), false);
+
+const reviewedSecret = "sk-" + "e".repeat(32);
+const allowAdded = addPrivacyAllowPattern(allowRoot, "reviewed_example=sk-e{32}");
+assert.equal(allowAdded.changed, true);
+assert.equal(allowAdded.rule.name, "reviewed_example");
+const allowUnchanged = addPrivacyAllowPattern(allowRoot, "reviewed_example", "sk-e{32}");
+assert.equal(allowUnchanged.changed, false);
+assert.throws(() => addPrivacyAllowPattern(allowRoot, "reviewed_example", "sk-f{32}"), /already exists/);
+const reviewedPolicy = loadPrivacyPolicy(allowRoot);
+const reviewedReport = scanPrivacyMatches([{
+  agent: "codex",
+  bundleId: "reviewed-secret",
+  originalPath: writeTempSession(base, "reviewed-session.jsonl", reviewedSecret)
+}], reviewedPolicy);
+assert.equal(reviewedReport.findings.some((finding) => finding.preview.includes("eeee")), false);
+
 const applied = applyPrivacyRedactionsToStore(config, [match], policy);
 assert.equal(applied.filesChanged, 1);
 const stored = readFileSync(storeSessionPath, "utf8");
@@ -89,6 +135,9 @@ run("git", ["add", "README.md"], project);
 run("git", ["commit", "-m", "initial"], project);
 const currentCommit = run("git", ["rev-parse", "HEAD"], project);
 run(process.execPath, [cli, "init"], project, privacyEnv(codexRoot, claudeRoot));
+const cliAllow = JSON.parse(run(process.execPath, [cli, "privacy", "allow-pattern-local", "reviewed_cli=sk-f{32}", "--json"], project, privacyEnv(codexRoot, claudeRoot)));
+assert.equal(cliAllow.changed, true);
+assert.match(readFileSync(join(project, ".agent-sync", "privacy.json"), "utf8"), /reviewed_cli/);
 writeJsonl(join(codexRoot, "2026", "06", "20", "secret.jsonl"), [
   {
     type: "session_meta",
@@ -144,6 +193,12 @@ function privacyEnv(codexDir, claudeDir) {
 
 function writeJsonl(path, items) {
   writeFileSync(path, `${items.map((item) => JSON.stringify(item)).join("\n")}\n`);
+}
+
+function writeTempSession(root, name, token) {
+  const path = join(root, name);
+  writeFileSync(path, `${JSON.stringify({ type: "message", payload: { text: `token=${token}` } })}\n`);
+  return path;
 }
 
 function findFirstStoreFile(root, needle) {

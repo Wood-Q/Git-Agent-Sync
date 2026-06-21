@@ -111,6 +111,9 @@ Both directories are added to the project `.gitignore`.
   events/
     <machine-id>/
       <sync-run-id>.jsonl
+  conflicts/
+    <project-id>/
+      <agent>-<session-id>-<conflict-id>.json
   projects/
     <project-id>/
       manifest.json
@@ -124,9 +127,11 @@ Both directories are added to the project `.gitignore`.
         claude-<hash>.jsonl
 ```
 
-`projects/<project-id>/manifest.json`, `bindings.jsonl`, and `bindings.idx.json` remain the compatibility read path for today's `log` and `restore` commands. The new `objects/` tree stores immutable content-addressed session copies, `events/` writes append-only event shards per machine and sync run, and `manifest.events.json` plus `bindings.events.idx.json` are rebuilt from those events. That lets later multi-device sync merge objects and events first, then move the primary query path to rebuildable indexes.
+`projects/<project-id>/manifest.json`, `bindings.jsonl`, and `bindings.idx.json` remain the compatibility read path for today's `log` and `restore` commands. The new `objects/` tree stores immutable content-addressed session copies, `events/` writes append-only event shards per machine and sync run, and `manifest.events.json` plus `bindings.events.idx.json` are rebuilt from those events. If replay sees the same agent/session id pointing at multiple object hashes, it writes a review record under `conflicts/<project-id>/` instead of overwriting either object. That lets later multi-device sync merge objects and events first, then move the primary query path to rebuildable indexes.
 
 When a sidecar remote is configured, `pull` uses sparse checkout so the local `.agent-sync-store/` expands objects, events, this project's full session bundle, and lightweight `manifest.json` files for other projects. The sidecar remote is also kept as a Git promisor remote with a `blob:none` filter, so commits can safely reference non-current project blobs that remain on the remote instead of being expanded locally.
+
+On push, a non-fast-forward sidecar rejection is treated as a business merge opportunity when both sides share history: Agent-Sync fetches the remote branch, merges object/event shards with the local sidecar commit, rebuilds event-derived indexes, commits those rebuilt indexes when needed, and retries the push. If the sidecar histories are unrelated, it still stops and asks for an explicit human decision.
 
 ## Conversation IR
 
@@ -139,11 +144,13 @@ The IR keeps four boundaries explicit:
 - `events` stores normalized messages, tool calls, and tool results while keeping each original vendor event attached for provenance.
 - `dependencies` stores detected skills, MCP/plugin hints, and other requirements that affect whether a future handoff can be resumed.
 
-`tool convert --to ir --json` emits the full IR. `tool export --to <codex|claude> --mode readable` emits a JSONL view that another UI can display or archive. That readable export is deliberately separate from resumable handoff: Agent-Sync only marks a handoff resumable when the target tool can accept the required schema, indexes, provider/runtime context, and dependencies.
+`tool convert --to ir --json` emits the full IR. `tool export --to <codex|claude> --mode readable` emits a JSONL view that another UI can display or archive. That readable export is deliberately separate from resumable handoff: Agent-Sync only marks a handoff resumable when the target tool can accept the required schema, indexes, provider/runtime context, and dependencies. When `--mode resumable` is requested before those guarantees exist, the export stays `mode: "readable"`, reports `resumable: false`, and records why it is readable-only.
 
 ## Privacy Boundaries
 
 `push` defaults to `--privacy review`. Before writing a sidecar commit, Agent-Sync scans matched current-project sessions with built-in rules for OpenAI / Anthropic / GitHub tokens, AWS access keys, private keys, Bearer tokens, and common `api_key` / `token` / `secret` / `password` assignments. Findings are not uploaded silently; run `git agent-sync privacy scan` to inspect them, or explicitly use `git agent-sync push --privacy redact` to write redacted sidecar copies.
+
+Project policy lives at `.agent-sync/privacy.json`. `denyPatterns` add project-specific secret rules, while `allowPatterns` mark known safe examples or test fixtures so they are skipped by both `privacy scan` and `--privacy redact`.
 
 Redaction only affects the copies inside `.agent-sync-store/`, including object-store copies. It does not rewrite the original local Codex / Claude session files. `projects/<project-id>/privacy-report.json` records the matched rule and location for later explanation.
 

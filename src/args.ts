@@ -16,8 +16,10 @@ export type CliOptions = Record<string, string | boolean | undefined> & {
   branch?: string;
   bundle?: string;
   commit?: string;
+  cn?: boolean;
   date?: string;
   dryRun?: boolean;
+  force?: boolean;
   from?: string;
   index?: string;
   interval?: string;
@@ -28,6 +30,8 @@ export type CliOptions = Record<string, string | boolean | undefined> & {
   remote?: string;
   session?: string;
   store?: string;
+  strategy?: string;
+  notes?: string;
   title?: string;
   to?: string;
 };
@@ -71,6 +75,8 @@ export function parseArgs(rawArgs: string[]) {
       options.latest = true;
     } else if (arg === "--current") {
       options.current = true;
+    } else if (arg === "--cn") {
+      options.cn = true;
     } else if (arg.startsWith("--agent=")) {
       options.agent = arg.slice("--agent=".length);
     } else if (arg === "--agent") {
@@ -99,6 +105,8 @@ export function parseArgs(rawArgs: string[]) {
       options.noInitialSync = true;
     } else if (arg === "--dry-run") {
       options.dryRun = true;
+    } else if (arg === "--force") {
+      options.force = true;
     } else if (arg === "--once") {
       options.once = true;
     } else if (arg.startsWith("--from=")) {
@@ -121,6 +129,14 @@ export function parseArgs(rawArgs: string[]) {
       options.session = arg.slice("--session=".length);
     } else if (arg === "--session") {
       options.session = rawArgs[++i];
+    } else if (arg.startsWith("--strategy=")) {
+      options.strategy = arg.slice("--strategy=".length);
+    } else if (arg === "--strategy") {
+      options.strategy = rawArgs[++i];
+    } else if (arg.startsWith("--notes=")) {
+      options.notes = arg.slice("--notes=".length);
+    } else if (arg === "--notes") {
+      options.notes = rawArgs[++i];
     } else if (arg.startsWith("--interval=")) {
       options.interval = arg.slice("--interval=".length);
     } else if (arg === "--interval") {
