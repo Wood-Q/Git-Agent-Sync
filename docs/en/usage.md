@@ -2,6 +2,8 @@
 
 [English](/en/usage) | [中文](/zh/usage)
 
+Agent-Sync is a toolbox for everything around AI coding-agent conversations. After installing, pick the feature page for what you want to do.
+
 ## Install
 
 CLI package:
@@ -26,202 +28,15 @@ npm link
 git agent-sync --help
 ```
 
-## First Sync
+## Feature Tour
 
-Create a private repository just for agent sessions:
+Organized by capability track. Open each page for full usage.
 
-```text
-git@github.com:you/agent-session-store.git
-```
-
-Initialize Agent-Sync in a business repository and push the local sessions that belong to it:
-
-```bash
-cd your-project
-git agent-sync init --remote git@github.com:you/agent-session-store.git
-git agent-sync status
-git agent-sync push --m "sync current agent sessions"
-```
-
-`init` also accepts the remote as the first positional argument:
-
-```bash
-git agent-sync init git@github.com:you/agent-session-store.git
-```
-
-If the sidecar remote already has a `main` branch and the local `.agent-sync-store/` has no commits, `init` automatically checks out the remote sidecar history. A new project can run `push` directly after `init`; use `pull` later when you want to refresh an existing store.
-
-## Restore On Another Machine
-
-Clone the business project, initialize Agent-Sync with the same sidecar remote, then pull and restore:
-
-```bash
-git clone git@github.com:you/your-project.git
-cd your-project
-git agent-sync init --remote git@github.com:you/agent-session-store.git
-git agent-sync pull
-git agent-sync log --latest
-git agent-sync restore --latest 1
-```
-
-Useful restore selectors:
-
-```bash
-git agent-sync restore --latest
-git agent-sync restore --current
-git agent-sync restore --branch main
-git agent-sync restore --commit 4f7c2a1
-git agent-sync restore --index 1
-```
-
-`--latest` matches the latest sidecar sync batch. `--current` matches the current business repo `HEAD` commit, with branch fallback only when no commit binding exists. `--commit` matches the project commit recorded during sync. Branches are historical labels from sync time; they do not follow mutable branch pointers.
-
-To restore the exact sidecar file without local path adaptation:
-
-```bash
-git agent-sync restore --current --no-adapt
-```
-
-To restore the file without registering it in the Codex UI index:
-
-```bash
-git agent-sync restore --current --no-register
-```
-
-## Local Codex Provider Clone
-
-Use local clone when you switch Codex API providers and want current-project Codex sessions to appear under the active `model_provider` on the same machine:
-
-```bash
-git agent-sync clone-local
-git agent-sync clone-local openrouter
-git agent-sync clone-local openrouter --no-register
-git agent-sync register-local
-git agent-sync repair-local
-git agent-sync clean-local
-git agent-sync clean-local --force
-```
-
-When the target provider is omitted, Agent-Sync reads `model_provider` from `~/.codex/config.toml`. The cloned rollout stays in `~/.codex/sessions`, gets a new stable session id, and records `cloned_from`, `original_provider`, and `clone_timestamp` metadata. By default it also registers local `state_5.sqlite` and `session_index.jsonl` entries so the Codex UI can see the clone; use `--no-register` when you only want to write the file. Run `register-local` to explicitly register Agent-Sync provider clones that already exist on this machine. If the file exists but the UI cannot see it, run `repair-local` to re-register Agent-Sync provider clones. `clean-local` previews generated current-project provider clones by default; add `--force` to remove only those Agent-Sync clone rollout files. Only sessions that match the current Git project through structured metadata are cloned or cleaned.
-
-To keep Codex sessions available while switching API providers:
-
-```bash
-git agent-sync watch-local
-```
-
-`watch-local` polls `~/.codex/config.toml`; when `model_provider` changes, it clones current-project Codex sessions to the newly active provider. The VS Code History view includes Clone and Watch buttons that run the same local commands for the current workspace.
-
-## Terminal TUI
-
-Open the terminal menu when you want the common workflows in one place:
-
-```bash
-git agent-sync tui
-git agent-sync tui --cn
-```
-
-The TUI is a native single-key fullscreen toolbox organized into three workspaces along the four capability tracks:
-
-- **Remote Sync**: `push`, `pull`, `restore` (with a session browser), `log`, `init`, `install-hooks`
-- **Local Transfer**: `clone-local`, `register-local`, `watch-local`, and bundle migration to Claude/Codex JSONL
-- **Doctor**: `doctor` health check and session `status`
-
-Large headers are generated with `figlet` and colored through `gradient-string` when the terminal supports color. Use `↑/↓` to move, `Enter` to run, hotkeys to jump, `q` to go back, `→/Tab` to switch workspaces, and `h` for help. `log` and `restore` open a session browser that lists every synced session with its number, so you never guess an index — `restore` confirms and restores the picked index. Write actions (push, init, install-hooks, restore) ask for confirmation before running. English by default, `--cn` for Chinese. The VS Code History view's TUI button opens the same menu in an integrated terminal.
-
-For finer-grained capabilities like the sync queue, daemon, privacy scanning, or conflict resolution, use the matching CLI subcommands directly.
-
-
-## Conversation IR and Tool Export
-
-Use `tool` commands when you want to inspect a synced Codex or Claude bundle through one normalized conversation model:
-
-```bash
-git agent-sync tool inspect --session <bundle-id>
-git agent-sync tool convert --session <bundle-id> --to ir --json
-git agent-sync tool export --session <bundle-id> --to claude --mode readable
-```
-
-`inspect` prints a short summary of the source agent, title, event count, and tool-call count. `convert` emits Agent-Sync Conversation IR, preserving the original vendor JSONL under provenance/vendor fields while normalizing messages, tool calls, tool results, project identity, runtime provider, and dependency hints. `export --mode readable` writes JSONL that another surface can display or archive; if `--mode resumable` is requested before a target adapter can safely continue the session, the export header records `requestedMode: "resumable"`, keeps `mode: "readable"`, sets `resumable: false`, and includes a readable-only reason.
-
-## Automatic Push
-
-Install a pre-push hook in each project where you want automatic session sync:
-
-```bash
-git agent-sync install-hooks
-```
-
-After that, normal project pushes enqueue a background Agent-Sync job:
-
-```bash
-git push
-```
-
-The hook queues a local sync job and starts a background worker instead of running the potentially slow sidecar push inside `git push`. It exits successfully without syncing when `.agent-sync/config.json` or the sidecar Git repo is missing, so it does not block normal project pushes before `init` has been completed.
-
-When two machines push sidecar commits from the same base, Agent-Sync retries non-fast-forward sidecar pushes by fetching `origin/main`, merging the object/event shards, rebuilding event indexes, and pushing again. Unrelated sidecar histories still stop with an explicit error instead of guessing.
-
-If event replay finds the same agent session id with multiple object hashes, the original objects stay intact and Agent-Sync writes a conflict quarantine record:
-
-```bash
-git agent-sync conflicts list
-git agent-sync conflicts show 1
-git agent-sync conflicts diff 1
-git agent-sync conflicts resolve 1 --strategy keep-all
-```
-
-`conflicts list` shows active records by default; add `--all` to include resolved history. `conflicts diff` compares quarantined object sizes, line counts, and first differing line without printing raw session content. `resolve` only updates conflict metadata with the chosen strategy (`keep-all`, `keep-latest`, `keep-local`, or `keep-remote`) and optional `--notes`; it does not delete either object. Run `git agent-sync push` afterwards when you want to publish the sidecar metadata.
-
-You can also manage the queue manually:
-
-```bash
-git agent-sync sync --background
-git agent-sync sync status
-git agent-sync sync --flush
-git agent-sync sync retry all
-git agent-sync sync cancel all
-git agent-sync daemon start
-git agent-sync daemon status
-git agent-sync daemon stop
-```
-
-During a flush, stale `running` jobs left by a crashed daemon are recovered back to `pending` under the sync lock and processed again in the same queue pass.
-
-Before pushing, Agent-Sync runs privacy review by default. If common API keys, tokens, or private keys are found, `push` stops and asks you to inspect or redact:
-
-```bash
-git agent-sync privacy scan
-git agent-sync privacy allow-pattern-local documented_example=sk-example-[a-z]+
-git agent-sync push --privacy redact
-git agent-sync push --privacy allow
-```
-
-`--privacy redact` writes redacted session and object copies to the sidecar store; it does not rewrite your original local agent session files.
-
-Use `.agent-sync/privacy.json` to tune project policy. `denyPatterns` add extra secret rules; `allowPatterns` skip known safe examples or fixtures during both scan and redaction. `git agent-sync privacy allow-pattern-local <name>=<regex>` appends one reviewed local allow rule without hand-editing the JSON file.
-
-Remove the hook with:
-
-```bash
-git agent-sync uninstall-hooks
-```
-
-## Custom Session Roots
-
-For tests or custom installs, override the agent discovery roots. `AGENT_SYNC_CODEX_DIR` can point at either `.codex` or `.codex/sessions`, and `AGENT_SYNC_CLAUDE_DIR` can point at a Claude `projects` directory:
-
-```bash
-AGENT_SYNC_CODEX_DIR=/path/to/codex/sessions git agent-sync status
-AGENT_SYNC_CLAUDE_DIR=/path/to/claude/projects git agent-sync status
-```
-
-Windows PowerShell example:
-
-```powershell
-$env:AGENT_SYNC_CODEX_DIR="D:\codex-sessions"
-git agent-sync status
-```
+- **[Remote Sync](/en/usage/remote-sync)** — `push` / `pull` / `restore` between machines via a private sidecar repo, plus auto-sync hooks, background queue, conflict quarantine, and privacy redaction.
+- **[Local Migration](/en/usage/local-migration)** — clone, register, and watch Codex sessions when switching `model_provider`, all local with no remote.
+- **[Cross-Tool Transform](/en/usage/cross-tool)** — inspect bundles via Conversation IR and re-emit readable JSONL between Codex and Claude.
+- **[Terminal TUI](/en/usage/tui)** — a three-workspace fullscreen single-key toolbox (Remote / Local / Doctor).
+- **[Custom Session Roots](/en/usage/custom-paths)** — override the default Codex / Claude session roots with environment variables.
 
 ## Troubleshooting
 

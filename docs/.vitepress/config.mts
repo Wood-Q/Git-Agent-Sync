@@ -5,8 +5,19 @@ const zhSidebar = [
     text: "开始",
     items: [
       { text: "文档首页", link: "/zh/" },
-      { text: "使用指南", link: "/zh/usage" },
-      { text: "概念说明", link: "/zh/concepts" }
+      { text: "概念说明", link: "/zh/concepts" },
+      {
+        text: "使用指南",
+        collapsed: false,
+        items: [
+          { text: "总览与安装", link: "/zh/usage" },
+          { text: "远程同步", link: "/zh/usage/remote-sync" },
+          { text: "本地迁移", link: "/zh/usage/local-migration" },
+          { text: "跨工具转换", link: "/zh/usage/cross-tool" },
+          { text: "终端 TUI", link: "/zh/usage/tui" },
+          { text: "自定义会话路径", link: "/zh/usage/custom-paths" }
+        ]
+      }
     ]
   },
   {
@@ -25,8 +36,19 @@ const enSidebar = [
     text: "Start",
     items: [
       { text: "Documentation", link: "/en/" },
-      { text: "Usage Guide", link: "/en/usage" },
-      { text: "Concepts", link: "/en/concepts" }
+      { text: "Concepts", link: "/en/concepts" },
+      {
+        text: "Usage Guide",
+        collapsed: false,
+        items: [
+          { text: "Overview & Install", link: "/en/usage" },
+          { text: "Remote Sync", link: "/en/usage/remote-sync" },
+          { text: "Local Migration", link: "/en/usage/local-migration" },
+          { text: "Cross-Tool Transform", link: "/en/usage/cross-tool" },
+          { text: "Terminal TUI", link: "/en/usage/tui" },
+          { text: "Custom Session Roots", link: "/en/usage/custom-paths" }
+        ]
+      }
     ]
   },
   {
