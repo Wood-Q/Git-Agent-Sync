@@ -123,7 +123,7 @@ git agent-sync tui --cn
 
 TUI 可以执行 status、最新 log、pull、push、按编号 restore、同步队列 status/flush/retry/cancel、`clone-local`、`register-local`、`repair-local`、`clean-local` 预览、本机 watch，以及冲突 list/show/diff/resolve。VS Code History 视图里也有 TUI 按钮，会在集成终端打开同一个菜单。
 
-这个终端 UI 使用 React Ink 构建。默认界面是英文，`--cn` 会启用中文界面。操作会分成 Dashboard、Sync Queue、Session History、Local Provider、Tool Convert、Privacy Review、Conflicts 和 Settings 视图。方向键移动，Tab 或右方向键切换视图，`/` 搜索动作，`?` 打开帮助，Enter 执行当前动作；每个动作都会显示等价 CLI，restore、push、隐私 allow-pattern-local、冲突解决和 hook 操作会在执行前二次确认。长时间运行的 provider watch 会交给普通 CLI 命令继续执行。
+这个终端 UI 使用 React Ink 构建，现在是工具箱风格布局。大字标题由 `figlet` 生成，并在终端支持颜色时通过 `gradient-string` 渲染渐变。首页会显示 Agent Sync 终端标题、`Sidecar Sync Toolkit` 和 `Codex Session Toolkit` 两张编号工具箱卡片，以及当前项目的信息框。进入工具箱后，再通过功能页 tabs 和功能域导航切换 Sync / Browse、Queue / Daemon、Privacy / Redact、Conflict / Resolve、Session / Browse、Provider / Clone、Bundle / Transfer、Repair / Maintenance 等功能域。默认界面是英文，`--cn` 会启用中文界面。方向键移动，Enter 或右方向键进入工具箱，Tab 或左右方向键切换功能域，`/` 搜索动作，`?` 打开帮助，Enter 执行当前动作；每个动作都会显示等价 CLI，restore、push、隐私 allow-pattern-local、冲突解决和 hook 操作会在执行前二次确认。长时间运行的 provider watch 会交给普通 CLI 命令继续执行。
 
 ## Conversation IR 与工具导出
 

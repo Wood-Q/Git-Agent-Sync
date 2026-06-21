@@ -23,7 +23,7 @@
 - 支持跨机器、跨操作系统恢复时做项目路径适配
 - 为每次会话快照记录业务项目 branch、`HEAD` commit、dirty 状态和同步说明
 - 支持按 latest/current/branch/commit/bundle id/log index 浏览和恢复会话
-- 提供 React Ink TUI，集中处理 Dashboard、同步队列、会话历史、本机 provider、工具转换、隐私 review、冲突检查和设置流程，并支持 `--cn` 中文界面、搜索、帮助、等价 CLI 展示和高风险动作确认
+- 提供工具箱风格的 React Ink TUI，包含 figlet 生成的渐变大字标题、编号工具箱卡片、功能页 tabs、项目信息框、功能域导航，并支持 `--cn` 中文界面、搜索、帮助、等价 CLI 展示和高风险动作确认
 
 ## 安装
 
@@ -150,7 +150,7 @@ Agent-Sync 把 agent 会话当作“贴着 Git 项目走的本地资料”，而
 | `git agent-sync register-local` | 把 Agent-Sync 本机 provider 克隆注册进本机 Codex UI 索引 |
 | `git agent-sync repair-local` | 修复本机 Codex provider 克隆会话的 UI 注册 |
 | `git agent-sync clean-local [--force]` | 预览或删除当前项目由 Agent-Sync 生成的本机 Codex provider 克隆 |
-| `git agent-sync tui [--cn]` | 打开带远程/本地两级分区的交互式终端 TUI；`--cn` 使用中文界面 |
+| `git agent-sync tui [--cn]` | 打开工具箱风格终端 TUI，入口包含 Sidecar Sync 和 Codex Session 两个工具箱；`--cn` 使用中文界面 |
 | `git agent-sync log [--oneline] [-n <count>\|-<count>] [--json]` | 浏览可恢复会话历史 |
 | `git agent-sync log --latest [--oneline] [-n <count>\|-<count>] [--json]` | 浏览最近一次同步批次 |
 | `git agent-sync log --current [--json]` | 浏览当前业务 commit 对应会话 |

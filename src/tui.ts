@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { stdin as defaultInput, stdout as defaultOutput } from "node:process";
 import { createInterface } from "node:readline/promises";
+import figlet from "figlet";
+import gradient from "gradient-string";
 import React, { useMemo, useState } from "react";
 import { Box, Text, render, useApp, useInput } from "ink";
 
@@ -38,7 +40,10 @@ type TuiCategory = {
   key: string;
   title: string;
   subtitle: string;
+  toolkitTitle: string;
+  toolkitSubtitle: string;
   accent: string;
+  secondaryAccent: string;
 };
 
 type TuiCommandResult = number | {
@@ -53,24 +58,28 @@ type TuiLocale = "en" | "cn";
 const h = React.createElement;
 
 const CN_VIEW_TEXT = {
-  dashboard: { title: "总览", subtitle: "项目扫描、sidecar 同步和快速恢复" },
-  queue: { title: "同步队列", subtitle: "后台任务、daemon 状态和 flush 控制" },
-  history: { title: "会话历史", subtitle: "浏览 bindings，并按可见编号恢复" },
-  local: { title: "本机 Provider", subtitle: "只在本机执行的 Codex provider 克隆和注册" },
-  tool: { title: "工具转换", subtitle: "通过 Conversation IR 检查 bundle" },
-  privacy: { title: "隐私检查", subtitle: "sidecar push 前扫描或脱敏" },
-  conflicts: { title: "冲突处理", subtitle: "查看 sidecar 冲突隔离区和解决状态" },
-  ops: { title: "设置", subtitle: "doctor 检查和 hook 管理" }
+  dashboard: { title: "Sync / Browse", subtitle: "扫描项目、浏览最新 sidecar、拉取或推送会话" },
+  queue: { title: "Queue / Daemon", subtitle: "后台队列、失败重试、daemon 启停" },
+  history: { title: "Session / Browse", subtitle: "浏览 bindings，并按可见编号恢复" },
+  local: { title: "Provider / Clone", subtitle: "本机 Codex provider 克隆、注册和监听" },
+  tool: { title: "Bundle / Transfer", subtitle: "检查 bundle，并转换为 Conversation IR" },
+  privacy: { title: "Privacy / Redact", subtitle: "sidecar push 前扫描、脱敏或显式放行" },
+  conflicts: { title: "Conflict / Resolve", subtitle: "查看 sidecar 冲突隔离区和解决状态" },
+  ops: { title: "Repair / Maintenance", subtitle: "doctor 检查、hook 安装和维护" }
 };
 
 const CN_CATEGORY_TEXT = {
   remote: {
-    title: "远程对话同步",
-    subtitle: "推送、拉取、隐私脱敏、冲突处理和后台守护"
+    title: "Sidecar Sync Toolkit",
+    subtitle: "推送 / 拉取 / 隐私 / 冲突 / 后台守护",
+    toolkitTitle: "SIDECAR SYNC TOOLKIT",
+    toolkitSubtitle: "远程对话同步工具箱"
   },
   local: {
-    title: "本地对话同步",
-    subtitle: "本机 Codex provider、会话历史与跨工具转换"
+    title: "Codex Session Toolkit",
+    subtitle: "克隆 / 浏览 / 导出 / 修复 Codex 会话",
+    toolkitTitle: "CODEX SESSION TOOLKIT",
+    toolkitSubtitle: "Codex 会话工具箱"
   }
 };
 
@@ -204,13 +213,14 @@ const CN_CHOICE_TEXT = {
 
 const EN_COPY = {
   menuTitle(projectName) {
-    return `Agent Sync TUI - ${projectName || "project"}`;
+    return `Agent Sync Kit - ${projectName || "project"}`;
   },
-  hero: "AGENT-SYNC",
-  tagline: "Agent conversation sync platform",
-  homeTitle: "Choose a workspace",
-  homeSubtitle: "Pick remote sync or local sessions to drill in",
-  homeFooter: "Up/Down or A-B / 1-2 select, Enter or Right opens, q exits",
+  hero: "AGENT SYNC",
+  kitLine: "Agent Sync Kit v0.1.4  ·  Unified Agent Conversation Toolbox",
+  tagline: "Session cloning, sidecar transfer, privacy review, and repair",
+  homeTitle: "Choose a toolkit",
+  homeSubtitle: "Pick one function area, then enter its focused toolkit page.",
+  homeFooter: "↑↓ select        Enter / number opens        Esc / q exits",
   homeShortcuts: ["  ↑/↓ or 1-2  Select", "  Enter / →   Open", "  q           Quit"],
   homeHelpLines: [
     "Keyboard",
@@ -221,16 +231,22 @@ const EN_COPY = {
     "  q exits"
   ],
   categoryLabel: "Section",
-  categoriesHeading: "Sections",
-  homeReady: "Ready - choose a section",
-  backHint: "Esc / Backspace returns to home",
-  categoryFooter: "Esc back, ↑↓ actions, ←→/Tab views, / search, ? help, Enter run, q exits",
-  remoteCategoryTitle: "Remote conversation sync",
-  remoteCategorySubtitle: "Push, pull, privacy review, conflicts and background daemon",
-  localCategoryTitle: "Local conversation sync",
-  localCategorySubtitle: "Local Codex provider, session history and tool conversion",
+  categoriesHeading: "Toolkit navigation",
+  homeReady: "Ready - choose a toolkit",
+  backHint: "Esc / Backspace returns to toolkit index",
+  categoryFooter: "Esc back     ↑↓ actions     ←→ / Tab section     / search     Enter run     q exits",
+  remoteCategoryTitle: "Sidecar Sync Toolkit",
+  remoteCategorySubtitle: "Push / pull / privacy / conflicts / daemon",
+  localCategoryTitle: "Codex Session Toolkit",
+  localCategorySubtitle: "Clone / browse / export / repair Codex sessions",
   projectRoot: "Project root",
   store: "Store",
+  project: "Project",
+  sections: "Sections",
+  actions: "Actions",
+  navigation: "Function domain navigation",
+  commandPreview: "Command preview",
+  collapsedNotice: "... terminal height is tight; enlarge the window to see more ...",
   shortcuts: "Shortcuts",
   shortcutLines: ["  /  Search actions", "  ?  Toggle help", "  q  Quit"],
   views: "Views",
@@ -304,13 +320,14 @@ const EN_COPY = {
 const CN_COPY = {
   ...EN_COPY,
   menuTitle(projectName) {
-    return `Agent Sync 中文 TUI - ${projectName || "项目"}`;
+    return `Agent Sync 中文工具箱 - ${projectName || "项目"}`;
   },
-  hero: "AGENT-SYNC",
-  tagline: "全能 Agent 对话同步平台",
-  homeTitle: "选择工作区",
-  homeSubtitle: "先选远程对话同步或本地对话同步，再进入具体动作",
-  homeFooter: "上下方向键或 A-B / 1-2 选择，Enter 或 → 进入，q 退出",
+  hero: "AGENT SYNC",
+  kitLine: "Agent Sync Kit v0.1.4  ·  统一 Agent 对话同步工具箱",
+  tagline: "会话克隆、sidecar 传输、隐私检查和本机修复",
+  homeTitle: "选择工具箱",
+  homeSubtitle: "选择一个功能域，回车进入对应工具页。",
+  homeFooter: "↑↓ 选择        Enter / 数字键 进入        Esc / q 退出",
   homeShortcuts: ["  ↑/↓ 或 1-2  选择", "  Enter / →    进入", "  q            退出"],
   homeHelpLines: [
     "键盘",
@@ -321,16 +338,22 @@ const CN_COPY = {
     "  q 退出"
   ],
   categoryLabel: "分区",
-  categoriesHeading: "分区",
-  homeReady: "就绪 - 请选择分区",
-  backHint: "Esc / Backspace 返回主菜单",
-  categoryFooter: "Esc 返回，↑↓ 选动作，←→/Tab 切换视图，/ 搜索，? 帮助，Enter 执行，q 退出",
-  remoteCategoryTitle: "远程对话同步",
-  remoteCategorySubtitle: "推送、拉取、隐私脱敏、冲突处理与后台守护",
-  localCategoryTitle: "本地对话同步",
-  localCategorySubtitle: "本机 Codex provider、会话历史与跨工具转换",
+  categoriesHeading: "功能域导航",
+  homeReady: "就绪 - 请选择工具箱",
+  backHint: "Esc / Backspace 返回工具箱首页",
+  categoryFooter: "Esc 返回     ↑↓ 选动作     ←→ / Tab 切换分区     / 搜索     Enter 执行     q 退出",
+  remoteCategoryTitle: "Sidecar Sync Toolkit",
+  remoteCategorySubtitle: "推送 / 拉取 / 隐私 / 冲突 / 后台守护",
+  localCategoryTitle: "Codex Session Toolkit",
+  localCategorySubtitle: "克隆 / 浏览 / 导出 / 修复 Codex 会话",
   projectRoot: "项目根目录",
   store: "Sidecar 仓库",
+  project: "项目",
+  sections: "分区",
+  actions: "动作",
+  navigation: "功能域导航",
+  commandPreview: "命令预览",
+  collapsedNotice: "... 窗口高度不足，内容已折叠；可放大终端窗口继续查看 ...",
   shortcuts: "快捷键",
   shortcutLines: ["  /  搜索动作", "  ?  打开/关闭帮助", "  q  退出"],
   views: "视图",
@@ -403,14 +426,14 @@ const CN_COPY = {
 };
 
 const TUI_VIEWS: TuiView[] = [
-  { id: "dashboard", title: "Dashboard", subtitle: "Project scan, sidecar sync, and quick recovery", category: "remote" },
-  { id: "queue", title: "Sync Queue", subtitle: "Background jobs, daemon state, and flush controls", category: "remote" },
-  { id: "privacy", title: "Privacy Review", subtitle: "Scan or redact before sidecar push", category: "remote" },
-  { id: "conflicts", title: "Conflicts", subtitle: "Review sidecar conflict quarantine and resolution state", category: "remote" },
-  { id: "history", title: "Session History", subtitle: "Browse bindings and restore by visible index", category: "local" },
-  { id: "local", title: "Local Provider", subtitle: "Local-only Codex provider cloning and registration", category: "local" },
-  { id: "tool", title: "Tool Convert", subtitle: "Inspect bundles through Conversation IR", category: "local" },
-  { id: "ops", title: "Settings", subtitle: "Doctor checks and hook management", category: "local" }
+  { id: "dashboard", title: "Sync / Browse", subtitle: "Scan the project, browse latest sidecar sessions, pull, push, and restore.", category: "remote" },
+  { id: "queue", title: "Queue / Daemon", subtitle: "Review background jobs, retry failures, flush the queue, and manage the worker.", category: "remote" },
+  { id: "privacy", title: "Privacy / Redact", subtitle: "Scan secrets, preview redaction, add allow patterns, or push with policy.", category: "remote" },
+  { id: "conflicts", title: "Conflict / Resolve", subtitle: "Inspect quarantined conflicts and mark resolution metadata safely.", category: "remote" },
+  { id: "history", title: "Session / Browse", subtitle: "Browse synced bindings and restore one visible log index.", category: "local" },
+  { id: "local", title: "Provider / Clone", subtitle: "Clone Codex sessions into the active provider and register local indexes.", category: "local" },
+  { id: "tool", title: "Bundle / Transfer", subtitle: "Inspect bundles through Conversation IR or export readable JSONL.", category: "local" },
+  { id: "ops", title: "Repair / Maintenance", subtitle: "Run doctor checks and repair local hook or UI registration state.", category: "local" }
 ];
 
 const TUI_CATEGORIES: TuiCategory[] = [
@@ -418,17 +441,23 @@ const TUI_CATEGORIES: TuiCategory[] = [
     id: "remote",
     index: 1,
     key: "A",
-    title: "Remote conversation sync",
-    subtitle: "Push, pull, privacy review, conflicts and background daemon",
-    accent: "cyan"
+    title: "Sidecar Sync Toolkit",
+    subtitle: "Push / pull / privacy / conflicts / background daemon",
+    toolkitTitle: "SIDECAR SYNC TOOLKIT",
+    toolkitSubtitle: "Remote conversation sync toolbox",
+    accent: "cyan",
+    secondaryAccent: "blue"
   },
   {
     id: "local",
     index: 2,
     key: "B",
-    title: "Local conversation sync",
-    subtitle: "Local Codex provider, session history and tool conversion",
-    accent: "blue"
+    title: "Codex Session Toolkit",
+    subtitle: "Clone / browse / export / repair Codex sessions",
+    toolkitTitle: "CODEX SESSION TOOLKIT",
+    toolkitSubtitle: "Local Codex session toolbox",
+    accent: "magenta",
+    secondaryAccent: "cyan"
   }
 ];
 
@@ -708,6 +737,35 @@ export function formatTuiCommand(choice: TuiChoice, prompted = "") {
   return `git agent-sync ${args.map(quoteArg).join(" ")}`;
 }
 
+const FIGLET_FONT = "ANSI Shadow";
+const LOGO_WORDS: Record<"home" | TuiCategoryId, string[]> = {
+  home: ["AGENT", "SYNC"],
+  remote: ["SIDECAR", "SYNC"],
+  local: ["CODEX", "SESSION", "TOOLKIT"]
+};
+
+const LOGO_GRADIENTS: Record<"home" | TuiCategoryId, string[]> = {
+  home: ["#27f8ff", "#0467ff"],
+  remote: ["#27f8ff", "#0467ff"],
+  local: ["#22d3ee", "#f000ff", "#1d4fff"]
+};
+
+function getLogoLines(kind: "home" | TuiCategoryId) {
+  return LOGO_WORDS[kind].flatMap((word, index) => {
+    const lines = figlet.textSync(word, {
+      font: FIGLET_FONT as any,
+      horizontalLayout: "default",
+      verticalLayout: "default"
+    }).split(/\r?\n/).filter((line) => line.trim().length > 0);
+    return index === 0 ? lines : ["", ...lines];
+  });
+}
+
+function gradientLogoLines(kind: "home" | TuiCategoryId) {
+  const paint = gradient(LOGO_GRADIENTS[kind]);
+  return paint.multiline(getLogoLines(kind).join("\n")).split("\n");
+}
+
 export function renderTuiMenu(config, options: Record<string, any> = {}) {
   const locale = normalizeTuiLocale(options);
   const copy = getTuiCopy(locale);
@@ -716,57 +774,96 @@ export function renderTuiMenu(config, options: Record<string, any> = {}) {
   const categoryId = options.categoryId as TuiCategoryId | undefined;
   if (categoryId) {
     const category = categories.find((entry) => entry.id === categoryId);
+    if (!category) {
+      return renderHomeMenu(config, copy, categories);
+    }
     const views = categoryViews.filter((view) => view.category === categoryId);
     const choices = getTuiChoices({ locale });
-    const title = `${copy.hero} - ${category?.title || copy.categoriesHeading}`;
-    const lines = [
-      title,
-      "=".repeat(title.length),
-      category?.subtitle || "",
-      `${copy.projectRoot}: ${config.projectRoot}`,
-      `${copy.store}: ${config.storePath}`,
-      copy.backHint,
-      ""
-    ].filter(Boolean);
-    for (const view of views) {
-      const viewChoices = choices.filter((choice) => choice.view === view.id && !choice.exits);
-      if (!viewChoices.length) {
-        continue;
-      }
-      lines.push(`${view.title} (${copy.categoryLabel}: ${category?.index ?? ""})`);
-      lines.push(`  ${view.subtitle}`);
-      for (const choice of viewChoices) {
-        lines.push(`  ${choice.key.padEnd(2)} ${choice.label}`);
-        lines.push(`     ${formatTuiCommand(choice)}${choice.confirm ? copy.confirmSuffix : ""}`);
-      }
-      lines.push("");
-    }
-    lines.push(copy.shortcuts);
-    lines.push(...copy.shortcutLines);
-    return lines.join("\n");
+    return renderToolkitMenu(config, copy, category, views, choices);
   }
 
-  const title = copy.menuTitle(config.projectName);
+  return renderHomeMenu(config, copy, categories);
+}
+
+function renderHomeMenu(config: Record<string, any>, copy: any, categories: TuiCategory[]) {
   const lines = [
-    title,
-    "=".repeat(title.length),
-    copy.hero,
-    copy.tagline,
+    copy.menuTitle(config.projectName),
     "",
-    `${copy.projectRoot}: ${config.projectRoot}`,
-    `${copy.store}: ${config.storePath}`,
+    ...gradientLogoLines("home"),
+    "",
+    copy.kitLine,
+    copy.tagline,
     "",
     copy.homeTitle,
     copy.homeSubtitle,
     ""
   ];
-  for (const category of categories) {
-    lines.push(`  ${category.index}. ${category.title} [${category.key}]`);
-    lines.push(`     ${category.subtitle}`);
+  for (const [index, category] of categories.entries()) {
+    lines.push(index === 0 ? `› ${menuCardLine(category, true)}` : `  ${menuCardLine(category, false)}`);
+    lines.push(`  ${category.subtitle}`);
     lines.push("");
   }
   lines.push(copy.homeFooter);
+  lines.push("");
+  lines.push(...boxLines("", [
+    `${copy.project}: ${config.projectName || "project"}    ${copy.sections}: ${categories.length}`,
+    `${copy.projectRoot}: ${config.projectRoot}`,
+    `${copy.store}: ${config.storePath}`
+  ], 96));
   return lines.join("\n");
+}
+
+function renderToolkitMenu(config: Record<string, any>, copy: any, category: TuiCategory, views: TuiView[], choices: TuiChoice[]) {
+  const categoryChoices = choices.filter((choice) => views.some((view) => view.id === choice.view) && !choice.exits);
+  const lines = [
+    ...gradientLogoLines(category.id),
+    category.toolkitSubtitle,
+    copy.tagline,
+    copy.homeSubtitle,
+    "",
+    views.map((view, index) => `[${index + 1}] ${view.title}`).join("   "),
+    "",
+    ...boxLines("", [
+      `${copy.project} : ${config.projectName || "project"}    ${copy.sections} : ${views.length}    ${copy.actions} : ${categoryChoices.length}`,
+      `${copy.projectRoot}: ${config.projectRoot}`,
+      `${copy.store}: ${config.storePath}`
+    ], 118),
+    "",
+    ...boxLines(copy.navigation, views.map((view, index) => {
+      const marker = index === 0 ? "›" : " ";
+      return `${marker} [${index + 1}] ${view.title}  ${view.subtitle}`;
+    }), 118),
+    ""
+  ];
+  for (const view of views) {
+    const viewChoices = categoryChoices.filter((choice) => choice.view === view.id);
+    lines.push(`${view.title}`);
+    lines.push(`  ${view.subtitle}`);
+    for (const choice of viewChoices) {
+      lines.push(`  ${choice.key.padEnd(2)} ${choice.label}`);
+      lines.push(`     ${formatTuiCommand(choice)}${choice.confirm ? copy.confirmSuffix : ""}`);
+    }
+    lines.push("");
+  }
+  lines.push(copy.categoryFooter);
+  return lines.join("\n");
+}
+
+function menuCardLine(category: TuiCategory, selected: boolean) {
+  const prefix = selected ? `${category.index}.` : `${category.index}.`;
+  return `${prefix}  ${category.title}`;
+}
+
+function boxLines(title: string, body: string[], width: number) {
+  const innerWidth = Math.max(width - 2, 12);
+  const topTitle = title ? ` ${title} ` : "";
+  const top = `┌${topTitle}${"─".repeat(Math.max(innerWidth - topTitle.length, 0))}┐`;
+  const bottom = `└${"─".repeat(innerWidth)}┘`;
+  return [
+    top,
+    ...body.map((line) => `│ ${line.padEnd(Math.max(innerWidth - 2, 0)).slice(0, Math.max(innerWidth - 2, 0))} │`),
+    bottom
+  ];
 }
 
 export async function runTui(gitRoot, config, options: Record<string, any> = {}) {
@@ -1016,10 +1113,13 @@ function AgentSyncTuiApp({ gitRoot, config, runner, locale }: { gitRoot: string;
   return h(Box, { flexDirection: "column", gap: 1 },
     h(Header, { config, copy, category: screen === "category" ? activeCategory : null }),
     screen === "home"
-      ? h(HomePanel, { categories, activeCategoryIndex, copy })
-      : h(Box, { flexDirection: "row", gap: 2 },
-        h(ViewRail, { activeViewIndex, views, copy, category: activeCategory }),
-        h(ActionPanel, { view: activeView, choices, selectedIndex, running, searchMode, searchQuery, copy, category: activeCategory })
+      ? h(HomePanel, { categories, activeCategoryIndex, copy, config })
+      : h(Box, { flexDirection: "column", gap: 1 },
+        h(ToolkitInfoPanel, { config, copy, category: activeCategory, views, choices: getTuiChoices({ locale }) }),
+        h(Box, { flexDirection: "row", gap: 2 },
+          h(ViewRail, { activeViewIndex, views, copy, category: activeCategory }),
+          h(ActionPanel, { view: activeView, choices, selectedIndex, running, searchMode, searchQuery, copy, category: activeCategory })
+        )
       ),
     showHelp ? h(HelpPanel, { copy, screen }) : null,
     h(StatusPanel, { status, output, promptChoice, promptValue, confirmRequest, searchMode, searchQuery, running, copy, screen })
@@ -1027,22 +1127,36 @@ function AgentSyncTuiApp({ gitRoot, config, runner, locale }: { gitRoot: string;
 }
 
 function Header({ config, copy, category }: { config: Record<string, any>; copy: any; category: TuiCategory | null }) {
-  return h(Box, { borderStyle: "round", borderColor: category?.accent || "cyan", paddingX: 1, flexDirection: "column" },
-    h(Text, { color: "cyan", bold: true }, copy.hero),
-    h(Text, { color: "gray" }, copy.tagline),
-    h(Box, { justifyContent: "space-between" },
-      h(Text, { color: category?.accent || "cyan", bold: true }, category ? category.title : copy.homeTitle),
-      h(Text, { color: "gray" }, config.projectName || "project")
-    ),
-    h(Text, { color: "white" }, `${copy.projectRoot}: ${trimMiddle(config.projectRoot || "", 84)}`),
-    h(Text, { color: "gray" }, `${copy.store}: ${trimMiddle(config.storePath || "", 84)}`)
+  const logoKind = category?.id || "home";
+  const logoLines = getLogoLines(logoKind);
+  const accent = category?.accent || "cyan";
+  const secondaryAccent = category?.secondaryAccent || "blue";
+  const logoColors = LOGO_GRADIENTS[logoKind];
+  return h(Box, { paddingX: 1, flexDirection: "column", alignItems: "center" },
+    h(LogoBlock, { lines: logoLines, colors: logoColors, accent, secondaryAccent }),
+    h(Text, { color: accent as any, bold: true }, category ? category.toolkitSubtitle : copy.kitLine),
+    h(Text, { color: "gray" }, category ? category.subtitle : copy.tagline),
+    h(Text, { color: "gray" }, config.projectName || "project")
   );
 }
 
-function HomePanel({ categories, activeCategoryIndex, copy }: { categories: TuiCategory[]; activeCategoryIndex: number; copy: any }) {
-  return h(Box, { borderStyle: "round", borderColor: "cyan", paddingX: 1, paddingY: 1, flexDirection: "column" },
-    h(Text, { color: "white", bold: true }, copy.homeTitle),
-    h(Text, { color: "gray" }, copy.homeSubtitle),
+function LogoBlock({ lines, colors, accent, secondaryAccent }: { lines: string[]; colors: string[]; accent: string; secondaryAccent: string }) {
+  const inkColors = colors.length ? colors : [accent, secondaryAccent];
+  return h(Box, { flexDirection: "column", alignItems: "center" },
+    ...lines.map((line, index) => h(Text, {
+      key: String(index),
+      color: (inkColors[index % inkColors.length] as any),
+      bold: true
+    }, line))
+  );
+}
+
+function HomePanel({ categories, activeCategoryIndex, copy, config }: { categories: TuiCategory[]; activeCategoryIndex: number; copy: any; config: Record<string, any> }) {
+  return h(Box, { flexDirection: "column", gap: 1 },
+    h(Box, { flexDirection: "column", alignItems: "center" },
+      h(Text, { color: "white", bold: true }, copy.homeTitle),
+      h(Text, { color: "gray" }, copy.homeSubtitle)
+    ),
     h(Box, { flexDirection: "column", marginTop: 1 },
       ...categories.map((category, index) => h(CategoryRow, {
         key: category.id,
@@ -1050,22 +1164,37 @@ function HomePanel({ categories, activeCategoryIndex, copy }: { categories: TuiC
         selected: index === activeCategoryIndex
       }))
     ),
-    h(Box, { marginTop: 1 },
+    h(Box, { borderStyle: "single", borderColor: "gray", paddingX: 1, flexDirection: "column" },
+      h(Text, { color: "gray" }, `${copy.project} : ${config.projectName || "project"}    ${copy.sections} : ${categories.length}`),
+      h(Text, { color: "white" }, `${copy.projectRoot}: ${trimMiddle(config.projectRoot || "", 96)}`),
+      h(Text, { color: "gray" }, `${copy.store}: ${trimMiddle(config.storePath || "", 96)}`)
+    ),
+    h(Box, { justifyContent: "center" },
       h(Text, { color: "gray" }, copy.homeFooter)
     )
   );
 }
 
 function ViewRail({ activeViewIndex, views, copy, category }: { activeViewIndex: number; views: TuiView[]; copy: any; category: TuiCategory }) {
-  return h(Box, { borderStyle: "round", borderColor: "gray", paddingX: 1, flexDirection: "column", width: 26 },
-    h(Text, { color: "gray" }, `${copy.categoryLabel} ${category.index}`),
-    h(Text, { color: category.accent as any, bold: true }, trimMiddle(category.title, 22)),
-    h(Text, { color: "gray" }, copy.views),
+  return h(Box, { borderStyle: "single", borderColor: category.secondaryAccent as any, paddingX: 1, flexDirection: "column", width: 36 },
+    h(Text, { color: "white", bold: true }, copy.navigation),
     ...views.map((view, index) => h(Text, {
       key: view.id,
       color: index === activeViewIndex ? (category.accent as any) : "white",
       bold: index === activeViewIndex
-    }, `${index === activeViewIndex ? ">" : " "} ${view.title}`))
+    }, `${index === activeViewIndex ? "›" : " "} [${index + 1}] ${view.title}`)),
+    h(Box, { marginTop: 1 },
+      h(Text, { color: "gray" }, copy.backHint)
+    )
+  );
+}
+
+function ToolkitInfoPanel({ config, copy, category, views, choices }: { config: Record<string, any>; copy: any; category: TuiCategory; views: TuiView[]; choices: TuiChoice[] }) {
+  const actionCount = choices.filter((choice) => views.some((view) => view.id === choice.view) && !choice.exits).length;
+  return h(Box, { borderStyle: "single", borderColor: category.secondaryAccent as any, paddingX: 1, flexDirection: "column" },
+    h(Text, { color: "gray" }, `${copy.project} : `, h(Text, { color: category.accent as any }, config.projectName || "project"), `    ${copy.sections} : ${views.length}    ${copy.actions} : ${actionCount}`),
+    h(Text, { color: "white" }, `${copy.projectRoot}: ${trimMiddle(config.projectRoot || "", 108)}`),
+    h(Text, { color: "gray" }, `${copy.store}: ${trimMiddle(config.storePath || "", 108)}`)
   );
 }
 
@@ -1088,7 +1217,7 @@ function ActionPanel({
   copy: any;
   category: TuiCategory;
 }) {
-  return h(Box, { borderStyle: "round", borderColor: category.accent as any, paddingX: 1, flexDirection: "column", flexGrow: 1 },
+  return h(Box, { borderStyle: "single", borderColor: category.accent as any, paddingX: 1, flexDirection: "column", flexGrow: 1 },
     h(Box, { flexDirection: "column", marginBottom: 1 },
       h(Text, { color: category.accent as any, bold: true }, view.title),
       h(Text, { color: "gray" }, view.subtitle)
@@ -1110,10 +1239,11 @@ function ActionPanel({
 function CategoryRow({ category, selected }: { category: TuiCategory; selected: boolean }) {
   const color = selected ? "black" : "white";
   const backgroundColor = selected ? category.accent : undefined;
-  return h(Box, { flexDirection: "column", marginBottom: 1, borderStyle: "round", borderColor: selected ? category.accent : "gray", paddingX: 1 },
+  return h(Box, { flexDirection: "column", marginBottom: 1, borderStyle: "single", borderColor: selected ? category.accent : "gray", paddingX: 2, paddingY: 1 },
     h(Box, {},
+      h(Text, { color: selected ? (category.accent as any) : "gray", bold: true }, selected ? "›  " : "   "),
       h(Text, { color, backgroundColor, bold: true }, ` ${category.index}. `),
-      h(Text, { color: selected ? (category.accent as any) : "white", bold: true }, category.title)
+      h(Text, { color: selected ? (category.accent as any) : "gray", bold: true }, ` ${category.title}`)
     ),
     h(Box, { paddingLeft: 4 },
       h(Text, { color: "gray" }, `${category.subtitle} [${category.key}]`)
@@ -1134,7 +1264,7 @@ function ActionRow({ choice, selected, disabled, accent }: { choice: TuiChoice; 
       h(Text, { color: "gray" }, choice.description)
     ),
     h(Box, { paddingLeft: 15 },
-      h(Text, { color: selected ? (accent as any) : "gray" }, formatTuiCommand(choice))
+      h(Text, { color: selected ? (accent as any) : "gray" }, `${formatTuiCommand(choice)}`)
     )
   );
 }

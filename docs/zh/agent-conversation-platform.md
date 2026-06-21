@@ -506,18 +506,18 @@ git agent-sync import-local
 
 TUI 适合使用 React Ink。目标不是把 CLI 命令包一层菜单，而是提供“可视化选择 + 风险确认 + 批量操作”。
 
-当前实现已经把 `git agent-sync tui` 切换为 React Ink 操作台，并支持 `git agent-sync tui --cn` 中文界面：左侧是视图导航，右侧是动作列表，底部显示运行状态、prompt 和命令输出摘要；动作行显示等价 CLI，支持 `/` 搜索和 `?` 帮助，restore / push / privacy allow-pattern-local / conflict resolve / hook 这类高风险动作会二次确认；非 TTY 环境会输出同一套动作和命令的文本菜单，方便测试和脚本环境查看。Local Provider 视图已接入 `clone-local`、`register-local`、`repair-local`、`clean-local` 预览和 `watch-local`；Privacy Review 视图已接入 scan、redact dry-run、push redact、explicit allow 和 allow-pattern-local；Conflicts 视图已接入 `conflicts list/show/diff` 和 keep-all / keep-latest / keep-local / keep-remote 解决策略，作为后续内容级 review UI 的 CLI 一致入口。
+当前实现已经把 `git agent-sync tui` 切换为工具箱风格的 React Ink 操作台，并支持 `git agent-sync tui --cn` 中文界面：首页使用 `figlet` 生成的大字终端标题、`gradient-string` 渐变、编号工具箱卡片和项目信息框，引导用户先进入 `Sidecar Sync Toolkit` 或 `Codex Session Toolkit`；功能页使用大标题、tabs、功能域导航、动作列表和命令预览，底部显示运行状态、prompt 和命令输出摘要。动作行显示等价 CLI，支持 `/` 搜索和 `?` 帮助，restore / push / privacy allow-pattern-local / conflict resolve / hook 这类高风险动作会二次确认；非 TTY 环境会输出同一套工具箱结构和命令文本，方便测试和脚本环境查看。Provider / Clone 功能域已接入 `clone-local`、`register-local`、`repair-local`、`clean-local` 预览和 `watch-local`；Privacy / Redact 功能域已接入 scan、redact dry-run、push redact、explicit allow 和 allow-pattern-local；Conflict / Resolve 功能域已接入 `conflicts list/show/diff` 和 keep-all / keep-latest / keep-local / keep-remote 解决策略，作为后续内容级 review UI 的 CLI 一致入口。
 
 信息架构：
 
-- **Dashboard**：显示当前项目、sidecar remote、最近同步、待处理队列、隐私风险、冲突数量。
-- **Sync Queue**：展示 pending / running / failed / cancelled jobs，可重试、取消、flush。
-- **Session History**：按 latest、current、branch、commit 浏览 bindings，支持恢复、查看详情、筛选 agent。
-- **Local Provider**：显示当前 Codex `model_provider`、可克隆会话、watch 状态、注册状态。
-- **Tool Convert**：选择 Codex / Claude 会话，查看 IR 解析结果，导出为 readable 或 resumable。
-- **Privacy Review**：逐条查看 secret 命中，选择 redact、allow once、allow pattern、skip push；当前已提供 allow-pattern-local 写入入口，后续继续强化逐条命中操作。
-- **Conflicts**：展示跨设备冲突，查看 diff 摘要，选择保留 latest、local、remote 或都保留；生成新 session 仍需目标工具能力进一步约束。
-- **Settings**：配置 sidecar remote、privacy policy、daemon、自定义 agent root。
+- **Sync / Browse**：显示当前项目、sidecar remote、最近同步、待处理队列、隐私风险、冲突数量。
+- **Queue / Daemon**：展示 pending / running / failed / cancelled jobs，可重试、取消、flush。
+- **Session / Browse**：按 latest、current、branch、commit 浏览 bindings，支持恢复、查看详情、筛选 agent。
+- **Provider / Clone**：显示当前 Codex `model_provider`、可克隆会话、watch 状态、注册状态。
+- **Bundle / Transfer**：选择 Codex / Claude 会话，查看 IR 解析结果，导出为 readable 或 resumable。
+- **Privacy / Redact**：逐条查看 secret 命中，选择 redact、allow once、allow pattern、skip push；当前已提供 allow-pattern-local 写入入口，后续继续强化逐条命中操作。
+- **Conflict / Resolve**：展示跨设备冲突，查看 diff 摘要，选择保留 latest、local、remote 或都保留；生成新 session 仍需目标工具能力进一步约束。
+- **Repair / Maintenance**：配置 sidecar remote、privacy policy、daemon、自定义 agent root。
 
 交互要求：
 

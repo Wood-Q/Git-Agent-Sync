@@ -23,7 +23,7 @@ It solves one specific problem: source code can move with `git clone`, but local
 - Adapts restored session paths across machines and operating systems
 - Records the business repo branch, `HEAD` commit, dirty state, and sync message for each snapshot
 - Lets you browse and restore by latest sync, current commit, branch, commit, bundle id, or log index
-- Provides a React Ink TUI for dashboard, sync queue, history, local provider, tool conversion, privacy review, conflicts, and settings workflows, with search, help, equivalent CLI display, Chinese UI via `--cn`, and confirmation for risky actions
+- Provides a React Ink toolbox-style TUI with figlet-generated gradient headers, numbered toolkit cards, section tabs, project info panels, function-domain navigation, search, help, equivalent CLI display, Chinese UI via `--cn`, and confirmation for risky actions
 
 ## Install
 
@@ -148,7 +148,7 @@ Detailed internals live in [Concepts](docs/concepts.md) and [Execution Flow](doc
 | `git agent-sync register-local` | Register Agent-Sync local Codex provider clones in local Codex UI indexes |
 | `git agent-sync repair-local` | Repair local Codex UI registration for provider clones |
 | `git agent-sync clean-local [--force]` | Preview or remove generated local Codex provider clones for the current project |
-| `git agent-sync tui [--cn]` | Open a two-level terminal TUI with remote/local sections for common Agent-Sync operations; `--cn` uses the Chinese UI |
+| `git agent-sync tui [--cn]` | Open the toolbox-style terminal TUI with Sidecar Sync and Codex Session toolkits; `--cn` uses the Chinese UI |
 | `git agent-sync log [--oneline] [-n <count>\|-<count>] [--json]` | Browse restorable session history |
 | `git agent-sync log --latest [--oneline] [-n <count>\|-<count>] [--json]` | Browse sessions from the latest sync batch |
 | `git agent-sync log --current [--json]` | Browse sessions bound to the current business repo commit |
