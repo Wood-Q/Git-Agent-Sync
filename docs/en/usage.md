@@ -121,9 +121,16 @@ git agent-sync tui
 git agent-sync tui --cn
 ```
 
-The TUI can run status, latest log, pull, push, restore by index, sync queue status/flush/retry/cancel, `clone-local`, `register-local`, `repair-local`, `clean-local` preview, local watch actions, and conflict list/show/diff/resolve commands. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
+The TUI is a native single-key fullscreen toolbox organized into three workspaces along the four capability tracks:
 
-The terminal UI is built with React Ink and now uses a toolbox-style layout. Large headers are generated with `figlet` and colored through `gradient-string` when the terminal supports color. The home screen shows the Agent Sync terminal header, numbered cards for `Sidecar Sync Toolkit` and `Codex Session Toolkit`, and a project info panel. Enter a toolkit first, then use the function-page tabs and navigation panel, such as Sync / Browse, Queue / Daemon, Privacy / Redact, Conflict / Resolve, Session / Browse, Provider / Clone, Bundle / Transfer, and Repair / Maintenance. Use `--cn` to launch the Chinese interface. Use arrow keys to move, Enter or the right arrow to enter a toolkit, Tab or left/right to switch function domains, `/` to search actions, `?` for help, and Enter to run the selected action. Each action shows its equivalent CLI command, and restore/push/privacy allow-pattern-local/conflict-resolution/hook actions ask for confirmation before running. Long-running provider watch hands off to the normal CLI command.
+- **Remote Sync**: `push`, `pull`, `restore` (with a session browser), `log`, `init`, `install-hooks`
+- **Local Transfer**: `clone-local`, `register-local`, `watch-local`, and bundle migration to Claude/Codex JSONL
+- **Doctor**: `doctor` health check and session `status`
+
+Large headers are generated with `figlet` and colored through `gradient-string` when the terminal supports color. Use `↑/↓` to move, `Enter` to run, hotkeys to jump, `q` to go back, `→/Tab` to switch workspaces, and `h` for help. `log` and `restore` open a session browser that lists every synced session with its number, so you never guess an index — `restore` confirms and restores the picked index. Write actions (push, init, install-hooks, restore) ask for confirmation before running. English by default, `--cn` for Chinese. The VS Code History view's TUI button opens the same menu in an integrated terminal.
+
+For finer-grained capabilities like the sync queue, daemon, privacy scanning, or conflict resolution, use the matching CLI subcommands directly.
+
 
 ## Conversation IR and Tool Export
 

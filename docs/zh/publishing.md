@@ -51,37 +51,37 @@ npm 包只包含 `bin/`、`src/`、根目录 README 和 `LICENSE`；文档站点
 
 ## VS Code 插件
 
-已发布插件：
+扩展元数据（`extensions/vscode/package.json`）：
 
 - 扩展包名：`agent-sync-vscode`
 - Marketplace 显示名：`Git Agent Sync`
-- 当前插件版本：`0.1.3`
+- 版本：跟随 `extensions/vscode/package.json` 的 `version`（与 CLI 同步发版）
 - Publisher：`mokio`
 - 扩展 ID：`mokio.agent-sync-vscode`
-- Marketplace：`https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode`
 - GitHub 仓库：`https://github.com/Wood-Q/Git-Agent-Sync`
 
 插件默认调用用户 `PATH` 里的 `agent-sync` CLI。Windows 下还会检查常见 npm 全局安装目录，并支持 npm 生成的 `agent-sync.cmd` shim。如果 CLI 安装在其他位置，用户可以通过 `agentSync.cliPath` 配置。
 
-CI 通过 `.github/workflows/release-vscode.yml` 发布。先在 GitHub 仓库里配置 `VSCE_PAT` secret，并确保它对 publisher `mokio` 有 Marketplace 发布权限；之后可以手动运行 workflow，或者在插件版本提交合入 `main` 后推送 VS Code release tag：
+> **当前发布状态**：VS Code 扩展**暂不通过 CI 自动发布到 Marketplace**（Marketplace 发布需要注册 Microsoft 组织并绑定支付方式）。下面的手动流程仍然可用——本地打包成 `.vsix` 后可以侧载安装（`code --install-extension agent-sync-vscode.vsix`），或在你完成 Microsoft 发布者注册后再用 `vsce publish` 推送。
 
-```bash
-git tag vscode-v0.1.4
-git push origin vscode-v0.1.4
-```
-
-手动发版时，先提升 `extensions/vscode/package.json` 里的 `version`，再打包发布：
+手动打包时，先提升 `extensions/vscode/package.json` 里的 `version`，再编译打包：
 
 ```bash
 cd extensions/vscode
 npm ci
 npm run compile
-npx vsce package --no-dependencies
+npx vsce package --no-dependencies      # 产出 agent-sync-vscode-<version>.vsix
+code --install-extension agent-sync-vscode-<version>.vsix   # 本地侧载
+```
+
+如果之后要正式发布到 Marketplace，需要先完成 Microsoft 发布者注册并登录：
+
+```bash
 npx vsce login mokio
 npx vsce publish
 ```
 
-已经发布到 Marketplace 的版本不能覆盖。修改 `displayName`、`icon`、README、命令、配置或代码后，需要提升 `extensions/vscode/package.json` 里的 `version`，再发布新版本。
+已经发布到 Marketplace 的版本不能覆盖。修改 `displayName`、`icon`、README、命令、配置或代码后，需要提升 `extensions/vscode/package.json` 里的 `version`，再发布或重新打包新版本。
 
 ## 公开发布前隐私检查
 

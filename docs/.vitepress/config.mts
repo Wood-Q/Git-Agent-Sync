@@ -33,6 +33,7 @@ const enSidebar = [
     text: "Details",
     items: [
       { text: "Execution Flow", link: "/en/execution-flow" },
+      { text: "Platform Roadmap", link: "/en/agent-conversation-platform" },
       { text: "Development", link: "/en/development" },
       { text: "Release and Publishing", link: "/en/publishing" }
     ]

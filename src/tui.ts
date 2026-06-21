@@ -1,10 +1,24 @@
 import { spawnSync } from "node:child_process";
 import { stdin as defaultInput, stdout as defaultOutput } from "node:process";
-import { createInterface } from "node:readline/promises";
 import figlet from "figlet";
 import gradient from "gradient-string";
-import React, { useMemo, useState } from "react";
-import { Box, Text, render, useApp, useInput } from "ink";
+
+// ---------------------------------------------------------------------------
+// Agent-Sync TUI
+//
+// A small raw-terminal, full-screen, single-key toolkit that mirrors the
+// interaction model of the codex-session-cloner TUI: a home screen of
+// workspace tabs, a flat hotkey action list per workspace, and modal action
+// screens that run a single `git agent-sync ...` command and wait for Enter.
+//
+// Two entry shapes share the same data model:
+//   * runTui({ io })         — deterministic readline prompt flow (tests)
+//   * runTui() on a real TTY — raw full-screen single-key experience
+// On a non-TTY stdout we just print the rendered menu string and return.
+// ---------------------------------------------------------------------------
+
+type TuiLocale = "en" | "cn";
+type TuiCategoryId = "remote" | "local" | "doctor";
 
 type TuiPrompt = {
   label: string;
@@ -14,24 +28,23 @@ type TuiPrompt = {
 
 type TuiChoice = {
   key: string;
+  category: TuiCategoryId;
+  badge: string;
   label: string;
   description: string;
   args: string[];
-  view: string;
-  badge: string;
   prompt?: TuiPrompt;
-  exits?: boolean;
-  handoff?: boolean;
+  // When set, the prompted value is appended as `<promptSuffix> <value>`
+  // instead of a bare positional arg, and an empty answer is allowed.
+  promptSuffix?: string;
+  // When set, the action first opens a session browser (sourced from
+  // `log --latest --json`) instead of running its command immediately.
+  //   "log"     — browse then return
+  //   "restore" — browse, pick a number, then restore that index
+  browser?: "log" | "restore";
   confirm?: string;
-};
-
-type TuiCategoryId = "remote" | "local";
-
-type TuiView = {
-  id: string;
-  title: string;
-  subtitle: string;
-  category: TuiCategoryId;
+  handoff?: boolean;
+  exits?: boolean;
 };
 
 type TuiCategory = {
@@ -41,9 +54,7 @@ type TuiCategory = {
   title: string;
   subtitle: string;
   toolkitTitle: string;
-  toolkitSubtitle: string;
-  accent: string;
-  secondaryAccent: string;
+  accent: "cyan" | "magenta" | "green";
 };
 
 type TuiCommandResult = number | {
@@ -53,656 +64,258 @@ type TuiCommandResult = number | {
 };
 
 type TuiRunner = (args: string[], cwd: string) => TuiCommandResult | Promise<TuiCommandResult>;
-type TuiLocale = "en" | "cn";
 
-const h = React.createElement;
-
-const CN_VIEW_TEXT = {
-  dashboard: { title: "Sync / Browse", subtitle: "扫描项目、浏览最新 sidecar、拉取或推送会话" },
-  queue: { title: "Queue / Daemon", subtitle: "后台队列、失败重试、daemon 启停" },
-  history: { title: "Session / Browse", subtitle: "浏览 bindings，并按可见编号恢复" },
-  local: { title: "Provider / Clone", subtitle: "本机 Codex provider 克隆、注册和监听" },
-  tool: { title: "Bundle / Transfer", subtitle: "检查 bundle，并转换为 Conversation IR" },
-  privacy: { title: "Privacy / Redact", subtitle: "sidecar push 前扫描、脱敏或显式放行" },
-  conflicts: { title: "Conflict / Resolve", subtitle: "查看 sidecar 冲突隔离区和解决状态" },
-  ops: { title: "Repair / Maintenance", subtitle: "doctor 检查、hook 安装和维护" }
-};
-
-const CN_CATEGORY_TEXT = {
-  remote: {
-    title: "Sidecar Sync Toolkit",
-    subtitle: "推送 / 拉取 / 隐私 / 冲突 / 后台守护",
-    toolkitTitle: "SIDECAR SYNC TOOLKIT",
-    toolkitSubtitle: "远程对话同步工具箱"
-  },
-  local: {
-    title: "Codex Session Toolkit",
-    subtitle: "克隆 / 浏览 / 导出 / 修复 Codex 会话",
-    toolkitTitle: "CODEX SESSION TOOLKIT",
-    toolkitSubtitle: "Codex 会话工具箱"
-  }
-};
-
-const CN_CHOICE_TEXT = {
-  "dashboard:1": { badge: "扫描", label: "状态 / 扫描本机会话", description: "刷新当前项目的会话匹配状态。" },
-  "dashboard:2": { badge: "日志", label: "查看最新 sidecar 会话", description: "显示最近同步的对话。" },
-  "dashboard:3": { badge: "拉取", label: "拉取 sidecar 会话", description: "获取并准备可恢复的 sidecar bundle。" },
-  "dashboard:4": { badge: "推送", label: "推送 sidecar 会话", description: "带隐私 review 快照当前项目会话。", confirm: "要把当前项目的 agent 会话推送到 sidecar store 吗？" },
-  "dashboard:5": {
-    badge: "恢复",
-    label: "按默认日志编号恢复",
-    description: "恢复 agent-sync log 中显示的编号项。",
-    prompt: { label: "恢复编号", placeholder: "输入 agent-sync log 中显示的编号" },
-    confirm: "要把这个会话恢复到本机 agent 历史吗？"
-  },
-  "queue:8": { badge: "队列", label: "查看同步队列状态", description: "查看 pending、running、done、failed 和 cancelled 任务。" },
-  "queue:9": { badge: "队列", label: "加入后台同步队列", description: "把 sidecar push 入队并启动 worker。" },
-  "queue:f": { badge: "执行", label: "立即 flush 队列", description: "在当前终端处理队列任务。" },
-  "queue:u": {
-    badge: "重试",
-    label: "重试失败队列任务",
-    description: "把 failed 或 cancelled 同步任务放回 pending。",
-    prompt: { label: "任务 id 或 all", placeholder: "输入任务 id 前缀或 all" }
-  },
-  "queue:K": {
-    badge: "取消",
-    label: "取消 pending 队列任务",
-    description: "把匹配的 pending 任务移到 cancelled，不中断 running 任务。",
-    prompt: { label: "任务 id 或 all", placeholder: "输入任务 id 前缀或 all" },
-    confirm: "要取消匹配的 pending 同步任务吗？"
-  },
-  "queue:d": { badge: "守护", label: "查看 daemon 状态", description: "读取本机 worker 状态文件。" },
-  "queue:b": { badge: "守护", label: "启动 daemon", description: "启动后台 worker 循环。" },
-  "queue:k": { badge: "守护", label: "停止 daemon", description: "请求本机 worker 停止。" },
-  "history:l": { badge: "日志", label: "查看最新 bindings", description: "用稳定编号浏览最近一次同步批次。" },
-  "history:c": { badge: "HEAD", label: "查看当前 commit bindings", description: "浏览绑定到当前 commit 的会话。" },
-  "history:s": {
-    badge: "详情",
-    label: "查看 bundle 详情",
-    description: "只检查一个 sidecar bundle，不恢复。",
-    prompt: { label: "Bundle id", placeholder: "粘贴 log 中的 bundle id" }
-  },
-  "history:r": {
-    badge: "恢复",
-    label: "按日志编号恢复",
-    description: "把选中的历史项恢复到本机。",
-    prompt: { label: "恢复编号", placeholder: "输入可见日志编号" },
-    confirm: "要把这个会话恢复到本机 agent 历史吗？"
-  },
-  "local:6": { badge: "本机", label: "克隆 Codex 会话到当前 provider", description: "把当前项目 Codex 会话复制到活跃 provider 下。" },
-  "local:n": { badge: "索引", label: "注册本机 provider 克隆", description: "把 Agent-Sync provider 克隆加入本机 Codex 索引。" },
-  "local:7": { badge: "修复", label: "修复本机 Codex UI 注册", description: "重新注册 Agent-Sync provider 克隆。" },
-  "local:z": { badge: "清理", label: "预览本机克隆清理", description: "列出 clean-local --force 会删除的 provider 克隆。" },
-  "local:o": { badge: "监听", label: "检查一次 provider 变化", description: "执行一次本机 provider watch 检查。" },
-  "local:w": { badge: "监听", label: "监听 Codex provider 变化", description: "交给长时间运行的本机 watch 命令。" },
-  "tool:i": {
-    badge: "IR",
-    label: "用 IR 摘要检查 bundle",
-    description: "汇总来源 agent、标题、事件和工具调用。",
-    prompt: { label: "Bundle id", placeholder: "粘贴已同步的 bundle id" }
-  },
-  "tool:v": {
-    badge: "IR",
-    label: "转换 bundle 为 Conversation IR",
-    description: "输出统一消息、工具调用、provenance 和依赖。",
-    prompt: { label: "Bundle id", placeholder: "粘贴已同步的 bundle id" }
-  },
-  "tool:e": {
-    badge: "可读",
-    label: "导出可读 Claude JSONL",
-    description: "从 IR 写出跨工具可读 JSONL。",
-    prompt: { label: "Bundle id", placeholder: "粘贴已同步的 bundle id" }
-  },
-  "privacy:p": { badge: "扫描", label: "隐私扫描", description: "查找常见 token、private key 和 secret 赋值。" },
-  "privacy:y": { badge: "预览", label: "预览脱敏", description: "只显示脱敏会改什么，不写文件。" },
-  "privacy:P": {
-    badge: "允许",
-    label: "添加隐私 allow pattern",
-    description: "把确认过的误报正则写入 .agent-sync/privacy.json。",
-    prompt: { label: "Name=regex", placeholder: "documented_example=sk-example-[a-z]+" },
-    confirm: "要把这条隐私 allow pattern 加到本地策略吗？"
-  },
-  "privacy:R": { badge: "脱敏", label: "脱敏后推送", description: "写入脱敏 sidecar 副本并 push。", confirm: "要写入脱敏 sidecar 副本并推送吗？" },
-  "privacy:A": { badge: "放行", label: "显式放行后推送", description: "本次 push 绕过隐私阻断。", confirm: "要绕过隐私阻断，不脱敏直接推送吗？" },
-  "conflicts:g": { badge: "列表", label: "列出 active 冲突", description: "显示隔离的 session object 冲突。" },
-  "conflicts:m": {
-    badge: "详情",
-    label: "查看冲突详情",
-    description: "检查 object hash、event shard、机器和 bundle 信息。",
-    prompt: { label: "冲突 id 或编号", placeholder: "输入冲突 id 或可见列表编号" }
-  },
-  "conflicts:D": {
-    badge: "DIFF",
-    label: "查看冲突 diff 摘要",
-    description: "比较隔离对象大小和首个差异行，不打印原始内容。",
-    prompt: { label: "冲突 id 或编号", placeholder: "输入冲突 id 或可见列表编号" }
-  },
-  "conflicts:j": {
-    badge: "解决",
-    label: "保留全部并标记冲突已解决",
-    description: "只标记冲突已处理，不删除任何对象。",
-    prompt: { label: "冲突 id 或编号", placeholder: "输入冲突 id 或可见列表编号" },
-    confirm: "要在不删除对象的情况下标记这个冲突已解决吗？"
-  },
-  "conflicts:J": {
-    badge: "最新",
-    label: "保留 latest 并标记冲突已解决",
-    description: "把 latest object 标记为偏好的解决元数据。",
-    prompt: { label: "冲突 id 或编号", placeholder: "输入冲突 id 或可见列表编号" },
-    confirm: "要用 keep-latest 标记这个冲突已解决吗？"
-  },
-  "conflicts:O": {
-    badge: "本机",
-    label: "保留 local 并标记冲突已解决",
-    description: "把 local object 标记为偏好的解决元数据。",
-    prompt: { label: "冲突 id 或编号", placeholder: "输入冲突 id 或可见列表编号" },
-    confirm: "要用 keep-local 标记这个冲突已解决吗？"
-  },
-  "conflicts:E": {
-    badge: "远端",
-    label: "保留 remote 并标记冲突已解决",
-    description: "把 remote object 标记为偏好的解决元数据。",
-    prompt: { label: "冲突 id 或编号", placeholder: "输入冲突 id 或可见列表编号" },
-    confirm: "要用 keep-remote 标记这个冲突已解决吗？"
-  },
-  "ops:x": { badge: "检查", label: "运行 doctor", description: "检查配置、sidecar store、sparse checkout 和 bindings。" },
-  "ops:H": { badge: "HOOK", label: "安装 pre-push hook", description: "git push 时把 Agent-Sync 任务加入后台队列。", confirm: "要在这个仓库安装 Agent-Sync 管理的 pre-push hook 吗？" },
-  "ops:U": { badge: "HOOK", label: "卸载 pre-push hook", description: "移除 Agent-Sync 管理的 hook。", confirm: "要从这个仓库移除 Agent-Sync 管理的 pre-push hook 吗？" },
-  "dashboard:q": { badge: "退出", label: "退出", description: "关闭 TUI。" }
-};
-
-const EN_COPY = {
-  menuTitle(projectName) {
-    return `Agent Sync Kit - ${projectName || "project"}`;
-  },
-  hero: "AGENT SYNC",
-  kitLine: "Agent Sync Kit v0.1.4  ·  Unified Agent Conversation Toolbox",
-  tagline: "Session cloning, sidecar transfer, privacy review, and repair",
-  homeTitle: "Choose a toolkit",
-  homeSubtitle: "Pick one function area, then enter its focused toolkit page.",
-  homeFooter: "↑↓ select        Enter / number opens        Esc / q exits",
-  homeShortcuts: ["  ↑/↓ or 1-2  Select", "  Enter / →   Open", "  q           Quit"],
-  homeHelpLines: [
-    "Keyboard",
-    "  Up/Down moves between sections",
-    "  Enter or Right opens the selected section",
-    "  1/2 or A/B jumps directly into a section",
-    "  ? toggles this help",
-    "  q exits"
-  ],
-  categoryLabel: "Section",
-  categoriesHeading: "Toolkit navigation",
-  homeReady: "Ready - choose a toolkit",
-  backHint: "Esc / Backspace returns to toolkit index",
-  categoryFooter: "Esc back     ↑↓ actions     ←→ / Tab section     / search     Enter run     q exits",
-  remoteCategoryTitle: "Sidecar Sync Toolkit",
-  remoteCategorySubtitle: "Push / pull / privacy / conflicts / daemon",
-  localCategoryTitle: "Codex Session Toolkit",
-  localCategorySubtitle: "Clone / browse / export / repair Codex sessions",
-  projectRoot: "Project root",
-  store: "Store",
-  project: "Project",
-  sections: "Sections",
-  actions: "Actions",
-  navigation: "Function domain navigation",
-  commandPreview: "Command preview",
-  collapsedNotice: "... terminal height is tight; enlarge the window to see more ...",
-  shortcuts: "Shortcuts",
-  shortcutLines: ["  /  Search actions", "  ?  Toggle help", "  q  Quit"],
-  views: "Views",
-  footerIdle: "Arrows select, / searches, ? help, Enter runs, Tab switches views, q exits.",
-  searchInline(query) {
-    return `Search: ${query || "(type to filter)"}`;
-  },
-  noActions(query) {
-    return query ? `No actions match "${query}".` : "No actions in this view.";
-  },
-  helpLines: [
-    "Keyboard",
-    "  Left/Right or Tab switches views",
-    "  Up/Down moves through actions",
-    "  Enter runs the selected action",
-    "  / filters actions in the current view",
-    "  ? toggles this help",
-    "  y/n answers confirmation prompts",
-    "  q exits"
-  ],
-  ready: "Ready",
-  actionCancelled: "Action cancelled",
-  confirmHint: "Press y to confirm or n to cancel",
-  searchCleared: "Search cleared",
-  searchClosed: "Search closed",
-  filteredBy(query) {
-    return `Filtered by "${query}"`;
-  },
-  promptCancelled: "Prompt cancelled",
-  valueRequired(label) {
-    return `${label || "Value"} is required`;
-  },
-  searchActions: "Search actions",
-  confirmationRequired: "Confirmation required",
-  confirmationOutput(confirm, command) {
-    return `${confirm}\n${command}\nPress y to confirm or n to cancel.`;
-  },
-  runningCommand(args) {
-    return `Running git agent-sync ${args.join(" ")}`;
-  },
-  handingOff: "Handing off to long-running command",
-  commandCompleted: "Command completed",
-  commandExited(status) {
-    return `Command exited with status ${status}`;
-  },
-  commandFailed: "Command failed",
-  emptyOutput: "(command completed without output)",
-  running: "Running",
-  confirm: "Confirm",
-  status: "Status",
-  search: "Search",
-  searchPlaceholder: "type to filter actions",
-  selectCategory: "Select a section",
-  selectAction: "Select an action",
-  selectActionWithHome: "Select an action (or type home)",
-  unknownSelection: "Unknown selection.",
-  unknownCategory: "Unknown section.",
-  bye: "Bye.",
-  commandLabel: "Command",
-  confirmQuestion(confirm) {
-    return `${confirm} Type y to continue: `;
-  },
-  cancelled: "Cancelled.",
-  pressEnter: "Press Enter to return to the menu.",
-  commandExitedLine(status) {
-    return `Command exited with status ${status}.`;
-  },
-  confirmSuffix: " [confirm]"
-};
-
-const CN_COPY = {
-  ...EN_COPY,
-  menuTitle(projectName) {
-    return `Agent Sync 中文工具箱 - ${projectName || "项目"}`;
-  },
-  hero: "AGENT SYNC",
-  kitLine: "Agent Sync Kit v0.1.4  ·  统一 Agent 对话同步工具箱",
-  tagline: "会话克隆、sidecar 传输、隐私检查和本机修复",
-  homeTitle: "选择工具箱",
-  homeSubtitle: "选择一个功能域，回车进入对应工具页。",
-  homeFooter: "↑↓ 选择        Enter / 数字键 进入        Esc / q 退出",
-  homeShortcuts: ["  ↑/↓ 或 1-2  选择", "  Enter / →    进入", "  q            退出"],
-  homeHelpLines: [
-    "键盘",
-    "  上/下方向键切换分区",
-    "  Enter 或右方向键进入当前分区",
-    "  1/2 或 A/B 直接进入分区",
-    "  ? 打开或关闭帮助",
-    "  q 退出"
-  ],
-  categoryLabel: "分区",
-  categoriesHeading: "功能域导航",
-  homeReady: "就绪 - 请选择工具箱",
-  backHint: "Esc / Backspace 返回工具箱首页",
-  categoryFooter: "Esc 返回     ↑↓ 选动作     ←→ / Tab 切换分区     / 搜索     Enter 执行     q 退出",
-  remoteCategoryTitle: "Sidecar Sync Toolkit",
-  remoteCategorySubtitle: "推送 / 拉取 / 隐私 / 冲突 / 后台守护",
-  localCategoryTitle: "Codex Session Toolkit",
-  localCategorySubtitle: "克隆 / 浏览 / 导出 / 修复 Codex 会话",
-  projectRoot: "项目根目录",
-  store: "Sidecar 仓库",
-  project: "项目",
-  sections: "分区",
-  actions: "动作",
-  navigation: "功能域导航",
-  commandPreview: "命令预览",
-  collapsedNotice: "... 窗口高度不足，内容已折叠；可放大终端窗口继续查看 ...",
-  shortcuts: "快捷键",
-  shortcutLines: ["  /  搜索动作", "  ?  打开/关闭帮助", "  q  退出"],
-  views: "视图",
-  footerIdle: "方向键选择，/ 搜索，? 帮助，Enter 执行，Tab 切换视图，q 退出。",
-  searchInline(query) {
-    return `搜索：${query || "输入关键词筛选"}`;
-  },
-  noActions(query) {
-    return query ? `没有动作匹配“${query}”。` : "这个视图里没有动作。";
-  },
-  helpLines: [
-    "键盘",
-    "  左/右方向键或 Tab 切换视图",
-    "  上/下方向键移动动作",
-    "  Enter 执行当前动作",
-    "  / 筛选当前视图动作",
-    "  ? 打开或关闭帮助",
-    "  y/n 回答确认提示",
-    "  Esc / Backspace 返回主菜单",
-    "  q 退出"
-  ],
-  selectCategory: "选择分区（输入 1 或 2）：",
-  unknownCategory: "未知分区。",
-  ready: "就绪",
-  actionCancelled: "操作已取消",
-  confirmHint: "按 y 确认，按 n 取消",
-  searchCleared: "搜索已清空",
-  searchClosed: "搜索已关闭",
-  filteredBy(query) {
-    return `已按“${query}”筛选`;
-  },
-  promptCancelled: "输入已取消",
-  valueRequired(label) {
-    return `${label || "值"}不能为空`;
-  },
-  searchActions: "搜索动作",
-  confirmationRequired: "需要确认",
-  confirmationOutput(confirm, command) {
-    return `${confirm}\n${command}\n按 y 确认，按 n 取消。`;
-  },
-  runningCommand(args) {
-    return `正在运行 git agent-sync ${args.join(" ")}`;
-  },
-  handingOff: "已交给长时间运行命令",
-  commandCompleted: "命令已完成",
-  commandExited(status) {
-    return `命令退出，状态码 ${status}`;
-  },
-  commandFailed: "命令失败",
-  emptyOutput: "（命令完成，无输出）",
-  running: "运行中",
-  confirm: "确认",
-  status: "状态",
-  search: "搜索",
-  searchPlaceholder: "输入关键词筛选动作",
-  selectAction: "选择一个动作",
-  selectActionWithHome: "选择一个动作（输入 home 返回主菜单）",
-  unknownSelection: "未知选择。",
-  bye: "再见。",
-  commandLabel: "命令",
-  confirmQuestion(confirm) {
-    return `${confirm} 输入 y 继续：`;
-  },
-  cancelled: "已取消。",
-  pressEnter: "按 Enter 返回菜单。",
-  commandExitedLine(status) {
-    return `命令退出，状态码 ${status}。`;
-  },
-  confirmSuffix: " [需确认]"
-};
-
-const TUI_VIEWS: TuiView[] = [
-  { id: "dashboard", title: "Sync / Browse", subtitle: "Scan the project, browse latest sidecar sessions, pull, push, and restore.", category: "remote" },
-  { id: "queue", title: "Queue / Daemon", subtitle: "Review background jobs, retry failures, flush the queue, and manage the worker.", category: "remote" },
-  { id: "privacy", title: "Privacy / Redact", subtitle: "Scan secrets, preview redaction, add allow patterns, or push with policy.", category: "remote" },
-  { id: "conflicts", title: "Conflict / Resolve", subtitle: "Inspect quarantined conflicts and mark resolution metadata safely.", category: "remote" },
-  { id: "history", title: "Session / Browse", subtitle: "Browse synced bindings and restore one visible log index.", category: "local" },
-  { id: "local", title: "Provider / Clone", subtitle: "Clone Codex sessions into the active provider and register local indexes.", category: "local" },
-  { id: "tool", title: "Bundle / Transfer", subtitle: "Inspect bundles through Conversation IR or export readable JSONL.", category: "local" },
-  { id: "ops", title: "Repair / Maintenance", subtitle: "Run doctor checks and repair local hook or UI registration state.", category: "local" }
-];
+// ---------------------------------------------------------------------------
+// Data: workspaces + actions
+// ---------------------------------------------------------------------------
 
 const TUI_CATEGORIES: TuiCategory[] = [
   {
     id: "remote",
     index: 1,
-    key: "A",
-    title: "Sidecar Sync Toolkit",
-    subtitle: "Push / pull / privacy / conflicts / background daemon",
-    toolkitTitle: "SIDECAR SYNC TOOLKIT",
-    toolkitSubtitle: "Remote conversation sync toolbox",
-    accent: "cyan",
-    secondaryAccent: "blue"
+    key: "1",
+    title: "Remote Sync",
+    subtitle: "Push, pull, restore, log, init, and hooks through the sidecar store.",
+    toolkitTitle: "REMOTE SYNC",
+    accent: "cyan"
   },
   {
     id: "local",
     index: 2,
-    key: "B",
-    title: "Codex Session Toolkit",
-    subtitle: "Clone / browse / export / repair Codex sessions",
-    toolkitTitle: "CODEX SESSION TOOLKIT",
-    toolkitSubtitle: "Local Codex session toolbox",
-    accent: "magenta",
-    secondaryAccent: "cyan"
+    key: "2",
+    title: "Local Transfer",
+    subtitle: "Codex/Claude migration, provider clone, and watch mode.",
+    toolkitTitle: "LOCAL TRANSFER",
+    accent: "magenta"
+  },
+  {
+    id: "doctor",
+    index: 3,
+    key: "3",
+    title: "Doctor",
+    subtitle: "Health checks and current session match status.",
+    toolkitTitle: "DOCTOR",
+    accent: "green"
   }
 ];
 
 const MENU_CHOICES: TuiChoice[] = [
-  { key: "1", view: "dashboard", badge: "SCAN", label: "Status / scan local sessions", description: "Refresh current project match status.", args: ["status"] },
-  { key: "2", view: "dashboard", badge: "LOG", label: "Log latest sidecar sessions", description: "Show the newest synced conversations.", args: ["log", "--latest", "--oneline", "-10"] },
-  { key: "3", view: "dashboard", badge: "PULL", label: "Pull sidecar sessions", description: "Fetch and prepare restorable sidecar bundles.", args: ["pull"] },
-  { key: "4", view: "dashboard", badge: "PUSH", label: "Push sidecar sessions", description: "Snapshot matched sessions with privacy review.", args: ["push"], confirm: "Push current-project agent sessions to the sidecar store?" },
+  // --- remote -------------------------------------------------------------
   {
-    key: "5",
-    view: "dashboard",
-    badge: "RESTORE",
-    label: "Restore by default log index",
-    description: "Restore the numbered entry shown by agent-sync log.",
-    args: ["restore", "--index"],
-    prompt: {
-      label: "Restore index",
-      placeholder: "Enter the # shown by agent-sync log"
-    },
-    confirm: "Restore this session into the local agent history?"
-  },
-  { key: "8", view: "queue", badge: "QUEUE", label: "Show sync queue status", description: "Inspect pending, running, done, and failed jobs.", args: ["sync", "status"] },
-  { key: "9", view: "queue", badge: "QUEUE", label: "Queue background sync", description: "Enqueue a sidecar push and start the worker.", args: ["sync", "--background"] },
-  { key: "f", view: "queue", badge: "FLUSH", label: "Flush queue now", description: "Process queued sync jobs in this terminal.", args: ["sync", "--flush"] },
-  {
-    key: "u",
-    view: "queue",
-    badge: "RETRY",
-    label: "Retry failed queue jobs",
-    description: "Move failed or cancelled sync jobs back to pending.",
-    args: ["sync", "retry"],
-    prompt: {
-      label: "Job id or all",
-      placeholder: "Enter a job id prefix or all"
-    }
+    key: "p",
+    category: "remote",
+    badge: "PUSH",
+    label: "Push sessions",
+    description: "Snapshot matched sessions into the sidecar store.",
+    args: ["push"],
+    confirm: "Push current-project agent sessions to the sidecar store?"
   },
   {
-    key: "K",
-    view: "queue",
-    badge: "CANCEL",
-    label: "Cancel pending queue jobs",
-    description: "Move matching pending jobs to cancelled without touching running jobs.",
-    args: ["sync", "cancel"],
-    prompt: {
-      label: "Job id or all",
-      placeholder: "Enter a job id prefix or all"
-    },
-    confirm: "Cancel matching pending sync job(s)?"
-  },
-  { key: "d", view: "queue", badge: "DAEMON", label: "Daemon status", description: "Read the local worker state file.", args: ["daemon", "status"] },
-  { key: "b", view: "queue", badge: "DAEMON", label: "Start daemon", description: "Start the background worker loop.", args: ["daemon", "start"] },
-  { key: "k", view: "queue", badge: "DAEMON", label: "Stop daemon", description: "Request a local worker shutdown.", args: ["daemon", "stop"] },
-  { key: "l", view: "history", badge: "LOG", label: "Log latest bindings", description: "Browse the latest sync batch with stable indexes.", args: ["log", "--latest", "--oneline", "-20"] },
-  { key: "c", view: "history", badge: "HEAD", label: "Log current commit bindings", description: "Browse sessions bound to the current commit.", args: ["log", "--current", "--oneline", "-20"] },
-  {
-    key: "s",
-    view: "history",
-    badge: "SHOW",
-    label: "Show bundle details",
-    description: "Inspect one sidecar bundle without restoring it.",
-    args: ["show"],
-    prompt: {
-      label: "Bundle id",
-      placeholder: "Paste a bundle id from log"
-    }
+    key: "l",
+    category: "remote",
+    badge: "PULL",
+    label: "Pull sessions",
+    description: "Fetch restorable sidecar bundles from the remote store.",
+    args: ["pull"]
   },
   {
     key: "r",
-    view: "history",
+    category: "remote",
     badge: "RESTORE",
-    label: "Restore by log index",
-    description: "Restore a selected history entry into this machine.",
+    label: "Restore by index",
+    description: "Browse synced sessions and restore one by its number.",
     args: ["restore", "--index"],
-    prompt: {
-      label: "Restore index",
-      placeholder: "Enter the visible log index"
-    },
+    browser: "restore",
+    // Display-only token: the actual index is picked from the browser list,
+    // not typed via this prompt.
+    prompt: { label: "Restore index", placeholder: "Pick from the browser list", token: "<restore-index>" },
     confirm: "Restore this session into the local agent history?"
   },
-  { key: "6", view: "local", badge: "LOCAL", label: "Clone Codex sessions to current provider", description: "Copy current-project Codex sessions under the active provider.", args: ["clone-local"] },
-  { key: "n", view: "local", badge: "INDEX", label: "Register local provider clones", description: "Add Agent-Sync provider clones to local Codex indexes.", args: ["register-local"] },
-  { key: "7", view: "local", badge: "REPAIR", label: "Repair local Codex UI registration", description: "Re-register Agent-Sync provider clones in local Codex indexes.", args: ["repair-local"] },
-  { key: "z", view: "local", badge: "CLEAN", label: "Preview local clone cleanup", description: "List generated provider clones that clean-local --force would remove.", args: ["clean-local"] },
-  { key: "o", view: "local", badge: "WATCH", label: "Check provider change once", description: "Run one local provider watch check.", args: ["watch-local", "--once"] },
-  { key: "w", view: "local", badge: "WATCH", label: "Watch Codex provider changes", description: "Hand off to the long-running local watch command.", args: ["watch-local"], handoff: true },
   {
-    key: "i",
-    view: "tool",
-    badge: "IR",
-    label: "Inspect bundle as IR summary",
-    description: "Summarize source agent, title, events, and tool calls.",
-    args: ["tool", "inspect", "--session"],
-    prompt: {
-      label: "Bundle id",
-      placeholder: "Paste a synced bundle id"
-    }
+    key: "g",
+    category: "remote",
+    badge: "LOG",
+    label: "Log latest sessions",
+    description: "Browse the newest synced conversations.",
+    args: ["log", "--latest", "--oneline", "-20"],
+    browser: "log"
   },
   {
-    key: "v",
-    view: "tool",
-    badge: "IR",
-    label: "Convert bundle to Conversation IR",
-    description: "Emit normalized messages, tool calls, provenance, and dependencies.",
-    args: ["tool", "convert", "--to", "ir", "--json", "--session"],
-    prompt: {
-      label: "Bundle id",
-      placeholder: "Paste a synced bundle id"
-    }
+    key: "i",
+    category: "remote",
+    badge: "INIT",
+    label: "Init sidecar store",
+    description: "Create the local config and sidecar store (remote optional).",
+    args: ["init"],
+    promptSuffix: "--remote",
+    prompt: { label: "Remote URL", placeholder: "git@github.com:you/agent-session-store.git (optional)" }
+  },
+  {
+    key: "k",
+    category: "remote",
+    badge: "HOOK",
+    label: "Install pre-push hook",
+    description: "Queue background Agent-Sync jobs during git push.",
+    args: ["install-hooks"],
+    confirm: "Install the Agent-Sync managed pre-push hook in this repository?"
+  },
+  // --- local --------------------------------------------------------------
+  {
+    key: "c",
+    category: "local",
+    badge: "CLONE",
+    label: "Clone Codex to current provider",
+    description: "Copy current-project Codex sessions under the active provider.",
+    args: ["clone-local"]
   },
   {
     key: "e",
-    view: "tool",
-    badge: "READABLE",
-    label: "Export readable Claude JSONL",
-    description: "Write readable cross-tool JSONL from the IR.",
+    category: "local",
+    badge: "REGISTER",
+    label: "Register local clones",
+    description: "Add Agent-Sync provider clones to local Codex indexes.",
+    args: ["register-local"]
+  },
+  {
+    key: "w",
+    category: "local",
+    badge: "WATCH",
+    label: "Watch provider changes",
+    description: "Hand off to the long-running local watch command.",
+    args: ["watch-local"],
+    handoff: true
+  },
+  {
+    key: "a",
+    category: "local",
+    badge: "CLAUDE",
+    label: "Migrate bundle to Claude JSONL",
+    description: "Export a synced bundle as readable Claude JSONL.",
     args: ["tool", "export", "--to", "claude", "--mode", "readable", "--session"],
-    prompt: {
-      label: "Bundle id",
-      placeholder: "Paste a synced bundle id"
-    }
-  },
-  { key: "p", view: "privacy", badge: "SCAN", label: "Privacy scan", description: "Find common tokens, private keys, and secret assignments.", args: ["privacy", "scan"] },
-  { key: "y", view: "privacy", badge: "DRY", label: "Preview redaction", description: "Show what redaction would change without writing files.", args: ["privacy", "redact", "--dry-run"] },
-  {
-    key: "P",
-    view: "privacy",
-    badge: "ALLOW",
-    label: "Add privacy allow pattern",
-    description: "Record a reviewed false-positive regex in .agent-sync/privacy.json.",
-    args: ["privacy", "allow-pattern-local"],
-    prompt: {
-      label: "Name=regex",
-      placeholder: "documented_example=sk-example-[a-z]+"
-    },
-    confirm: "Add this privacy allow pattern to the local policy?"
-  },
-  { key: "R", view: "privacy", badge: "REDACT", label: "Push with redaction", description: "Write redacted sidecar copies and push.", args: ["push", "--privacy", "redact"], confirm: "Write redacted sidecar copies and push them?" },
-  { key: "A", view: "privacy", badge: "ALLOW", label: "Push with explicit allow", description: "Bypass privacy blocking for this push.", args: ["push", "--privacy", "allow"], confirm: "Bypass privacy blocking and push without redaction?" },
-  { key: "g", view: "conflicts", badge: "LIST", label: "List active conflicts", description: "Show quarantined session object conflicts.", args: ["conflicts", "list"] },
-  {
-    key: "m",
-    view: "conflicts",
-    badge: "SHOW",
-    label: "Show conflict details",
-    description: "Inspect object hashes, event shards, machines, and bundles.",
-    args: ["conflicts", "show"],
-    prompt: {
-      label: "Conflict id or index",
-      placeholder: "Enter a conflict id or visible list index"
-    }
+    prompt: { label: "Bundle id", placeholder: "Paste a synced bundle id" }
   },
   {
-    key: "D",
-    view: "conflicts",
-    badge: "DIFF",
-    label: "Show conflict diff summary",
-    description: "Compare quarantined object sizes and first differing lines without printing raw content.",
-    args: ["conflicts", "diff"],
-    prompt: {
-      label: "Conflict id or index",
-      placeholder: "Enter a conflict id or visible list index"
-    }
+    key: "o",
+    category: "local",
+    badge: "CODEX",
+    label: "Migrate bundle to Codex JSONL",
+    description: "Export a synced bundle as readable Codex JSONL.",
+    args: ["tool", "export", "--to", "codex", "--mode", "readable", "--session"],
+    prompt: { label: "Bundle id", placeholder: "Paste a synced bundle id" }
+  },
+  // --- doctor -------------------------------------------------------------
+  {
+    key: "d",
+    category: "doctor",
+    badge: "DOCTOR",
+    label: "Run doctor",
+    description: "Check config, sidecar store, sparse checkout, and bindings.",
+    args: ["doctor"]
   },
   {
-    key: "j",
-    view: "conflicts",
-    badge: "RESOLVE",
-    label: "Resolve conflict by keeping all",
-    description: "Mark the conflict handled without deleting either object.",
-    args: ["conflicts", "resolve", "--strategy", "keep-all"],
-    prompt: {
-      label: "Conflict id or index",
-      placeholder: "Enter a conflict id or visible list index"
-    },
-    confirm: "Mark this conflict as resolved without deleting either object?"
-  },
-  {
-    key: "J",
-    view: "conflicts",
-    badge: "LATEST",
-    label: "Resolve conflict by keeping latest",
-    description: "Mark the latest object as the preferred resolution metadata.",
-    args: ["conflicts", "resolve", "--strategy", "keep-latest"],
-    prompt: {
-      label: "Conflict id or index",
-      placeholder: "Enter a conflict id or visible list index"
-    },
-    confirm: "Mark this conflict resolved with keep-latest?"
-  },
-  {
-    key: "O",
-    view: "conflicts",
-    badge: "LOCAL",
-    label: "Resolve conflict by keeping local",
-    description: "Mark the local object as the preferred resolution metadata.",
-    args: ["conflicts", "resolve", "--strategy", "keep-local"],
-    prompt: {
-      label: "Conflict id or index",
-      placeholder: "Enter a conflict id or visible list index"
-    },
-    confirm: "Mark this conflict resolved with keep-local?"
-  },
-  {
-    key: "E",
-    view: "conflicts",
-    badge: "REMOTE",
-    label: "Resolve conflict by keeping remote",
-    description: "Mark the remote object as the preferred resolution metadata.",
-    args: ["conflicts", "resolve", "--strategy", "keep-remote"],
-    prompt: {
-      label: "Conflict id or index",
-      placeholder: "Enter a conflict id or visible list index"
-    },
-    confirm: "Mark this conflict resolved with keep-remote?"
-  },
-  { key: "x", view: "ops", badge: "DOCTOR", label: "Run doctor", description: "Check config, sidecar store, sparse checkout, and bindings.", args: ["doctor"] },
-  { key: "H", view: "ops", badge: "HOOKS", label: "Install pre-push hook", description: "Queue background Agent-Sync jobs during git push.", args: ["install-hooks"], confirm: "Install the Agent-Sync managed pre-push hook in this repository?" },
-  { key: "U", view: "ops", badge: "HOOKS", label: "Uninstall pre-push hook", description: "Remove the Agent-Sync managed hook.", args: ["uninstall-hooks"], confirm: "Remove the Agent-Sync managed pre-push hook from this repository?" },
-  { key: "q", view: "dashboard", badge: "EXIT", label: "Quit", description: "Close the TUI.", args: [], exits: true }
+    key: "s",
+    category: "doctor",
+    badge: "STATUS",
+    label: "Show session status",
+    description: "Refresh the current project match status.",
+    args: ["status"]
+  }
 ];
 
-export function getTuiChoices(options: Record<string, any> = {}) {
-  const locale = normalizeTuiLocale(options);
-  return MENU_CHOICES.map((choice) => localizeChoice(choice, locale));
-}
+// ---------------------------------------------------------------------------
+// Locale overrides (Chinese)
+// ---------------------------------------------------------------------------
 
-export function getTuiViews(options: Record<string, any> = {}) {
-  const locale = normalizeTuiLocale(options);
-  return TUI_VIEWS.map((view) => localizeView(view, locale));
-}
+const CN_CATEGORY_TEXT: Record<TuiCategoryId, Partial<TuiCategory>> = {
+  remote: {
+    title: "远程同步",
+    subtitle: "通过 sidecar 仓库推送 / 拉取 / 恢复 / 日志 / 初始化 / 钩子。",
+    toolkitTitle: "远程同步"
+  },
+  local: {
+    title: "本地迁移",
+    subtitle: "Codex/Claude 互转、provider 克隆与监控模式。",
+    toolkitTitle: "本地迁移"
+  },
+  doctor: {
+    title: "诊断",
+    subtitle: "健康检查与会话匹配状态。",
+    toolkitTitle: "诊断"
+  }
+};
 
-export function getTuiCategories(options: Record<string, any> = {}) {
+const CN_CHOICE_TEXT: Record<string, Partial<TuiChoice>> = {
+  p: { badge: "推送", label: "推送会话", description: "把匹配到的会话快照写入 sidecar 仓库。", confirm: "推送当前项目的 agent 会话到 sidecar 仓库？" },
+  l: { badge: "拉取", label: "拉取会话", description: "从远程仓库拉取可恢复的 sidecar bundle。" },
+  r: { badge: "恢复", label: "按编号恢复", description: "恢复 agent-sync log 中对应编号的会话。", prompt: { label: "恢复编号", placeholder: "输入 agent-sync log 显示的编号" }, confirm: "把这个会话恢复到本机 agent 历史吗？" },
+  g: { badge: "日志", label: "查看最新会话", description: "显示最近同步的对话。" },
+  i: { badge: "初始化", label: "初始化 sidecar 仓库", description: "创建本地配置与 sidecar 仓库（远程地址可选）。", prompt: { label: "远程地址", placeholder: "git@github.com:you/agent-session-store.git（可选）" } },
+  k: { badge: "钩子", label: "安装 pre-push 钩子", description: "在 git push 时入队后台 Agent-Sync 任务。", confirm: "在本仓库安装 Agent-Sync 管理的 pre-push 钩子吗？" },
+  c: { badge: "克隆", label: "克隆 Codex 到当前 provider", description: "把当前项目的 Codex 会话复制到当前 provider 下。" },
+  e: { badge: "注册", label: "注册本地副本", description: "把 Agent-Sync provider 副本加入本地 Codex 索引。" },
+  w: { badge: "监控", label: "监控 provider 变化", description: "移交给长期运行的本地监控命令。" },
+  a: { badge: "转Claude", label: "迁移为 Claude JSONL", description: "把已同步的 bundle 导出为可读的 Claude JSONL。", prompt: { label: "Bundle id", placeholder: "粘贴已同步的 bundle id" } },
+  o: { badge: "转Codex", label: "迁移为 Codex JSONL", description: "把已同步的 bundle 导出为可读的 Codex JSONL。", prompt: { label: "Bundle id", placeholder: "粘贴已同步的 bundle id" } },
+  d: { badge: "诊断", label: "运行 doctor", description: "检查配置、sidecar 仓库、sparse checkout 与 bindings。" },
+  s: { badge: "状态", label: "查看会话状态", description: "刷新当前项目的会话匹配状态。" }
+};
+
+const COPY = {
+  en: {
+    kitLine: "Agent Sync Kit",
+    tagline: "Git for your AI coding sessions.",
+    homeTitle: (projectName: string) => `Agent Sync Kit - ${projectName || "project"}`,
+    chooseHint: "Choose a workspace, press Enter to open.",
+    openHint: "Enter open  ·  ↑/↓ select  ·  1/2/3 jump  ·  h help  ·  q quit",
+    categoryHint: (title: string) => `${title} · press a hotkey or Enter to run`,
+    actionHint: "↑/↓ select  ·  Enter run  ·  ←/q back  ·  →/Tab next  ·  h help  ·  0 quit",
+    selectWorkspace: "Select workspace [1/2/3, q to quit]",
+    selectAction: "Action key [home/q]",
+    running: "Running…",
+    done: "Done.",
+    failed: (status: number) => `Command exited with status ${status}.`,
+    cancelled: "Cancelled.",
+    valueRequired: (label: string) => `${label} is required.`,
+    pressEnter: "Press Enter to return…",
+    confirmSuffix: "(y/n)",
+    bye: "Bye."
+  },
+  cn: {
+    kitLine: "Agent Sync 中文工具箱",
+    tagline: "Git for your AI coding sessions.",
+    homeTitle: (projectName: string) => `Agent Sync 中文工具箱 - ${projectName || "项目"}`,
+    chooseHint: "选择一个工作区，回车进入。",
+    openHint: "Enter 进入  ·  ↑/↓ 选择  ·  1/2/3 跳转  ·  h 帮助  ·  q 退出",
+    categoryHint: (title: string) => `${title} · 按热键或回车执行`,
+    actionHint: "↑/↓ 选择  ·  Enter 执行  ·  ←/q 返回  ·  →/Tab 下一区  ·  h 帮助  ·  0 退出",
+    selectWorkspace: "选择工作区 [1/2/3，q 退出]",
+    selectAction: "动作热键 [home/q]",
+    running: "执行中…",
+    done: "完成。",
+    failed: (status: number) => `命令退出码 ${status}。`,
+    cancelled: "已取消。",
+    valueRequired: (label: string) => `${label} 不能为空。`,
+    pressEnter: "按 Enter 返回…",
+    confirmSuffix: "(y/n)",
+    bye: "再见。"
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Public data accessors (used by the prompt flow, render, and tests)
+// ---------------------------------------------------------------------------
+
+export function getTuiCategories(options: Record<string, any> = {}): TuiCategory[] {
   const locale = normalizeTuiLocale(options);
   return TUI_CATEGORIES.map((category) => localizeCategory(category, locale));
 }
 
-export function resolveTuiChoice(value: string, viewId = "", options: Record<string, any> = {}) {
-  const key = String(value || "").trim();
-  const choices = getTuiChoices(options);
-  return choices.find((choice) => choice.key === key && (!viewId || choice.view === viewId)) ||
-    choices.find((choice) => choice.key === key) ||
-    null;
+export function getTuiChoices(options: Record<string, any> = {}): TuiChoice[] {
+  const locale = normalizeTuiLocale(options);
+  return MENU_CHOICES.map((choice) => localizeChoice(choice, locale));
 }
 
-export function resolveTuiCategory(value: string, options: Record<string, any> = {}) {
+export function resolveTuiCategory(value: string, options: Record<string, any> = {}): TuiCategory | null {
   const key = String(value || "").trim().toLowerCase();
   const categories = getTuiCategories(options);
   return categories.find((category) => {
@@ -710,740 +323,55 @@ export function resolveTuiCategory(value: string, options: Record<string, any> =
   }) || null;
 }
 
-export function filterTuiChoices(choices: TuiChoice[], query = "") {
+export function resolveTuiChoice(value: string, categoryId = "", options: Record<string, any> = {}): TuiChoice | null {
+  const key = String(value || "").trim().toLowerCase();
+  const choices = getTuiChoices(options);
+  return choices.find((choice) => choice.key === key && (!categoryId || choice.category === categoryId)) ||
+    choices.find((choice) => choice.key === key) ||
+    null;
+}
+
+export function filterTuiChoices(choices: TuiChoice[], query = ""): TuiChoice[] {
   const needle = String(query || "").trim().toLowerCase();
   const cloned = choices.map(cloneChoice);
   if (!needle) {
     return cloned;
   }
   return cloned.filter((choice) => {
-    const haystack = [
-      choice.key,
-      choice.badge,
-      choice.label,
-      choice.description,
-      formatTuiCommand(choice)
-    ].join(" ").toLowerCase();
+    const haystack = [choice.key, choice.badge, choice.label, choice.description, formatTuiCommand(choice)].join(" ").toLowerCase();
     return haystack.includes(needle);
   });
 }
 
-export function formatTuiCommand(choice: TuiChoice, prompted = "") {
+export function formatTuiCommand(choice: TuiChoice, prompted = ""): string {
   if (choice.exits) {
     return "exit";
   }
-  const promptValue = prompted || promptToken(choice.prompt);
-  const args = buildChoiceArgs(choice, promptValue);
+  const value = prompted || promptToken(choice.prompt);
+  const args = value ? buildChoiceArgs(choice, value) : [...choice.args];
   return `git agent-sync ${args.map(quoteArg).join(" ")}`;
 }
 
-const FIGLET_FONT = "ANSI Shadow";
-const LOGO_WORDS: Record<"home" | TuiCategoryId, string[]> = {
-  home: ["AGENT", "SYNC"],
-  remote: ["SIDECAR", "SYNC"],
-  local: ["CODEX", "SESSION", "TOOLKIT"]
-};
-
-const LOGO_GRADIENTS: Record<"home" | TuiCategoryId, string[]> = {
-  home: ["#27f8ff", "#0467ff"],
-  remote: ["#27f8ff", "#0467ff"],
-  local: ["#22d3ee", "#f000ff", "#1d4fff"]
-};
-
-function getLogoLines(kind: "home" | TuiCategoryId) {
-  return LOGO_WORDS[kind].flatMap((word, index) => {
-    const lines = figlet.textSync(word, {
-      font: FIGLET_FONT as any,
-      horizontalLayout: "default",
-      verticalLayout: "default"
-    }).split(/\r?\n/).filter((line) => line.trim().length > 0);
-    return index === 0 ? lines : ["", ...lines];
-  });
-}
-
-function gradientLogoLines(kind: "home" | TuiCategoryId) {
-  const paint = gradient(LOGO_GRADIENTS[kind]);
-  return paint.multiline(getLogoLines(kind).join("\n")).split("\n");
-}
-
-export function renderTuiMenu(config, options: Record<string, any> = {}) {
-  const locale = normalizeTuiLocale(options);
-  const copy = getTuiCopy(locale);
-  const categories = getTuiCategories({ locale });
-  const categoryViews = getTuiViews({ locale });
-  const categoryId = options.categoryId as TuiCategoryId | undefined;
-  if (categoryId) {
-    const category = categories.find((entry) => entry.id === categoryId);
-    if (!category) {
-      return renderHomeMenu(config, copy, categories);
-    }
-    const views = categoryViews.filter((view) => view.category === categoryId);
-    const choices = getTuiChoices({ locale });
-    return renderToolkitMenu(config, copy, category, views, choices);
-  }
-
-  return renderHomeMenu(config, copy, categories);
-}
-
-function renderHomeMenu(config: Record<string, any>, copy: any, categories: TuiCategory[]) {
-  const lines = [
-    copy.menuTitle(config.projectName),
-    "",
-    ...gradientLogoLines("home"),
-    "",
-    copy.kitLine,
-    copy.tagline,
-    "",
-    copy.homeTitle,
-    copy.homeSubtitle,
-    ""
-  ];
-  for (const [index, category] of categories.entries()) {
-    lines.push(index === 0 ? `› ${menuCardLine(category, true)}` : `  ${menuCardLine(category, false)}`);
-    lines.push(`  ${category.subtitle}`);
-    lines.push("");
-  }
-  lines.push(copy.homeFooter);
-  lines.push("");
-  lines.push(...boxLines("", [
-    `${copy.project}: ${config.projectName || "project"}    ${copy.sections}: ${categories.length}`,
-    `${copy.projectRoot}: ${config.projectRoot}`,
-    `${copy.store}: ${config.storePath}`
-  ], 96));
-  return lines.join("\n");
-}
-
-function renderToolkitMenu(config: Record<string, any>, copy: any, category: TuiCategory, views: TuiView[], choices: TuiChoice[]) {
-  const categoryChoices = choices.filter((choice) => views.some((view) => view.id === choice.view) && !choice.exits);
-  const lines = [
-    ...gradientLogoLines(category.id),
-    category.toolkitSubtitle,
-    copy.tagline,
-    copy.homeSubtitle,
-    "",
-    views.map((view, index) => `[${index + 1}] ${view.title}`).join("   "),
-    "",
-    ...boxLines("", [
-      `${copy.project} : ${config.projectName || "project"}    ${copy.sections} : ${views.length}    ${copy.actions} : ${categoryChoices.length}`,
-      `${copy.projectRoot}: ${config.projectRoot}`,
-      `${copy.store}: ${config.storePath}`
-    ], 118),
-    "",
-    ...boxLines(copy.navigation, views.map((view, index) => {
-      const marker = index === 0 ? "›" : " ";
-      return `${marker} [${index + 1}] ${view.title}  ${view.subtitle}`;
-    }), 118),
-    ""
-  ];
-  for (const view of views) {
-    const viewChoices = categoryChoices.filter((choice) => choice.view === view.id);
-    lines.push(`${view.title}`);
-    lines.push(`  ${view.subtitle}`);
-    for (const choice of viewChoices) {
-      lines.push(`  ${choice.key.padEnd(2)} ${choice.label}`);
-      lines.push(`     ${formatTuiCommand(choice)}${choice.confirm ? copy.confirmSuffix : ""}`);
-    }
-    lines.push("");
-  }
-  lines.push(copy.categoryFooter);
-  return lines.join("\n");
-}
-
-function menuCardLine(category: TuiCategory, selected: boolean) {
-  const prefix = selected ? `${category.index}.` : `${category.index}.`;
-  return `${prefix}  ${category.title}`;
-}
-
-function boxLines(title: string, body: string[], width: number) {
-  const innerWidth = Math.max(width - 2, 12);
-  const topTitle = title ? ` ${title} ` : "";
-  const top = `┌${topTitle}${"─".repeat(Math.max(innerWidth - topTitle.length, 0))}┐`;
-  const bottom = `└${"─".repeat(innerWidth)}┘`;
-  return [
-    top,
-    ...body.map((line) => `│ ${line.padEnd(Math.max(innerWidth - 2, 0)).slice(0, Math.max(innerWidth - 2, 0))} │`),
-    bottom
-  ];
-}
-
-export async function runTui(gitRoot, config, options: Record<string, any> = {}) {
-  const locale = normalizeTuiLocale(options);
-  if (options.io) {
-    await runPromptTui(gitRoot, config, { ...options, locale });
-    return;
-  }
-
-  if (!options.forceInk && (!defaultInput.isTTY || !defaultOutput.isTTY)) {
-    console.log(renderTuiMenu(config, { locale }));
-    return;
-  }
-
-  const runner = options.runner || ((args: string[], cwd: string) => runCliCommand(args, cwd));
-  const instance = render(h(AgentSyncTuiApp, { gitRoot, config, runner, locale }));
-  await instance.waitUntilExit();
-}
-
-function AgentSyncTuiApp({ gitRoot, config, runner, locale }: { gitRoot: string; config: Record<string, any>; runner: TuiRunner; locale: TuiLocale }) {
-  const { exit } = useApp();
-  const copy = getTuiCopy(locale);
-  const categories = useMemo(() => getTuiCategories({ locale }), [locale]);
-  const allViews = useMemo(() => getTuiViews({ locale }), [locale]);
-  const [screen, setScreen] = useState<"home" | "category">("home");
-  const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
-  const activeCategory = categories[activeCategoryIndex];
-  const views = useMemo(() => allViews.filter((view) => view.category === activeCategory?.id), [allViews, activeCategory]);
-  const [activeViewIndex, setActiveViewIndex] = useState(0);
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [promptChoice, setPromptChoice] = useState<TuiChoice | null>(null);
-  const [promptValue, setPromptValue] = useState("");
-  const [confirmRequest, setConfirmRequest] = useState<{ choice: TuiChoice; promptValue: string } | null>(null);
-  const [searchMode, setSearchMode] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showHelp, setShowHelp] = useState(false);
-  const [running, setRunning] = useState(false);
-  const [status, setStatus] = useState(copy.homeReady);
-  const [output, setOutput] = useState("");
-  const activeView = views[activeViewIndex];
-  const baseChoices = useMemo(() => getChoicesForView(activeView.id, locale), [activeView.id, locale]);
-  const choices = useMemo(() => filterTuiChoices(baseChoices, searchQuery), [baseChoices, searchQuery]);
-  const selectedChoice = choices[Math.min(selectedIndex, Math.max(choices.length - 1, 0))];
-
-  function enterCategory(index: number) {
-    setActiveCategoryIndex(index);
-    setActiveViewIndex(0);
-    setSelectedIndex(0);
-    setSearchMode(false);
-    setSearchQuery("");
-    setShowHelp(false);
-    setScreen("category");
-    const category = categories[index];
-    setStatus(category ? category.title : copy.ready);
-  }
-
-  function goHome(nextStatus = copy.homeReady) {
-    setScreen("home");
-    setSelectedIndex(0);
-    setActiveViewIndex(0);
-    setSearchMode(false);
-    setSearchQuery("");
-    setShowHelp(false);
-    setPromptChoice(null);
-    setPromptValue("");
-    setConfirmRequest(null);
-    setStatus(nextStatus);
-    setOutput("");
-  }
-
-  useInput((input, key) => {
-    if (running) {
-      return;
-    }
-    if (confirmRequest) {
-      const normalized = String(input || "").toLowerCase();
-      if (normalized === "y") {
-        const request = confirmRequest;
-        setConfirmRequest(null);
-        setOutput("");
-        void executeChoice(request.choice, request.promptValue, true);
-      } else if (normalized === "n" || key.escape) {
-        setConfirmRequest(null);
-        setStatus(copy.actionCancelled);
-        setOutput("");
-      } else {
-        setStatus(copy.confirmHint);
-      }
-      return;
-    }
-    if (searchMode) {
-      if (key.escape) {
-        setSearchMode(false);
-        setSearchQuery("");
-        setSelectedIndex(0);
-        setStatus(copy.searchCleared);
-      } else if (key.return) {
-        setSearchMode(false);
-        setStatus(searchQuery ? copy.filteredBy(searchQuery) : copy.searchClosed);
-      } else if (key.backspace || key.delete) {
-        setSearchQuery((value) => value.slice(0, -1));
-        setSelectedIndex(0);
-      } else if (input) {
-        setSearchQuery((value) => `${value}${input}`);
-        setSelectedIndex(0);
-      }
-      return;
-    }
-    if (promptChoice) {
-      if (key.escape) {
-        setPromptChoice(null);
-        setPromptValue("");
-        setStatus(copy.promptCancelled);
-      } else if (key.return) {
-        const value = promptValue.trim();
-        if (!value) {
-          setStatus(copy.valueRequired(promptChoice.prompt?.label));
-          return;
-        }
-        setPromptChoice(null);
-        setPromptValue("");
-        void executeChoice(promptChoice, value);
-      } else if (key.backspace || key.delete) {
-        setPromptValue((value) => value.slice(0, -1));
-      } else if (input) {
-        setPromptValue((value) => `${value}${input}`);
-      }
-      return;
-    }
-
-    if (input === "?") {
-      setShowHelp((value) => !value);
-      return;
-    }
-    if (input === "/") {
-      setSearchMode(true);
-      setSearchQuery("");
-      setSelectedIndex(0);
-      setStatus(copy.searchActions);
-      return;
-    }
-    if (input === "q") {
-      exit();
-      return;
-    }
-    if (screen === "home") {
-      if (key.upArrow) {
-        setActiveCategoryIndex((index) => wrap(index - 1, categories.length));
-        return;
-      }
-      if (key.downArrow) {
-        setActiveCategoryIndex((index) => wrap(index + 1, categories.length));
-        return;
-      }
-      if (key.return || key.rightArrow) {
-        enterCategory(activeCategoryIndex);
-        return;
-      }
-      if (input) {
-        const quickCategory = resolveTuiCategory(input, { locale });
-        if (quickCategory) {
-          const categoryIndex = categories.findIndex((category) => category.id === quickCategory.id);
-          if (categoryIndex >= 0) {
-            enterCategory(categoryIndex);
-            return;
-          }
-        }
-      }
-      return;
-    }
-    if ((key.escape || key.backspace) && !promptChoice && !confirmRequest) {
-      goHome(copy.backHint);
-      return;
-    }
-    if (key.leftArrow) {
-      setActiveViewIndex((index) => wrap(index - 1, views.length));
-      setSelectedIndex(0);
-      return;
-    }
-    if (key.rightArrow || key.tab) {
-      setActiveViewIndex((index) => wrap(index + 1, views.length));
-      setSelectedIndex(0);
-      return;
-    }
-    if (key.upArrow) {
-      setSelectedIndex((index) => wrap(index - 1, choices.length));
-      return;
-    }
-    if (key.downArrow) {
-      setSelectedIndex((index) => wrap(index + 1, choices.length));
-      return;
-    }
-    if (key.return && selectedChoice) {
-      void executeChoice(selectedChoice);
-      return;
-    }
-    if (input) {
-      const quickChoice = resolveTuiChoice(input, activeView.id, { locale });
-      if (quickChoice) {
-        void executeChoice(quickChoice);
-      }
-    }
-  });
-
-  async function executeChoice(choice: TuiChoice, promptValue = "", confirmed = false) {
-    if (choice.exits) {
-      exit();
-      return;
-    }
-    if (choice.prompt && !promptValue) {
-      setPromptChoice(choice);
-      setPromptValue("");
-      setStatus(choice.prompt.placeholder);
-      return;
-    }
-    const args = buildChoiceArgs(choice, promptValue);
-    if (choice.confirm && !confirmed) {
-      setConfirmRequest({ choice, promptValue });
-      setStatus(copy.confirmationRequired);
-      setOutput(copy.confirmationOutput(choice.confirm, formatTuiCommand(choice, promptValue)));
-      return;
-    }
-    setRunning(true);
-    setStatus(copy.runningCommand(args));
-    setOutput("");
-    try {
-      if (choice.handoff) {
-        setStatus(copy.handingOff);
-        exit();
-        setTimeout(() => {
-          runCliCommand(args, gitRoot, { inherit: true });
-        }, 25);
-        return;
-      }
-      const result = normalizeCommandResult(await runner(args, gitRoot));
-      const text = compactOutput([result.stdout, result.stderr].filter(Boolean).join("\n"));
-      setOutput(text || copy.emptyOutput);
-      setStatus(result.status === 0 ? copy.commandCompleted : copy.commandExited(result.status));
-    } catch (error) {
-      setStatus(copy.commandFailed);
-      setOutput(error instanceof Error ? error.message : String(error));
-    } finally {
-      setRunning(false);
-    }
-  }
-
-  return h(Box, { flexDirection: "column", gap: 1 },
-    h(Header, { config, copy, category: screen === "category" ? activeCategory : null }),
-    screen === "home"
-      ? h(HomePanel, { categories, activeCategoryIndex, copy, config })
-      : h(Box, { flexDirection: "column", gap: 1 },
-        h(ToolkitInfoPanel, { config, copy, category: activeCategory, views, choices: getTuiChoices({ locale }) }),
-        h(Box, { flexDirection: "row", gap: 2 },
-          h(ViewRail, { activeViewIndex, views, copy, category: activeCategory }),
-          h(ActionPanel, { view: activeView, choices, selectedIndex, running, searchMode, searchQuery, copy, category: activeCategory })
-        )
-      ),
-    showHelp ? h(HelpPanel, { copy, screen }) : null,
-    h(StatusPanel, { status, output, promptChoice, promptValue, confirmRequest, searchMode, searchQuery, running, copy, screen })
-  );
-}
-
-function Header({ config, copy, category }: { config: Record<string, any>; copy: any; category: TuiCategory | null }) {
-  const logoKind = category?.id || "home";
-  const logoLines = getLogoLines(logoKind);
-  const accent = category?.accent || "cyan";
-  const secondaryAccent = category?.secondaryAccent || "blue";
-  const logoColors = LOGO_GRADIENTS[logoKind];
-  return h(Box, { paddingX: 1, flexDirection: "column", alignItems: "center" },
-    h(LogoBlock, { lines: logoLines, colors: logoColors, accent, secondaryAccent }),
-    h(Text, { color: accent as any, bold: true }, category ? category.toolkitSubtitle : copy.kitLine),
-    h(Text, { color: "gray" }, category ? category.subtitle : copy.tagline),
-    h(Text, { color: "gray" }, config.projectName || "project")
-  );
-}
-
-function LogoBlock({ lines, colors, accent, secondaryAccent }: { lines: string[]; colors: string[]; accent: string; secondaryAccent: string }) {
-  const inkColors = colors.length ? colors : [accent, secondaryAccent];
-  return h(Box, { flexDirection: "column", alignItems: "center" },
-    ...lines.map((line, index) => h(Text, {
-      key: String(index),
-      color: (inkColors[index % inkColors.length] as any),
-      bold: true
-    }, line))
-  );
-}
-
-function HomePanel({ categories, activeCategoryIndex, copy, config }: { categories: TuiCategory[]; activeCategoryIndex: number; copy: any; config: Record<string, any> }) {
-  return h(Box, { flexDirection: "column", gap: 1 },
-    h(Box, { flexDirection: "column", alignItems: "center" },
-      h(Text, { color: "white", bold: true }, copy.homeTitle),
-      h(Text, { color: "gray" }, copy.homeSubtitle)
-    ),
-    h(Box, { flexDirection: "column", marginTop: 1 },
-      ...categories.map((category, index) => h(CategoryRow, {
-        key: category.id,
-        category,
-        selected: index === activeCategoryIndex
-      }))
-    ),
-    h(Box, { borderStyle: "single", borderColor: "gray", paddingX: 1, flexDirection: "column" },
-      h(Text, { color: "gray" }, `${copy.project} : ${config.projectName || "project"}    ${copy.sections} : ${categories.length}`),
-      h(Text, { color: "white" }, `${copy.projectRoot}: ${trimMiddle(config.projectRoot || "", 96)}`),
-      h(Text, { color: "gray" }, `${copy.store}: ${trimMiddle(config.storePath || "", 96)}`)
-    ),
-    h(Box, { justifyContent: "center" },
-      h(Text, { color: "gray" }, copy.homeFooter)
-    )
-  );
-}
-
-function ViewRail({ activeViewIndex, views, copy, category }: { activeViewIndex: number; views: TuiView[]; copy: any; category: TuiCategory }) {
-  return h(Box, { borderStyle: "single", borderColor: category.secondaryAccent as any, paddingX: 1, flexDirection: "column", width: 36 },
-    h(Text, { color: "white", bold: true }, copy.navigation),
-    ...views.map((view, index) => h(Text, {
-      key: view.id,
-      color: index === activeViewIndex ? (category.accent as any) : "white",
-      bold: index === activeViewIndex
-    }, `${index === activeViewIndex ? "›" : " "} [${index + 1}] ${view.title}`)),
-    h(Box, { marginTop: 1 },
-      h(Text, { color: "gray" }, copy.backHint)
-    )
-  );
-}
-
-function ToolkitInfoPanel({ config, copy, category, views, choices }: { config: Record<string, any>; copy: any; category: TuiCategory; views: TuiView[]; choices: TuiChoice[] }) {
-  const actionCount = choices.filter((choice) => views.some((view) => view.id === choice.view) && !choice.exits).length;
-  return h(Box, { borderStyle: "single", borderColor: category.secondaryAccent as any, paddingX: 1, flexDirection: "column" },
-    h(Text, { color: "gray" }, `${copy.project} : `, h(Text, { color: category.accent as any }, config.projectName || "project"), `    ${copy.sections} : ${views.length}    ${copy.actions} : ${actionCount}`),
-    h(Text, { color: "white" }, `${copy.projectRoot}: ${trimMiddle(config.projectRoot || "", 108)}`),
-    h(Text, { color: "gray" }, `${copy.store}: ${trimMiddle(config.storePath || "", 108)}`)
-  );
-}
-
-function ActionPanel({
-  view,
-  choices,
-  selectedIndex,
-  running,
-  searchMode,
-  searchQuery,
-  copy,
-  category
-}: {
-  view: TuiView;
-  choices: TuiChoice[];
-  selectedIndex: number;
-  running: boolean;
-  searchMode: boolean;
-  searchQuery: string;
-  copy: any;
-  category: TuiCategory;
-}) {
-  return h(Box, { borderStyle: "single", borderColor: category.accent as any, paddingX: 1, flexDirection: "column", flexGrow: 1 },
-    h(Box, { flexDirection: "column", marginBottom: 1 },
-      h(Text, { color: category.accent as any, bold: true }, view.title),
-      h(Text, { color: "gray" }, view.subtitle)
-    ),
-    choices.length ? null : h(Text, { color: "gray" }, copy.noActions(searchQuery)),
-    ...choices.map((choice, index) => h(ActionRow, {
-      key: `${choice.view}:${choice.key}`,
-      choice,
-      selected: index === selectedIndex,
-      disabled: running,
-      accent: category.accent
-    })),
-    h(Box, { marginTop: 1 },
-      h(Text, { color: searchMode ? "yellow" : "gray" }, searchMode ? copy.searchInline(searchQuery) : copy.categoryFooter)
-    )
-  );
-}
-
-function CategoryRow({ category, selected }: { category: TuiCategory; selected: boolean }) {
-  const color = selected ? "black" : "white";
-  const backgroundColor = selected ? category.accent : undefined;
-  return h(Box, { flexDirection: "column", marginBottom: 1, borderStyle: "single", borderColor: selected ? category.accent : "gray", paddingX: 2, paddingY: 1 },
-    h(Box, {},
-      h(Text, { color: selected ? (category.accent as any) : "gray", bold: true }, selected ? "›  " : "   "),
-      h(Text, { color, backgroundColor, bold: true }, ` ${category.index}. `),
-      h(Text, { color: selected ? (category.accent as any) : "gray", bold: true }, ` ${category.title}`)
-    ),
-    h(Box, { paddingLeft: 4 },
-      h(Text, { color: "gray" }, `${category.subtitle} [${category.key}]`)
-    )
-  );
-}
-
-function ActionRow({ choice, selected, disabled, accent }: { choice: TuiChoice; selected: boolean; disabled: boolean; accent: string }) {
-  const color = disabled ? "gray" : selected ? "black" : "white";
-  const backgroundColor = selected && !disabled ? accent : undefined;
-  return h(Box, { flexDirection: "column", marginY: 0 },
-    h(Box, {},
-      h(Text, { color, backgroundColor, bold: selected }, ` ${choice.key} `),
-      h(Text, { color: "gray" }, ` ${choice.badge.padEnd(8)} `),
-      h(Text, { color: selected ? (accent as any) : "white", bold: selected }, `${choice.label}${choice.confirm ? " [confirm]" : ""}`)
-    ),
-    h(Box, { paddingLeft: 15 },
-      h(Text, { color: "gray" }, choice.description)
-    ),
-    h(Box, { paddingLeft: 15 },
-      h(Text, { color: selected ? (accent as any) : "gray" }, `${formatTuiCommand(choice)}`)
-    )
-  );
-}
-
-function HelpPanel({ copy, screen }: { copy: any; screen: "home" | "category" }) {
-  const lines = screen === "home" ? copy.homeHelpLines : copy.helpLines;
-  return h(Box, { borderStyle: "round", borderColor: "gray", paddingX: 1, flexDirection: "column" },
-    ...lines.map((line, index) => h(Text, { key: String(index), color: index === 0 ? "cyan" : "gray", bold: index === 0 }, line))
-  );
-}
-
-function StatusPanel({
-  status,
-  output,
-  promptChoice,
-  promptValue,
-  confirmRequest,
-  searchMode,
-  searchQuery,
-  running,
-  copy,
-  screen
-}: {
-  status: string;
-  output: string;
-  promptChoice: TuiChoice | null;
-  promptValue: string;
-  confirmRequest: { choice: TuiChoice; promptValue: string } | null;
-  searchMode: boolean;
-  searchQuery: string;
-  running: boolean;
-  copy: any;
-  screen: "home" | "category";
-}) {
-  return h(Box, { borderStyle: "round", borderColor: running ? "yellow" : confirmRequest ? "red" : "gray", paddingX: 1, flexDirection: "column" },
-    h(Box, {},
-      h(Text, { color: running ? "yellow" : confirmRequest ? "red" : "green", bold: true }, running ? copy.running : confirmRequest ? copy.confirm : copy.status),
-      h(Text, { color: "white" }, `  ${status}`)
-    ),
-    screen === "home" && !searchMode && !promptChoice && !confirmRequest ? h(Box, { marginTop: 1 },
-      h(Text, { color: "gray" }, copy.homeFooter)
-    ) : null,
-    searchMode ? h(Box, {},
-      h(Text, { color: "cyan" }, `${copy.search}: `),
-      h(Text, { color: searchQuery ? "white" : "gray" }, searchQuery || copy.searchPlaceholder)
-    ) : null,
-    promptChoice ? h(Box, {},
-      h(Text, { color: "cyan" }, `${promptChoice.prompt?.label}: `),
-      h(Text, { color: promptValue ? "white" : "gray" }, promptValue || promptChoice.prompt?.placeholder || "")
-    ) : null,
-    output ? h(Box, { marginTop: 1, flexDirection: "column" },
-      ...output.split("\n").slice(0, 8).map((line, index) => h(Text, { key: String(index), color: "gray" }, trimMiddle(line, 120)))
-    ) : null
-  );
-}
-
-async function runPromptTui(gitRoot, config, options: Record<string, any> = {}) {
-  const io = options.io || createInterface({ input: defaultInput, output: defaultOutput });
-  const runner = options.runner || ((args: string[], cwd: string) => runCliCommand(args, cwd));
-  const locale = normalizeTuiLocale(options);
-  const copy = getTuiCopy(locale);
-  const categories = getTuiCategories({ locale });
-  const shouldClose = !options.io;
-  try {
-    while (true) {
-      console.log("");
-      console.log(renderTuiMenu(config, { locale }));
-      const categoryAnswer = await io.question(`\n${copy.selectCategory}: `);
-      if (String(categoryAnswer || "").trim().toLowerCase() === "q") {
-        console.log(copy.bye);
-        return;
-      }
-      const category = resolveTuiCategory(categoryAnswer, { locale });
-      if (!category) {
-        console.log(copy.unknownCategory);
-        continue;
-      }
-      while (true) {
-        console.log("");
-        console.log(renderTuiMenu(config, { locale, categoryId: category.id }));
-        const answer = await io.question(`\n${copy.selectActionWithHome}: `);
-        const normalizedAnswer = String(answer || "").trim().toLowerCase();
-        if (normalizedAnswer === "home" || normalizedAnswer === "back") {
-          break;
-        }
-        if (normalizedAnswer === "q") {
-          console.log(copy.bye);
-          return;
-        }
-        const choice = resolveTuiChoice(answer, "", { locale });
-        if (!choice || !viewBelongsToCategory(choice.view, category.id, locale)) {
-          console.log(copy.unknownSelection);
-          continue;
-        }
-        if (choice.exits) {
-          console.log(copy.bye);
-          return;
-        }
-
-        let prompted = "";
-        if (choice.prompt) {
-          prompted = String(await io.question(`${choice.prompt.label}: `)).trim();
-          if (!prompted) {
-            console.log(copy.valueRequired(choice.prompt.label));
-            continue;
-          }
-        }
-
-        console.log(`${copy.commandLabel}: ${formatTuiCommand(choice, prompted)}`);
-        if (choice.confirm) {
-          const confirmation = String(await io.question(copy.confirmQuestion(choice.confirm))).trim();
-          if (!isConfirmAccepted(confirmation)) {
-            console.log(copy.cancelled);
-            continue;
-          }
-        }
-
-        const result = normalizeCommandResult(await runner(buildChoiceArgs(choice, prompted), gitRoot));
-        if (result.status !== 0) {
-          console.log(copy.commandExitedLine(result.status));
-        }
-        if (!isWatchChoice(choice)) {
-          await io.question(`\n${copy.pressEnter}`);
-        } else {
-          return;
-        }
-        if (normalizedAnswer === "home") {
-          continue;
-        }
-      }
-    }
-  } finally {
-    if (shouldClose) {
-      io.close();
-    }
-  }
-}
-
-function getChoicesForView(viewId: string, locale: TuiLocale) {
-  if (!viewId) {
-    return [];
-  }
-  return MENU_CHOICES.filter((choice) => choice.view === viewId).map((choice) => localizeChoice(choice, locale));
-}
-
-function viewBelongsToCategory(viewId: string, categoryId: TuiCategoryId, locale: TuiLocale) {
-  return getTuiViews({ locale }).some((view) => view.id === viewId && view.category === categoryId);
-}
+// ---------------------------------------------------------------------------
+// Locale helpers
+// ---------------------------------------------------------------------------
 
 function normalizeTuiLocale(options: Record<string, any> = {}): TuiLocale {
   return options.locale === "cn" || options.cn ? "cn" : "en";
 }
 
-function getTuiCopy(locale: TuiLocale) {
-  return locale === "cn" ? CN_COPY : EN_COPY;
+function getCopy(locale: TuiLocale) {
+  return locale === "cn" ? COPY.cn : COPY.en;
 }
 
-function localizeCategory(category: TuiCategory, locale: TuiLocale) {
+function localizeCategory(category: TuiCategory, locale: TuiLocale): TuiCategory {
   if (locale !== "cn") {
     return { ...category };
   }
-  const override = CN_CATEGORY_TEXT[category.id] || {};
-  return {
-    ...category,
-    ...override
-  };
+  return { ...category, ...(CN_CATEGORY_TEXT[category.id] || {}) };
 }
 
-function localizeView(view: TuiView, locale: TuiLocale) {
-  if (locale !== "cn") {
-    return { ...view };
-  }
-  return {
-    ...view,
-    ...(CN_VIEW_TEXT[view.id] || {})
-  };
-}
-
-function localizeChoice(choice: TuiChoice, locale: TuiLocale) {
+function localizeChoice(choice: TuiChoice, locale: TuiLocale): TuiChoice {
   const cloned = cloneChoice(choice);
   if (cloned.prompt) {
     cloned.prompt.token = promptToken(choice.prompt);
@@ -1451,50 +379,74 @@ function localizeChoice(choice: TuiChoice, locale: TuiLocale) {
   if (locale !== "cn") {
     return cloned;
   }
-  const override = CN_CHOICE_TEXT[`${choice.view}:${choice.key}`] || {};
+  const override = CN_CHOICE_TEXT[choice.key] || {};
+  const basePrompt = cloned.prompt;
+  const overridePrompt = override.prompt;
   return {
     ...cloned,
     ...override,
     args: cloned.args,
-    prompt: cloned.prompt || override.prompt
-      ? { ...(cloned.prompt || {}), ...(override.prompt || {}) }
-      : undefined
+    prompt: (basePrompt || overridePrompt) ? {
+      label: overridePrompt?.label ?? basePrompt?.label ?? "",
+      placeholder: overridePrompt?.placeholder ?? basePrompt?.placeholder ?? "",
+      token: basePrompt?.token
+    } : undefined
   };
 }
 
-function buildChoiceArgs(choice: TuiChoice, prompted = "") {
-  return prompted ? [...choice.args, prompted] : [...choice.args];
+function cloneChoice(choice: TuiChoice): TuiChoice {
+  return {
+    ...choice,
+    args: [...choice.args],
+    prompt: choice.prompt ? { ...choice.prompt } : undefined
+  };
 }
 
-function promptToken(prompt?: TuiPrompt) {
+// ---------------------------------------------------------------------------
+// Argument helpers
+// ---------------------------------------------------------------------------
+
+function buildChoiceArgs(choice: TuiChoice, prompted = ""): string[] {
+  const base = [...choice.args];
+  if (!prompted) {
+    return base;
+  }
+  if (choice.promptSuffix) {
+    return [...base, choice.promptSuffix, prompted];
+  }
+  return [...base, prompted];
+}
+
+function promptToken(prompt?: TuiPrompt): string {
   if (!prompt) {
     return "";
   }
   if (prompt.token) {
     return prompt.token;
   }
-  const token = prompt.label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const token = prompt.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return `<${token || "value"}>`;
 }
 
-function quoteArg(value: string) {
+function quoteArg(value: string): string {
   if (!/\s/.test(value)) {
     return value;
   }
   return `"${value.replace(/"/g, "\\\"")}"`;
 }
 
-function isConfirmAccepted(value: string) {
+function isConfirmAccepted(value: string): boolean {
   const normalized = value.trim().toLowerCase();
   return normalized === "y" || normalized === "yes";
 }
 
-function isWatchChoice(choice: TuiChoice) {
+function isWatchChoice(choice: TuiChoice): boolean {
   return choice.args[0] === "watch-local" && choice.args.length === 1;
 }
+
+// ---------------------------------------------------------------------------
+// CLI execution
+// ---------------------------------------------------------------------------
 
 function runCliCommand(args: string[], cwd: string, options: Record<string, any> = {}) {
   const cliEntry = process.argv[1] || "agent-sync";
@@ -1521,44 +473,981 @@ function normalizeCommandResult(result: TuiCommandResult) {
   };
 }
 
-function compactOutput(value: string) {
-  const lines = value
-    .split(/\r?\n/)
-    .map((line) => line.trimEnd())
-    .filter(Boolean);
-  if (lines.length <= 12) {
-    return lines.join("\n");
-  }
-  return [...lines.slice(0, 10), `... ${lines.length - 10} more line(s)`].join("\n");
-}
-
-function bufferToString(value: string | Buffer | null | undefined) {
+function bufferToString(value: string | Buffer | null | undefined): string {
   if (!value) {
     return "";
   }
   return Buffer.isBuffer(value) ? value.toString("utf8") : String(value);
 }
 
-function cloneChoice(choice: TuiChoice) {
-  return {
-    ...choice,
-    args: [...choice.args],
-    prompt: choice.prompt ? { ...choice.prompt } : undefined
-  };
+function compactOutput(value: string): string {
+  const lines = value.split(/\r?\n/).map((line) => line.trimEnd()).filter(Boolean);
+  if (lines.length <= 16) {
+    return lines.join("\n");
+  }
+  return [...lines.slice(0, 14), `... ${lines.length - 14} more line(s)`].join("\n");
 }
 
-function wrap(index: number, length: number) {
+// ---------------------------------------------------------------------------
+// Terminal primitives (ANSI, width math, box drawing, single-key reads)
+// ---------------------------------------------------------------------------
+
+const ANSI = {
+  reset: "\x1b[0m",
+  bold: "\x1b[1m",
+  dim: "\x1b[2m",
+  underline: "\x1b[4m",
+  red: "\x1b[31m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  blue: "\x1b[34m",
+  magenta: "\x1b[35m",
+  cyan: "\x1b[36m",
+  gray: "\x1b[90m",
+  brightCyan: "\x1b[96m"
+};
+
+const ACCENT_CODE: Record<TuiCategory["accent"], string> = {
+  cyan: ANSI.cyan,
+  magenta: ANSI.magenta,
+  green: ANSI.green
+};
+
+const COLOR_ENABLED = detectColor();
+
+function detectColor(): boolean {
+  if (process.env.NO_COLOR) {
+    return false;
+  }
+  return Boolean(defaultOutput.isTTY);
+}
+
+function style(code: string, text: string, ...mods: string[]): string {
+  if (!COLOR_ENABLED || !code) {
+    return text;
+  }
+  return [...mods, code].join("") + text + ANSI.reset;
+}
+
+const ANSI_RE = /\x1b\[[0-9;]*m/g;
+
+function stripAnsi(text: string): string {
+  return text.replace(ANSI_RE, "");
+}
+
+function displayWidth(text: string): number {
+  const stripped = stripAnsi(text);
+  let width = 0;
+  for (const ch of stripped) {
+    if (ch === "\t") {
+      width += 4 - (width % 4);
+      continue;
+    }
+    if (ch === "\n" || ch === "\r") {
+      continue;
+    }
+    const code = ch.codePointAt(0) || 0;
+    // Approximate east-asian wide range (CJK + fullwidth) → 2 cells.
+    const wide = code >= 0x1100 && (
+      code <= 0x115f || // Hangul Jamo
+      (code >= 0x2e80 && code <= 0x303e) ||
+      (code >= 0x3041 && code <= 0x33ff) ||
+      (code >= 0x3400 && code <= 0x4dbf) ||
+      (code >= 0x4e00 && code <= 0x9fff) ||
+      (code >= 0xa000 && code <= 0xa4cf) ||
+      (code >= 0xac00 && code <= 0xd7a3) ||
+      (code >= 0xf900 && code <= 0xfaff) ||
+      (code >= 0xfe30 && code <= 0xfe4f) ||
+      (code >= 0xff00 && code <= 0xff60) ||
+      (code >= 0xffe0 && code <= 0xffe6)
+    );
+    width += wide ? 2 : 1;
+  }
+  return width;
+}
+
+function padRight(text: string, width: number): string {
+  const padding = width - displayWidth(text);
+  if (padding <= 0) {
+    return text;
+  }
+  return text + " ".repeat(padding);
+}
+
+function ellipsizeMiddle(text: string, maxWidth: number): string {
+  if (maxWidth <= 0) {
+    return "";
+  }
+  if (displayWidth(text) <= maxWidth) {
+    return text;
+  }
+  if (maxWidth <= 4) {
+    return stripAnsi(text).slice(0, maxWidth);
+  }
+  const ellipsis = "…";
+  const stripped = stripAnsi(text);
+  const prefixWidth = Math.floor((maxWidth - 1) / 2);
+  const suffixWidth = maxWidth - 1 - prefixWidth;
+  return `${stripped.slice(0, prefixWidth)}${ellipsis}${stripped.slice(stripped.length - suffixWidth)}`;
+}
+
+function centerPad(text: string, width: number): string {
+  const padding = Math.max(0, width - displayWidth(text));
+  return `${" ".repeat(Math.floor(padding / 2))}${text}`;
+}
+
+function termWidth(): number {
+  return defaultOutput.columns || 80;
+}
+
+function termHeight(): number {
+  return defaultOutput.rows || 24;
+}
+
+function renderBox(lines: string[], width: number, borderCode = ""): string[] {
+  const inner = Math.max(1, width - 4);
+  const out: string[] = [];
+  const top = `┌${"─".repeat(width - 2)}┐`;
+  const bottom = `└${"─".repeat(width - 2)}┘`;
+  out.push(style(borderCode || ANSI.dim, top, ANSI.dim));
+  const resetSuffix = COLOR_ENABLED ? ANSI.reset : "";
+  for (const line of lines) {
+    const content = padRight(ellipsizeMiddle(line, inner), inner);
+    const border = style(borderCode || ANSI.dim, "│", ANSI.dim);
+    out.push(`${border} ${content} ${border}`.replace(/\x1b\[0m$/, "") + resetSuffix);
+  }
+  out.push(style(borderCode || ANSI.dim, bottom, ANSI.dim));
+  return out;
+}
+
+function clearScreen(): void {
+  defaultOutput.write("\x1b[2J\x1b[H");
+}
+
+function writeCenteredLines(lines: string[]): void {
+  const width = termWidth();
+  for (const line of lines) {
+    defaultOutput.write(centerPad(line, width) + "\n");
+  }
+}
+
+function writeCenteredBox(lines: string[], borderCode = ""): void {
+  const width = Math.min(termWidth(), 92);
+  writeCenteredLines(renderBox(lines, width, borderCode));
+}
+
+// Read one normalized key from a raw TTY stdin. Returns tokens like
+// "ENTER", "UP", "ESC", "CTRL_C", "BACKSPACE", or a single printable char.
+function readKey(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      defaultInput.removeListener("data", onData);
+      defaultInput.removeListener("end", onEnd);
+    };
+    const onData = (buf: Buffer) => {
+      cleanup();
+      resolve(normalizeKey(buf));
+    };
+    const onEnd = () => {
+      cleanup();
+      resolve(null);
+    };
+    defaultInput.once("data", onData);
+    defaultInput.once("end", onEnd);
+  });
+}
+
+function normalizeKey(buf: Buffer): string {
+  const s = buf.toString("utf8");
+  if (s === "\r" || s === "\n") {
+    return "ENTER";
+  }
+  if (s === "\x03") {
+    return "CTRL_C";
+  }
+  if (s === "\x04") {
+    return "CTRL_D";
+  }
+  if (s === "\x7f" || s === "\x08") {
+    return "BACKSPACE";
+  }
+  if (s === "\t") {
+    return "TAB";
+  }
+  if (s === "\x1b") {
+    return "ESC";
+  }
+  if (s === "\x1b[A") {
+    return "UP";
+  }
+  if (s === "\x1b[B") {
+    return "DOWN";
+  }
+  if (s === "\x1b[C") {
+    return "RIGHT";
+  }
+  if (s === "\x1b[D") {
+    return "LEFT";
+  }
+  if (s === "\x1b[5~") {
+    return "PAGE_UP";
+  }
+  if (s === "\x1b[6~") {
+    return "PAGE_DOWN";
+  }
+  return s;
+}
+
+// Minimal raw-mode line editor: echo printable chars, handle backspace, ESC.
+async function readLineEditor(promptText: string): Promise<string | null> {
+  defaultOutput.write(promptText);
+  let buf = "";
+  while (true) {
+    const key = await readKey();
+    if (key === null || key === "ESC" || key === "CTRL_C" || key === "CTRL_D") {
+      return null;
+    }
+    if (key === "ENTER") {
+      defaultOutput.write("\n");
+      return buf;
+    }
+    if (key === "BACKSPACE") {
+      if (buf) {
+        buf = buf.slice(0, -1);
+        defaultOutput.write("\b \b");
+      }
+      continue;
+    }
+    if (key.length === 1 && /[\x20-\x7e]/.test(key)) {
+      buf += key;
+      defaultOutput.write(key);
+    }
+  }
+}
+
+async function readYesNo(): Promise<boolean> {
+  while (true) {
+    const key = await readKey();
+    if (key === null) {
+      return false;
+    }
+    if (key === "CTRL_C" || key === "CTRL_D") {
+      return false;
+    }
+    const lower = String(key).toLowerCase();
+    if (lower === "y") {
+      return true;
+    }
+    if (lower === "n" || key === "ESC") {
+      return false;
+    }
+  }
+}
+
+async function readEnter(): Promise<void> {
+  while (true) {
+    const key = await readKey();
+    if (key === null || key === "ENTER" || key === "CTRL_C" || key === "CTRL_D" || key === "ESC") {
+      return;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Brand header (figlet + gradient)
+// ---------------------------------------------------------------------------
+
+const FIGLET_FONT = "ANSI Shadow";
+const LOGO_WORDS: Record<"home" | TuiCategoryId, string> = {
+  home: "AGENT SYNC",
+  remote: "REMOTE SYNC",
+  local: "LOCAL",
+  doctor: "DOCTOR"
+};
+const LOGO_GRADIENTS: Record<"home" | TuiCategoryId, string[]> = {
+  home: ["#27f8ff", "#0467ff"],
+  remote: ["#27f8ff", "#0467ff"],
+  local: ["#22d3ee", "#f000ff"],
+  doctor: ["#34d399", "#059669"]
+};
+
+function getLogoLines(kind: "home" | TuiCategoryId): string[] {
+  try {
+    const rendered = figlet.textSync(LOGO_WORDS[kind], { font: FIGLET_FONT });
+    return rendered.split(/\r?\n/).map((line) => line.replace(/\s+$/, "")).filter((line, index, arr) => {
+      // Drop trailing blank lines figlet sometimes appends.
+      return index < arr.length - 1 || line.length > 0;
+    });
+  } catch {
+    return [LOGO_WORDS[kind]];
+  }
+}
+
+function gradientLogoLines(kind: "home" | TuiCategoryId): string[] {
+  const lines = getLogoLines(kind);
+  if (!COLOR_ENABLED) {
+    return lines;
+  }
+  const painter = gradient(LOGO_GRADIENTS[kind]);
+  return lines.map((line) => (line ? painter(line) : line));
+}
+
+// ---------------------------------------------------------------------------
+// Content builders (shared by renderTuiMenu string + full-screen redraw)
+// ---------------------------------------------------------------------------
+
+function choicesForCategory(choices: TuiChoice[], categoryId: TuiCategoryId): TuiChoice[] {
+  return choices.filter((choice) => choice.category === categoryId);
+}
+
+function buildHomeLines(config: Record<string, any>, locale: TuiLocale, selectedCategoryIndex: number): string[] {
+  const copy = getCopy(locale);
+  const categories = getTuiCategories({ locale });
+  const lines: string[] = [];
+  lines.push(...gradientLogoLines("home"));
+  lines.push(style(ANSI.bold + ANSI.cyan, copy.kitLine, ANSI.bold));
+  lines.push(style(ANSI.dim, copy.tagline));
+  lines.push(style(ANSI.dim, copy.homeTitle(config.projectName || config.projectRoot || "")));
+  lines.push("");
+  lines.push(style(ANSI.dim, copy.chooseHint));
+  lines.push("");
+
+  const pointer = "›";
+  const body: string[] = [];
+  categories.forEach((category, index) => {
+    const accent = ACCENT_CODE[category.accent];
+    const header = `[${category.key}] ${category.title}`;
+    const count = choicesForCategory(getTuiChoices({ locale }), category.id).length;
+    if (index === selectedCategoryIndex) {
+      body.push(`${style(ANSI.bold + ANSI.brightCyan, pointer)} ${style(accent, header, ANSI.bold)}`);
+    } else {
+      body.push(`  ${style(ANSI.dim, header)}`);
+    }
+    body.push(`    ${style(ANSI.dim, category.subtitle)}`);
+    body.push(`    ${style(ANSI.dim, `${count} action(s)`)}`);
+  });
+  lines.push(...renderBox(body, Math.min(termWidth(), 92), ACCENT_CODE.cyan));
+  lines.push("");
+  lines.push(style(ANSI.dim, copy.openHint));
+  return lines;
+}
+
+function buildCategoryLines(config: Record<string, any>, locale: TuiLocale, categoryId: TuiCategoryId, selectedActionIndex: number): string[] {
+  const copy = getCopy(locale);
+  const categories = getTuiCategories({ locale });
+  const category = categories.find((item) => item.id === categoryId);
+  if (!category) {
+    return buildHomeLines(config, locale, 0);
+  }
+  const accent = ACCENT_CODE[category.accent];
+  const allChoices = getTuiChoices({ locale });
+  const actions = choicesForCategory(allChoices, category.id);
+
+  const lines: string[] = [];
+  lines.push(...gradientLogoLines(category.id));
+  lines.push(style(ANSI.bold + accent, category.toolkitTitle, ANSI.bold));
+  lines.push(style(ANSI.dim, category.subtitle));
+  lines.push("");
+
+  // Workspace tabs row.
+  const tabs = categories.map((item, index) => {
+    const label = `[${item.key}] ${item.title}`;
+    return index === categories.findIndex((entry) => entry.id === categoryId)
+      ? style(ANSI.bold + ACCENT_CODE[item.accent], label, ANSI.underline)
+      : style(ANSI.dim, label);
+  });
+  lines.push(tabs.join("   "));
+  lines.push("");
+
+  const pointer = "›";
+  const body: string[] = [];
+  actions.forEach((choice, index) => {
+    const badge = style(ANSI.bold + accent, `[${choice.badge}]`);
+    const hotkey = style(ANSI.dim + accent, `[${choice.key}]`);
+    const labelLine = `${badge} ${hotkey} ${choice.label}`;
+    if (index === selectedActionIndex) {
+      body.push(`${style(ANSI.bold + ANSI.brightCyan, pointer)} ${style(ANSI.bold + ANSI.underline + accent, labelLine, ANSI.bold)}`);
+    } else {
+      body.push(`  ${labelLine}`);
+    }
+    body.push(style(ANSI.dim, choice.description));
+    body.push(style(ANSI.dim, formatTuiCommand(choice)));
+    body.push("");
+  });
+  if (body.length && body[body.length - 1] === "") {
+    body.pop();
+  }
+  lines.push(...renderBox(body, Math.min(termWidth(), 110), accent));
+  lines.push("");
+  lines.push(style(ANSI.dim, copy.actionHint));
+  return lines;
+}
+
+// ---------------------------------------------------------------------------
+// renderTuiMenu: plain string preview (tests + non-TTY fallback)
+// ---------------------------------------------------------------------------
+
+export function renderTuiMenu(config: Record<string, any>, options: Record<string, any> = {}): string {
+  const locale = normalizeTuiLocale(options);
+  if (options.categoryId) {
+    return buildCategoryLines(config, locale, options.categoryId, 0).join("\n");
+  }
+  return buildHomeLines(config, locale, 0).join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// runTui entry + prompt (deterministic) flow
+// ---------------------------------------------------------------------------
+
+export async function runTui(gitRoot: string, config: Record<string, any>, options: Record<string, any> = {}) {
+  const locale = normalizeTuiLocale(options);
+  if (options.io) {
+    await runPromptTui(gitRoot, config, { ...options, locale });
+    return;
+  }
+  if (!defaultInput.isTTY || !defaultOutput.isTTY) {
+    defaultOutput.write(`${renderTuiMenu(config, { locale })}\n`);
+    return;
+  }
+  await runFullscreenTui(gitRoot, config, { ...options, locale });
+}
+
+async function runPromptTui(gitRoot: string, config: Record<string, any>, options: Record<string, any> = {}) {
+  const io = options.io;
+  const runner: TuiRunner = options.runner || ((args: string[], cwd: string) => runCliCommand(args, cwd));
+  const locale = normalizeTuiLocale(options);
+  const copy = getCopy(locale);
+
+  while (true) {
+    defaultOutput.write(`\n${renderTuiMenu(config, { locale })}\n`);
+    const categoryAnswer = String(await io.question(`\n${copy.selectWorkspace}: `)).trim();
+    if (categoryAnswer.toLowerCase() === "q") {
+      defaultOutput.write(`${copy.bye}\n`);
+      return;
+    }
+    const category = resolveTuiCategory(categoryAnswer, { locale });
+    if (!category) {
+      defaultOutput.write(`${copy.selectWorkspace}\n`);
+      continue;
+    }
+
+    while (true) {
+      defaultOutput.write(`\n${renderTuiMenu(config, { locale, categoryId: category.id })}\n`);
+      const answer = String(await io.question(`\n${copy.selectAction}: `)).trim();
+      const normalized = answer.toLowerCase();
+      if (normalized === "home" || normalized === "back" || normalized === "b") {
+        break;
+      }
+      if (normalized === "q") {
+        defaultOutput.write(`${copy.bye}\n`);
+        return;
+      }
+      const choice = resolveTuiChoice(answer, category.id, { locale });
+      if (!choice || choice.category !== category.id) {
+        defaultOutput.write(`${copy.selectAction}\n`);
+        continue;
+      }
+      if (choice.exits) {
+        defaultOutput.write(`${copy.bye}\n`);
+        return;
+      }
+
+      // log/restore first print the full session list (untruncated) so the
+      // user can find a number; restore then asks for it.
+      let prompted = "";
+      if (choice.browser) {
+        const listResult = normalizeCommandResult(await runner(["log", "--latest", "--oneline", "-40"], gitRoot));
+        const listText = [listResult.stdout, listResult.stderr].filter(Boolean).join("\n").trim();
+        defaultOutput.write(`\n${choice.label}:\n${listText || (locale === "cn" ? "(无会话)" : "(no sessions)")}\n`);
+        if (listResult.status !== 0) {
+          await io.question(`\n${copy.pressEnter}`);
+          continue;
+        }
+        if (choice.browser === "log") {
+          await io.question(`\n${copy.pressEnter}`);
+          continue;
+        }
+        // restore: ask for the number shown above.
+        prompted = String(await io.question(`${choice.label} ${locale === "cn" ? "编号" : "index"}: `)).trim();
+        if (!/^\d+$/.test(prompted)) {
+          defaultOutput.write(`${locale === "cn" ? "需要数字编号" : "Numeric index required"}\n`);
+          continue;
+        }
+      } else if (choice.prompt) {
+        prompted = String(await io.question(`${choice.prompt.label}: `)).trim();
+        if (!prompted && !choice.promptSuffix) {
+          defaultOutput.write(`${copy.valueRequired(choice.prompt.label)}\n`);
+          continue;
+        }
+      }
+
+      defaultOutput.write(`${formatTuiCommand(choice, prompted)}\n`);
+      if (choice.confirm) {
+        const confirmation = String(await io.question(`${choice.confirm} ${copy.confirmSuffix}: `)).trim();
+        if (!isConfirmAccepted(confirmation)) {
+          defaultOutput.write(`${copy.cancelled}\n`);
+          continue;
+        }
+      }
+
+      const result = normalizeCommandResult(await runner(buildChoiceArgs(choice, prompted), gitRoot));
+      if (result.status !== 0) {
+        defaultOutput.write(`${copy.failed(result.status)}\n`);
+      }
+      if (!isWatchChoice(choice)) {
+        await io.question(`\n${copy.pressEnter}`);
+      } else {
+        return;
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// runFullscreenTui: raw full-screen single-key experience
+// ---------------------------------------------------------------------------
+
+async function runFullscreenTui(gitRoot: string, config: Record<string, any>, options: Record<string, any> = {}) {
+  const locale = normalizeTuiLocale(options);
+  const copy = getCopy(locale);
+  const runner: TuiRunner = options.runner || ((args: string[], cwd: string) => runCliCommand(args, cwd));
+  const categories = getTuiCategories({ locale });
+
+  let view: "home" | "category" = "home";
+  let categoryIndex = 0;
+  let actionIndex = 0;
+
+  const enterRaw = () => {
+    setRawMode(true);
+    defaultInput.resume();
+  };
+  const exitRaw = () => {
+    setRawMode(false);
+  };
+
+  const drawFrame = () => {
+    if (view === "home") {
+      const lines = buildHomeLines(config, locale, categoryIndex);
+      writeFrame(lines);
+    } else {
+      const cat = categories[categoryIndex];
+      const lines = buildCategoryLines(config, locale, cat.id, actionIndex);
+      writeFrame(lines);
+    }
+  };
+
+  enterRaw();
+  defaultOutput.write("\x1b[?1049h\x1b[?25l"); // alt screen + hide cursor
+  try {
+    let needsRedraw = true;
+    while (true) {
+      if (needsRedraw) {
+        drawFrame();
+        needsRedraw = false;
+      }
+      const key = await readKey();
+      if (key === null || key === "CTRL_C" || key === "CTRL_D") {
+        break;
+      }
+      if (view === "home") {
+        if (key === "UP" || key === "k") {
+          categoryIndex = wrap(categoryIndex - 1, categories.length);
+          needsRedraw = true;
+        } else if (key === "DOWN" || key === "j") {
+          categoryIndex = wrap(categoryIndex + 1, categories.length);
+          needsRedraw = true;
+        } else if (key === "ENTER" || key === "RIGHT") {
+          view = "category";
+          actionIndex = 0;
+          needsRedraw = true;
+        } else if (key === "ESC" || key === "q") {
+          break;
+        } else if (key === "h" || key === "?") {
+          await showHelp(locale, "home");
+          needsRedraw = true;
+        } else {
+          const cat = resolveTuiCategory(key, { locale });
+          if (cat) {
+            categoryIndex = Math.max(0, categories.findIndex((item) => item.id === cat.id));
+            view = "category";
+            actionIndex = 0;
+            needsRedraw = true;
+          }
+        }
+      } else {
+        const cat = categories[categoryIndex];
+        const actions = choicesForCategory(getTuiChoices({ locale }), cat.id);
+        if (key === "UP" || key === "k") {
+          actionIndex = wrap(actionIndex - 1, actions.length);
+          needsRedraw = true;
+        } else if (key === "DOWN" || key === "j") {
+          actionIndex = wrap(actionIndex + 1, actions.length);
+          needsRedraw = true;
+        } else if (key === "LEFT" || key === "ESC" || key === "q" || key === "b") {
+          view = "home";
+          needsRedraw = true;
+        } else if (key === "RIGHT" || key === "TAB" || key === "PAGE_DOWN") {
+          categoryIndex = wrap(categoryIndex + 1, categories.length);
+          view = "category";
+          actionIndex = 0;
+          needsRedraw = true;
+        } else if (key === "PAGE_UP") {
+          categoryIndex = wrap(categoryIndex - 1, categories.length);
+          view = "category";
+          actionIndex = 0;
+          needsRedraw = true;
+        } else if (key === "0") {
+          break;
+        } else if (key === "h" || key === "?") {
+          await showHelp(locale, "category");
+          needsRedraw = true;
+        } else if (key === "ENTER") {
+          const choice = actions[actionIndex];
+          if (choice) {
+            if (await runAction(choice, { gitRoot, runner, copy, locale })) {
+              break;
+            }
+            needsRedraw = true;
+          }
+        } else {
+          const choice = actions.find((item) => item.key === String(key).toLowerCase());
+          if (choice) {
+            if (await runAction(choice, { gitRoot, runner, copy, locale })) {
+              break;
+            }
+            needsRedraw = true;
+          }
+        }
+      }
+    }
+  } finally {
+    defaultOutput.write("\x1b[?25h\x1b[?1049l"); // show cursor + leave alt screen
+    exitRaw();
+  }
+}
+
+function writeFrame(lines: string[]): void {
+  // Incremental overdraw: hide cursor, home, clear-to-eol per line, clear-to-eos.
+  const out = lines.map((line) => `${line}\x1b[K`).join("\n");
+  defaultOutput.write(`\x1b[?25l\x1b[H${out}\n\x1b[J`);
+}
+
+async function runAction(
+  choice: TuiChoice,
+  ctx: { gitRoot: string; runner: TuiRunner; copy: ReturnType<typeof getCopy>; locale: TuiLocale }
+): Promise<boolean> {
+  const { gitRoot, runner, copy, locale } = ctx;
+  let prompted = "";
+
+  if (choice.browser) {
+    const picked = await browseSessions(choice, ctx);
+    if (choice.browser === "log") {
+      // log only browses; nothing to run afterwards.
+      return false;
+    }
+    if (picked === null) {
+      // restore cancelled / no selection.
+      return false;
+    }
+    prompted = picked;
+  } else if (choice.prompt) {
+    clearScreen();
+    writeCenteredLines([...brandHeader(choice.category, locale), ""]);
+    const info = [
+      `${style(ANSI.dim, "Action")} : ${style(ANSI.bold, choice.label)}`,
+      `${style(ANSI.dim, "Command")} : ${style(ANSI.dim, formatTuiCommand(choice))}`
+    ];
+    writeCenteredBox(info, ANSI.dim);
+    defaultOutput.write("\n");
+    const line = await readLineEditor(`${style(ANSI.bold + ANSI.cyan, `${choice.prompt.label}: `)}`);
+    if (line === null) {
+      await flashMessage(copy.cancelled, locale);
+      return false;
+    }
+    prompted = line.trim();
+    if (!prompted && !choice.promptSuffix) {
+      await flashMessage(copy.valueRequired(choice.prompt.label), locale);
+      return false;
+    }
+  }
+
+  if (choice.confirm) {
+    clearScreen();
+    writeCenteredLines([...brandHeader(choice.category, locale), ""]);
+    const info = [
+      `${style(ANSI.yellow, "⚠ Confirm")}`,
+      `${style(ANSI.dim, "Action")} : ${style(ANSI.bold, choice.label)}`,
+      `${style(ANSI.dim, "Command")} : ${style(ANSI.dim, formatTuiCommand(choice, prompted))}`,
+      "",
+      choice.confirm,
+      `${style(ANSI.dim, copy.confirmSuffix)}`
+    ];
+    writeCenteredBox(info, ANSI.yellow);
+    defaultOutput.write("\n");
+    const ok = await readYesNo();
+    if (!ok) {
+      await flashMessage(copy.cancelled, locale);
+      return false;
+    }
+  }
+
+  if (choice.handoff) {
+    // Leave the fullscreen surface, then run the long-lived watch in foreground.
+    defaultOutput.write("\x1b[?25h\x1b[?1049l");
+    setRawMode(false);
+    runCliCommand(buildChoiceArgs(choice, prompted), gitRoot, { inherit: true });
+    return true;
+  }
+
+  clearScreen();
+  writeCenteredLines([...brandHeader(choice.category, locale), ""]);
+  writeCenteredLine(style(ANSI.bold + ANSI.cyan, `▶ ${choice.label}`, ANSI.bold));
+  defaultOutput.write("\n");
+  const runInfo = [
+    `${style(ANSI.dim, "Running")} : ${style(ANSI.bold, copy.running)}`,
+    `${style(ANSI.dim, "Command")} : ${style(ANSI.dim, formatTuiCommand(choice, prompted))}`
+  ];
+  writeCenteredBox(runInfo, ANSI.dim);
+  defaultOutput.write("\n");
+
+  let result: { status: number; stdout: string; stderr: string };
+  try {
+    result = normalizeCommandResult(await runner(buildChoiceArgs(choice, prompted), gitRoot));
+  } catch (error) {
+    result = { status: 1, stdout: "", stderr: error instanceof Error ? error.message : String(error) };
+  }
+
+  const combined = compactOutput([result.stdout, result.stderr].filter(Boolean).join("\n"));
+  const statusLine = result.status === 0
+    ? style(ANSI.green, copy.done, ANSI.bold)
+    : style(ANSI.yellow, copy.failed(result.status), ANSI.bold);
+  const outLines: string[] = [statusLine];
+  if (combined) {
+    outLines.push("", ...combined.split(/\r?\n/).map((line) => style(ANSI.dim, line)));
+  }
+  writeCenteredBox(outLines, result.status === 0 ? ANSI.green : ANSI.yellow);
+  defaultOutput.write("\n");
+  writeCenteredLine(style(ANSI.dim, copy.pressEnter));
+  await readEnter();
+  return false;
+}
+
+// --- Session browser (log / restore) --------------------------------------
+//
+// Both `log` and `restore` need to show the full synced conversation list so
+// the user can find a number. We source it from `log --latest --json` (one
+// structured call) and render every entry ourselves — this avoids the
+// `compactOutput` ceiling that used to truncate `log --oneline -20` to ~4
+// visible rows. `log` just browses; `restore` lets the user pick a number and
+// returns it so runAction can run `restore --index <n>`.
+
+type BindingEntry = {
+  index: number;        // 1-based, matches `restore --index` semantics
+  title: string;
+  agent: string;
+  date: string;
+  commit: string;
+  bundleId: string;
+};
+
+async function fetchBindingEntries(ctx: { gitRoot: string; runner: TuiRunner }): Promise<{ entries: BindingEntry[]; error: string | null }> {
+  let result;
+  try {
+    result = normalizeCommandResult(await ctx.runner(["log", "--latest", "--json"], ctx.gitRoot));
+  } catch (error) {
+    return { entries: [], error: error instanceof Error ? error.message : String(error) };
+  }
+  if (result.status !== 0) {
+    return { entries: [], error: [result.stderr, result.stdout].filter(Boolean).join("\n").trim() || `log exited with status ${result.status}` };
+  }
+  let parsed: any[];
+  try {
+    parsed = JSON.parse(result.stdout || "[]");
+  } catch {
+    return { entries: [], error: "log --json returned invalid JSON." };
+  }
+  if (!Array.isArray(parsed)) {
+    return { entries: [], error: "log --json did not return a list." };
+  }
+  const entries: BindingEntry[] = parsed.map((binding, index) => ({
+    index: index + 1,
+    title: String(binding?.title || binding?.bundleId || "(untitled)"),
+    agent: String(binding?.agent || "?"),
+    date: String(binding?.conversationAt || binding?.syncedAt || binding?.boundAt || "").replace("T", " ").replace(/\.\d+Z$/, "").replace(/Z$/, ""),
+    commit: String(binding?.projectCommit || "").slice(0, 8),
+    bundleId: String(binding?.bundleId || "")
+  }));
+  return { entries, error: null };
+}
+
+function ellipsizeBindingText(text: string, width: number): string {
+  return displayWidth(text) <= width ? text : `${stripAnsi(text).slice(0, Math.max(1, width - 1))}…`;
+}
+
+async function browseSessions(
+  choice: TuiChoice,
+  ctx: { gitRoot: string; runner: TuiRunner; copy: ReturnType<typeof getCopy>; locale: TuiLocale }
+): Promise<string | null> {
+  const { runner, locale } = ctx;
+  const isRestore = choice.browser === "restore";
+
+  // Loading frame.
+  clearScreen();
+  writeCenteredLines([...brandHeader(choice.category, locale), ""]);
+  writeCenteredLine(style(ANSI.bold + ANSI.cyan, `▶ ${choice.label}`, ANSI.bold));
+  defaultOutput.write("\n");
+  writeCenteredBox([style(ANSI.dim, getCopy(locale).running)], ANSI.dim);
+  defaultOutput.write("\n");
+
+  const { entries, error } = await fetchBindingEntries(ctx);
+  if (error) {
+    await flashMessage(error, locale);
+    return null;
+  }
+  if (!entries.length) {
+    await flashMessage(locale === "cn" ? "没有可浏览的会话。先 push 或 pull。" : "No sessions to browse. Try push or pull first.", locale);
+    return null;
+  }
+
+  // Browse loop.
+  const pointer = "›";
+  let selected = 0;
+  const innerWidth = Math.min(termWidth(), 110) - 6;
+  const page = Math.max(6, termHeight() - 12);
+  let needsRedraw = true;
+
+  const hint = isRestore
+    ? (locale === "cn" ? "↑/↓ 选择 · Enter 恢复该编号 · q/Esc 返回" : "↑/↓ select · Enter restore this index · q/Esc back")
+    : (locale === "cn" ? "↑/↓ 浏览 · Enter/q 返回" : "↑/↓ browse · Enter/q back");
+
+  while (true) {
+    if (needsRedraw) {
+      const lines: string[] = [];
+      lines.push(...brandHeader(choice.category, locale));
+      lines.push(style(ANSI.bold + ANSI.cyan, choice.label, ANSI.bold));
+      lines.push(style(ANSI.dim, `${entries.length} session(s) · ${hint}`));
+      lines.push("");
+      let start = Math.max(0, selected - Math.floor(page / 2));
+      start = Math.min(start, Math.max(0, entries.length - page));
+      const end = Math.min(entries.length, start + page);
+      if (start > 0) {
+        lines.push(style(ANSI.dim, `  … ${start} earlier`));
+      }
+      for (let i = start; i < end; i += 1) {
+        const entry = entries[i];
+        const num = `${String(entry.index).padStart(3, " ")}`;
+        const agent = `[${entry.agent}]`.padEnd(9, " ");
+        const commit = entry.commit ? ` ${entry.commit}` : "";
+        const remain = Math.max(10, innerWidth - num.length - agent.length - commit.length - 3);
+        const title = ellipsizeBindingText(entry.title, remain);
+        const row = `${num}  ${agent} ${title}${commit}`;
+        if (i === selected) {
+          lines.push(`${style(ANSI.bold + ANSI.brightCyan, pointer)} ${style(ANSI.bold + ANSI.underline + ANSI.cyan, row, ANSI.bold)}`);
+        } else {
+          lines.push(`  ${style(ANSI.dim, num)}  ${style(ANSI.dim, agent)} ${title}${style(ANSI.dim, commit)}`);
+        }
+      }
+      if (end < entries.length) {
+        lines.push(style(ANSI.dim, `  … ${entries.length - end} more`));
+      }
+      writeFrame(lines);
+      needsRedraw = false;
+    }
+
+    const key = await readKey();
+    if (key === null || key === "CTRL_C" || key === "CTRL_D") {
+      return null;
+    }
+    if (key === "UP" || key === "k") {
+      selected = wrap(selected - 1, entries.length);
+      needsRedraw = true;
+      continue;
+    }
+    if (key === "DOWN" || key === "j") {
+      selected = wrap(selected + 1, entries.length);
+      needsRedraw = true;
+      continue;
+    }
+    if (key === "q" || key === "ESC" || key === "b") {
+      return null;
+    }
+    if (key === "ENTER") {
+      if (isRestore) {
+        return String(entries[selected].index);
+      }
+      return null;
+    }
+  }
+}
+
+function setRawMode(enabled: boolean): void {
+  const input = defaultInput as any;
+  if (input && typeof input.setRawMode === "function") {
+    input.setRawMode(enabled);
+  }
+}
+
+async function flashMessage(message: string, locale: TuiLocale): Promise<void> {
+  clearScreen();
+  writeCenteredLines([...brandHeader("home", locale), ""]);
+  writeCenteredBox([style(ANSI.yellow, message)], ANSI.dim);
+  defaultOutput.write("\n");
+  writeCenteredLine(style(ANSI.dim, getCopy(locale).pressEnter));
+  await readEnter();
+}
+
+function writeCenteredLine(text: string): void {
+  defaultOutput.write(`${centerPad(text, termWidth())}\n`);
+}
+
+function brandHeader(kind: "home" | TuiCategoryId, locale: TuiLocale): string[] {
+  const copy = getCopy(locale);
+  const lines = [...gradientLogoLines(kind)];
+  const category = getTuiCategories({ locale }).find((item) => item.id === kind);
+  if (category) {
+    lines.push(style(ANSI.bold + ACCENT_CODE[category.accent], category.toolkitTitle, ANSI.bold));
+    lines.push(style(ANSI.dim, category.subtitle));
+  } else {
+    lines.push(style(ANSI.bold + ANSI.cyan, copy.kitLine, ANSI.bold));
+    lines.push(style(ANSI.dim, copy.tagline));
+  }
+  return lines;
+}
+
+async function showHelp(locale: TuiLocale, screen: "home" | "category"): Promise<void> {
+  const copy = getCopy(locale);
+  clearScreen();
+  writeCenteredLines([...brandHeader("home", locale), ""]);
+  const lines: string[] = [
+    style(ANSI.bold, "Keys"),
+    screen === "home"
+      ? `↑/↓ or j/k  select workspace`
+      : `↑/↓ or j/k  select action`,
+    `1/2/3      jump to workspace`,
+    `Enter      ${screen === "home" ? "open workspace" : "run selected action"}`,
+    `←/q/Esc    ${screen === "home" ? "quit" : "back to home"}`,
+    `→/Tab/PgDn next workspace · PgUp previous`,
+    `h or ?     this help`,
+    `0 / Ctrl-C quit`,
+    "",
+    style(ANSI.bold, "Tips"),
+    locale === "cn"
+      ? "每个动作都是一次 git agent-sync 子命令；危险或写操作会先确认。"
+      : "Every action is one git agent-sync subcommand; writes confirm first."
+  ];
+  writeCenteredBox(lines, ANSI.dim);
+  defaultOutput.write("\n");
+  writeCenteredLine(style(ANSI.dim, copy.pressEnter));
+  await readEnter();
+}
+
+// ---------------------------------------------------------------------------
+// Small utils
+// ---------------------------------------------------------------------------
+
+function wrap(index: number, length: number): number {
   if (length <= 0) {
     return 0;
   }
   return (index + length) % length;
-}
-
-function trimMiddle(value: string, maxLength: number) {
-  const text = String(value || "");
-  if (text.length <= maxLength) {
-    return text;
-  }
-  const keep = Math.max(8, Math.floor((maxLength - 3) / 2));
-  return `${text.slice(0, keep)}...${text.slice(-keep)}`;
 }

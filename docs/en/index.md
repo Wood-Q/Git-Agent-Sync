@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Agent-Sync
-  text: Git for your AI coding sessions
-  tagline: Carry local Codex and Claude Code project conversations to another machine like you carry source code. Your business repository stays clean while session history moves through a separate private sidecar Git repository.
+  text: A toolbox for your AI coding sessions
+  tagline: Sync, migrate, transform, and diagnose your Codex and Claude Code conversations — without ever polluting your source repository. One toolkit for everything around agent sessions.
   image:
     src: /logo.svg
     alt: Agent-Sync logo
@@ -13,36 +13,38 @@ hero:
       text: Get Started
       link: /en/usage
     - theme: alt
-      text: Execution Flow
-      link: /en/execution-flow
+      text: Concepts
+      link: /en/concepts
     - theme: alt
       text: 简体中文
       link: /zh/
 
 features:
-  - title: Keep sessions out of source commits
-    details: Agent-Sync creates an independent .agent-sync-store/ sidecar Git repository, so source commits stay focused on source code.
-  - title: Match only current-project sessions
-    details: Codex and Claude Code sessions are matched through structured metadata such as cwd, remote, branch, commit, and workdir. Transcript text is not ownership proof.
-  - title: Restore context across machines
-    details: After pull, restore by latest sync, current commit, branch, commit, bundle id, or log index, with local path and shell adaptation.
+  - title: Remote sync
+    details: Move project sessions between machines through a private sidecar Git repo. Conversations stay attached to the right branch and commit — never to your source history.
+  - title: Local migration
+    details: Switch Codex model_provider? clone-local copies current-project Codex sessions to the active provider and registers them in the UI; watch-local keeps doing it automatically.
+  - title: Cross-tool transform
+    details: Normalize any synced bundle through the Conversation IR and re-emit it as readable Claude or Codex JSONL. Conversations become portable across tools.
+  - title: Diagnose & stay safe
+    details: doctor checks the whole chain, privacy scans for secrets before any push, conflicts quarantines divergent sessions, and the TUI ties it all together.
 ---
 
 <section class="landing-section">
   <p class="landing-eyebrow">Why it exists</p>
-  <h2>Code can move with clone. AI coding sessions should move with the project too.</h2>
+  <h2>Agent conversations are real work. Treat them like it.</h2>
   <div class="landing-grid">
     <article class="landing-card">
-      <h3>Keep context when switching machines</h3>
-      <p>Design notes, debugging trails, and command history from one machine can be pulled and restored on another.</p>
+      <h3>Not just syncing</h3>
+      <p>Remote sync started it — but the same toolbox now migrates providers locally, transforms sessions across tools, and diagnoses the whole chain.</p>
     </article>
     <article class="landing-card">
-      <h3>Use familiar Git-style commands</h3>
-      <p>Work with init, status, push, pull, log, show, and restore as a Git subcommand.</p>
+      <h3>Structured ownership</h3>
+      <p>Sessions are matched by cwd, remote, branch, commit, and workdir — not transcript text. Different projects never cross-contaminate.</p>
     </article>
     <article class="landing-card">
-      <h3>Keep privacy boundaries clear</h3>
-      <p>Scan project conversation JSONL files and required indexes, while skipping accounts, global settings, cache, telemetry, plugins, and runtime files.</p>
+      <h3>Source stays clean</h3>
+      <p>Sessions live in a separate .agent-sync-store/ sidecar repo. Your business commits contain only source code.</p>
     </article>
   </div>
 </section>

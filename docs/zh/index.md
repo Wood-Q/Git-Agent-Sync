@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Agent-Sync
-  text: Git for your AI coding sessions
-  tagline: 把 Codex 和 Claude Code 的本地项目会话，像代码一样带到另一台机器。业务仓库保持干净，会话历史进入独立私有 sidecar Git 仓库。
+  text: AI 编程会话的全能工具箱
+  tagline: 同步、迁移、转换、诊断你的 Codex 和 Claude Code 对话——绝不让它们污染源码仓库。一套工具搞定 agent 会话的方方面面。
   image:
     src: /logo.svg
     alt: Agent-Sync logo
@@ -13,36 +13,38 @@ hero:
       text: 快速开始
       link: /zh/usage
     - theme: alt
-      text: 查看执行链路
-      link: /zh/execution-flow
+      text: 概念说明
+      link: /zh/concepts
     - theme: alt
       text: English
       link: /en/
 
 features:
-  - title: 不把会话塞进业务仓库
-    details: Agent-Sync 创建独立的 .agent-sync-store/ sidecar Git 仓库，源码提交仍然只包含源码。
-  - title: 只同步属于当前项目的会话
-    details: Codex 和 Claude Code 会话通过 cwd、remote、branch、commit、workdir 等结构化元数据匹配，正文提到项目名不算归属证据。
-  - title: 跨机器恢复上下文
-    details: pull 后可以按 latest、current、branch、commit 或 bundle id 恢复，并自动适配当前机器的项目路径和 shell。
+  - title: 远程同步
+    details: 通过独立的私有 sidecar Git 仓库在多机之间移动项目会话。对话始终绑在正确的分支和 commit 上——绝不进源码历史。
+  - title: 本地迁移
+    details: 切换 Codex model_provider？clone-local 把当前项目的 Codex 会话克隆到当前 provider 并注册进 UI；watch-local 持续自动完成。
+  - title: 跨工具转换
+    details: 通过 Conversation IR 把任意已同步 bundle 归一化，再导出为可读的 Claude 或 Codex JSONL。对话跨工具流动。
+  - title: 诊断与安全
+    details: doctor 检查整条链路，privacy 在推送前扫描密钥，conflicts 隔离分叉会话，TUI 把这一切串起来。
 ---
 
 <section class="landing-section">
-  <p class="landing-eyebrow">Why it exists</p>
-  <h2>代码能 clone，AI 编程会话也能跟着项目走</h2>
+  <p class="landing-eyebrow">为什么需要它</p>
+  <h2>Agent 对话是真正的工作成果，理应被这样对待</h2>
   <div class="landing-grid">
     <article class="landing-card">
-      <h3>换机器不丢上下文</h3>
-      <p>在一台机器上和 agent 讨论过的设计、调试记录和命令历史，可以在另一台机器拉取并恢复。</p>
+      <h3>不只是同步</h3>
+      <p>远程同步是起点——但同一套工具箱现在还能本地迁移 provider、跨工具转换会话、诊断整条链路。</p>
     </article>
     <article class="landing-card">
-      <h3>Git 风格的操作</h3>
-      <p>作为 Git 子命令使用：init、status、push、pull、log、show、restore，习惯不需要重新学习。</p>
+      <h3>结构化归属</h3>
+      <p>会话靠 cwd、remote、branch、commit、workdir 匹配——不是正文文本。不同项目的会话不会互相污染。</p>
     </article>
     <article class="landing-card">
-      <h3>隐私边界更清楚</h3>
-      <p>只扫描项目会话 JSONL 和必要索引，跳过账号、全局设置、缓存、遥测、插件和运行态文件。</p>
+      <h3>源码保持干净</h3>
+      <p>会话存在独立的 .agent-sync-store/ sidecar 仓库里。业务提交只包含源码。</p>
     </article>
   </div>
 </section>

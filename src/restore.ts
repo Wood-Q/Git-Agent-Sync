@@ -59,7 +59,7 @@ export function restoreCommand(gitRoot, args, options, config) {
   printJsonResult(options, restoreMatches(config, matches, options));
 }
 
-function parseRestoreIndex(args, options, hasSelector) {
+export function parseRestoreIndex(args, options, hasSelector) {
   const value = options.index ?? (hasSelector ? args[0] : null);
   if (value === null || value === undefined) {
     return null;
@@ -74,7 +74,7 @@ function parseRestoreIndex(args, options, hasSelector) {
   return index;
 }
 
-function selectRestoreMatches(matches, index, selector, filters = {}) {
+export function selectRestoreMatches(matches, index, selector, filters = {}) {
   if (!index) {
     return matches;
   }

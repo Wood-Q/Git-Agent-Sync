@@ -49,7 +49,7 @@ Published extension:
 
 - Extension package: `agent-sync-vscode`
 - Marketplace display name: `Git Agent Sync`
-- Version: `0.1.3`
+- Version: tracks `extensions/vscode/package.json` `version` (released in lockstep with the CLI)
 - Publisher: `mokio`
 - Extension ID: `mokio.agent-sync-vscode`
 - Marketplace: `https://marketplace.visualstudio.com/items?itemName=mokio.agent-sync-vscode`
@@ -57,25 +57,26 @@ Published extension:
 
 The extension calls the `agent-sync` CLI from `PATH` by default. On Windows it also checks common npm global install locations and supports npm's `agent-sync.cmd` shim. Users can override the executable with the `agentSync.cliPath` setting.
 
-CI publishes from `.github/workflows/release-vscode.yml`. Configure the repository secret `VSCE_PAT` with Marketplace publish permission for publisher `mokio`, then publish either by running the workflow manually or by pushing a VS Code release tag after the extension version bump is on `main`:
+> **Current release status**: The VS Code extension is **not published to the Marketplace via CI** (Marketplace publishing requires registering a Microsoft organization with a payment method). The manual flow below still works — package a `.vsix` locally and sideload it (`code --install-extension agent-sync-vscode.vsix`), or run `vsce publish` yourself once you have completed the Microsoft publisher registration.
 
-```bash
-git tag vscode-v0.1.4
-git push origin vscode-v0.1.4
-```
-
-For manual publishing, bump `extensions/vscode/package.json` `version`, then build and publish:
+For manual packaging, bump `extensions/vscode/package.json` `version`, then build and package:
 
 ```bash
 cd extensions/vscode
 npm ci
 npm run compile
-npx vsce package --no-dependencies
+npx vsce package --no-dependencies      # produces agent-sync-vscode-<version>.vsix
+code --install-extension agent-sync-vscode-<version>.vsix   # local sideload
+```
+
+To publish to the Marketplace later, first complete the Microsoft publisher registration and log in:
+
+```bash
 npx vsce login mokio
 npx vsce publish
 ```
 
-Published Marketplace versions cannot be overwritten. Any change to `displayName`, `icon`, README, commands, configuration, or code requires bumping `extensions/vscode/package.json` `version` and publishing a new version.
+Published Marketplace versions cannot be overwritten. Any change to `displayName`, `icon`, README, commands, configuration, or code requires bumping `extensions/vscode/package.json` `version` and publishing (or repackaging) a new version.
 
 ## Public Release Privacy Check
 
