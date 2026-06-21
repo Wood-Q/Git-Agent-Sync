@@ -49,6 +49,13 @@ export interface RestoreResponse {
   results: RestoreResult[];
 }
 
+export interface LocalTransferResponse {
+  mode: "clone";
+  provider: string;
+  candidates: number;
+  stats: Record<string, number>;
+}
+
 export class AgentSyncCliError extends Error {
   constructor(
     message: string,
@@ -79,6 +86,11 @@ export class AgentSyncCli {
 
   async push(cwd: string): Promise<string> {
     return this.run(cwd, ["push"]);
+  }
+
+  async localTransfer(cwd: string): Promise<LocalTransferResponse> {
+    const stdout = await this.run(cwd, ["clone-local", "--json"]);
+    return parseJson<LocalTransferResponse>(stdout, "agent-sync clone-local --json");
   }
 
   async run(cwd: string, args: string[]): Promise<string> {
@@ -139,6 +151,11 @@ export function resolveCliInvocation(): CliInvocation {
     env,
     shell: shouldUseShell(command)
   };
+}
+
+export function buildCliCommandLine(args: string[]): string {
+  const invocation = resolveCliInvocation();
+  return [invocation.command, ...args].map(quoteForDisplay).join(" ");
 }
 
 export function defaultLogFilter(): AgentSyncLogFilter {

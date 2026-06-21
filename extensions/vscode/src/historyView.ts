@@ -37,6 +37,12 @@ export class HistoryView {
           vscode.commands.executeCommand("agentSync.pull");
         } else if (message?.command === "push") {
           vscode.commands.executeCommand("agentSync.push");
+        } else if (message?.command === "localClone") {
+          vscode.commands.executeCommand("agentSync.localClone");
+        } else if (message?.command === "watchLocalCopy") {
+          vscode.commands.executeCommand("agentSync.watchLocalCopy");
+        } else if (message?.command === "openTui") {
+          vscode.commands.executeCommand("agentSync.openTui");
         }
       });
     }
@@ -292,6 +298,9 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     <div class="count"><span id="visibleCount">${bindings.length}</span> / ${bindings.length}</div>
     <button type="button" id="pull" title="Pull sidecar sessions">Pull</button>
     <button type="button" id="push" title="Push local sessions">Push</button>
+    <button type="button" id="localClone" title="Clone Codex sessions to current provider">Clone</button>
+    <button type="button" id="watchLocalCopy" title="Watch Codex provider changes">Watch</button>
+    <button type="button" id="openTui" title="Open Agent Sync TUI">TUI</button>
     <button type="button" id="refresh">Refresh</button>
     <button type="button" id="clear">Clear</button>
   </div>
@@ -386,6 +395,15 @@ export function renderHistoryHtml(webview: Pick<vscode.Webview, "cspSource">, bi
     });
     document.getElementById('push').addEventListener('click', () => {
       vscode.postMessage({ command: 'push' });
+    });
+    document.getElementById('localClone').addEventListener('click', () => {
+      vscode.postMessage({ command: 'localClone' });
+    });
+    document.getElementById('watchLocalCopy').addEventListener('click', () => {
+      vscode.postMessage({ command: 'watchLocalCopy' });
+    });
+    document.getElementById('openTui').addEventListener('click', () => {
+      vscode.postMessage({ command: 'openTui' });
     });
     document.getElementById('clear').addEventListener('click', () => {
       Object.keys(filters).forEach((key) => delete filters[key]);

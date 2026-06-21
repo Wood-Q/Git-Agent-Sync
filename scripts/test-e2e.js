@@ -23,6 +23,8 @@ const codexBranch = join(base, "codex-branch");
 const codexCommit = join(base, "codex-commit");
 const claudeA = join(base, "claude-a");
 const claudeB = join(base, "claude-b");
+const codexSkillsB = join(base, "codex-skills-b");
+const claudeSkillsB = join(base, "claude-skills-b");
 const windowsRoot = `C:\\Users\\example\\FullStack\\${projectName}`;
 const pushMessage = "feat: add user login API";
 const conversationAtMs = Date.parse("2026-05-23T02:14:00.000Z");
@@ -39,6 +41,8 @@ mkdirSync(codexBranch, { recursive: true });
 mkdirSync(codexCommit, { recursive: true });
 mkdirSync(claudeA, { recursive: true });
 mkdirSync(claudeB, { recursive: true });
+mkdirSync(join(codexSkillsB, "capacity"), { recursive: true });
+mkdirSync(join(claudeSkillsB, "review"), { recursive: true });
 mkdirSync(join(codexA, "archived_sessions"), { recursive: true });
 mkdirSync(join(codexA, "2026", "05", "21"), { recursive: true });
 mkdirSync(join(codexA, "2026", "05", "20"), { recursive: true });
@@ -74,6 +78,7 @@ writeJsonl(sessionPath, [
     payload: {
       id: "session-current",
       cwd: windowsRoot,
+      instructions: "<skills_instructions>\n- name: capacity\n- name: missing-codex\n</skills_instructions>",
       git: {
         commit_hash: currentCommit,
         branch: "main",
@@ -92,6 +97,14 @@ writeJsonl(sessionPath, [
         workdir: windowsRoot,
         shell: "powershell.exe"
       })
+    }
+  },
+  {
+    type: "response_item",
+    payload: {
+      type: "function_call",
+      name: "skill",
+      arguments: JSON.stringify({ skill: "capacity" })
     }
   }
 ]);
@@ -158,7 +171,8 @@ writeJsonl(claudeSessionPath, makeClaudeSession({
   gitRemote: bareProjectRemote,
   gitBranch: "main",
   timestamp: "2026-05-23T03:14:00.000Z",
-  title: "Continue Claude e2e session"
+  title: "Continue Claude e2e session",
+  skills: ["review", "missing-claude"]
 }));
 writeJsonl(foreignClaudeSessionPath, makeClaudeSession({
   sessionId: "foreign-claude",
@@ -227,6 +241,14 @@ assert.equal(byCurrent[0].commitMessage, pushMessage);
 assert.equal(byCurrent[0].authorName, "Agent Sync Test");
 assert.equal(byCurrent[0].authorEmail, "test@example.invalid");
 assert.equal(byCurrent[0].conversationAt, "2026-05-23T03:14:00.000Z");
+assert.deepEqual(byCurrent[0].dependencies.skills.map((skill) => `${skill.agent}:${skill.name}`).sort(), [
+  "claude:missing-claude",
+  "claude:review"
+]);
+assert.deepEqual(byCurrent[1].dependencies.skills.map((skill) => `${skill.agent}:${skill.name}`).sort(), [
+  "codex:capacity",
+  "codex:missing-codex"
+]);
 assert.equal(byCurrent[1].conversationAt, new Date(conversationAtMs).toISOString());
 assert.equal(byCurrent[2].conversationAt, new Date(olderConversationAtMs).toISOString());
 assert.match(readFileSync(join(projectB, ".agent-sync-store", byCurrent[1].storeRelativePath), "utf8"), /session-current/);
@@ -284,8 +306,10 @@ assert.equal(showAgentClaude.agent, "claude");
 
 const restoreOut = agent(projectB, codexB, claudeB, ["restore", "--current"]);
 assert.match(restoreOut, /restored claude:/);
+assert.match(restoreOut, /warn: missing claude skill "missing-claude"/);
 assert.match(restoreOut, /registered claude session: claude-current/);
 assert.match(restoreOut, /restored codex:/);
+assert.match(restoreOut, /warn: missing codex skill "missing-codex"/);
 assert.match(restoreOut, /registered codex thread: session-current/);
 assert.match(agent(projectB, codexB, claudeB, ["restore", "--latest", "1"]), /restored claude:/);
 assert.match(agent(projectB, codexB, claudeB, ["restore", "--current", "2"]), /restored codex:/);
@@ -300,6 +324,9 @@ assert.equal(typeof restoreCurrentJson.results[0].adapted, "boolean");
 assert.equal(restoreCurrentJson.results[0].registered.ok, true);
 assert.equal(restoreCurrentJson.results[0].registered.kind, "claude");
 assert.equal(restoreCurrentJson.results[0].registered.sessionId, "claude-current");
+assert.deepEqual(restoreCurrentJson.results[0].warnings.map((warning) => warning.message), [
+  `missing claude skill "missing-claude" required by ${byCurrent[0].bundleId}`
+]);
 assert.match(agent(projectB, codexIndex, claudeB, ["restore", "--index", "2"]), /restored codex:/);
 const restoreIndexJson = JSON.parse(agent(projectB, codexIndex, claudeB, ["restore", "--index", "2", "--json"]));
 assert.equal(restoreIndexJson.ok, true);
@@ -309,6 +336,9 @@ assert.equal(restoreIndexJson.results[0].agent, "codex");
 assert.equal(restoreIndexJson.results[0].bundleId, byCurrent[1].bundleId);
 assert.equal(restoreIndexJson.results[0].registered.ok, true);
 assert.equal(restoreIndexJson.results[0].registered.kind, "codex");
+assert.deepEqual(restoreIndexJson.results[0].warnings.map((warning) => warning.message), [
+  `missing codex skill "missing-codex" required by ${byCurrent[1].bundleId}`
+]);
 const restoreAgentCodexJson = JSON.parse(agent(projectB, codexIndex, claudeB, ["restore", "--agent", "codex", "1", "--json"]));
 assert.equal(restoreAgentCodexJson.ok, true);
 assert.equal(restoreAgentCodexJson.results.length, 1);
@@ -440,6 +470,8 @@ function agentEnv(codexDir, claudeDir) {
   return {
     AGENT_SYNC_CODEX_DIR: codexDir,
     AGENT_SYNC_CLAUDE_DIR: claudeDir,
+    AGENT_SYNC_CODEX_SKILLS_DIR: codexSkillsB,
+    AGENT_SYNC_CLAUDE_SKILLS_DIR: claudeSkillsB,
     TZ: "Asia/Shanghai"
   };
 }
@@ -470,7 +502,30 @@ function writeJsonl(path, items) {
   writeFileSync(path, `${items.map((item) => JSON.stringify(item)).join("\n")}\n`);
 }
 
-function makeClaudeSession({ sessionId, cwd, gitRemote, gitBranch, timestamp, title }) {
+function makeClaudeSession({ sessionId, cwd, gitRemote, gitBranch, timestamp, title, skills = [] }) {
+  const assistantContent = [{
+    type: "tool_use",
+    name: "Bash",
+    input: {
+      command: `ls ${cwd}\\src`,
+      cwd
+    }
+  }];
+  if (skills.length) {
+    assistantContent.push({
+      type: "tool_use",
+      name: "SkillTool",
+      input: {
+        name: skills[0]
+      }
+    });
+    if (skills.length > 1) {
+      assistantContent.push({
+        type: "text",
+        text: `<skills_instructions>\n${skills.slice(1).map((skill) => `- name: ${skill}`).join("\n")}\n</skills_instructions>`
+      });
+    }
+  }
   return [
     {
       type: "user",
@@ -493,14 +548,7 @@ function makeClaudeSession({ sessionId, cwd, gitRemote, gitBranch, timestamp, ti
       timestamp,
       message: {
         role: "assistant",
-        content: [{
-          type: "tool_use",
-          name: "Bash",
-          input: {
-            command: `ls ${cwd}\\src`,
-            cwd
-          }
-        }]
+        content: assistantContent
       }
     }
   ];

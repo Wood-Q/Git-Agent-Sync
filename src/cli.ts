@@ -30,7 +30,14 @@ import {
   writeGitignoreEntry
 } from "./config.js";
 import { getGitContext, getGitRoot, getGitValue, getProjectIdentity, runGit } from "./git.js";
+import {
+  DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS,
+  checkLocalTransferWatch,
+  normalizeWatchOptions,
+  runLocalTransfer
+} from "./local-transfer.js";
 import { restoreCommand } from "./restore.js";
+import { runTui } from "./tui.js";
 import {
   adoptExistingProjectBundle,
   copyMatchesToStore,
@@ -76,6 +83,9 @@ export async function main(argv) {
     push: () => pushCommand(gitRoot, options),
     pull: () => pullCommand(gitRoot),
     scan: () => scanCommand(gitRoot, options),
+    "clone-local": () => localTransferCommand(gitRoot, args, options),
+    "watch-local": () => localTransferWatchCommand(gitRoot, options),
+    tui: () => tuiCommand(gitRoot),
     "install-hooks": () => installHooksCommand(gitRoot),
     "uninstall-hooks": () => uninstallHooksCommand(gitRoot),
     restore: () => restoreCommand(gitRoot, args, options, readConfigWithBundle(gitRoot)),
@@ -106,6 +116,9 @@ Usage:
   git agent-sync push [--m <message>]
   git agent-sync pull
   git agent-sync scan [--json]
+  git agent-sync clone-local [target-provider] [--dry-run] [--json]
+  git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
+  git agent-sync tui
   git agent-sync restore <bundle-id>|--index <n>|--i <n>|--all|[filters] [index] [--no-adapt] [--no-register]
   git agent-sync install-hooks
   git agent-sync uninstall-hooks
@@ -123,6 +136,7 @@ Git-style behavior:
 MVP behavior:
   - Detects Codex sessions in ~/.codex/sessions/**/*.jsonl
   - Detects Claude Code sessions in ~/.claude/projects/**/*.jsonl
+  - Can clone matched Codex sessions to the current local Codex model_provider
   - Stores matched session files in a sidecar Git repo
   - Does not add agent sessions to your project Git history
 `);
@@ -183,6 +197,21 @@ Aligns with: git push. The sidecar commit records the current project HEAD commi
 
 Fast-forwards the sidecar repo from its remote.
 Run log or restore after pull to inspect or recover sessions.`,
+    "clone-local": `Usage:
+  git agent-sync clone-local [target-provider] [--dry-run] [--json]
+
+Clones current-project Codex sessions to the target Codex model_provider.
+When target-provider is omitted, Agent-Sync reads ~/.codex/config.toml.
+The cloned rollout stays inside ~/.codex/sessions and records cloned_from/original_provider metadata.`,
+    "watch-local": `Usage:
+  git agent-sync watch-local [--interval <seconds>] [--once] [--no-initial-sync] [--dry-run] [--json]
+
+Watches ~/.codex/config.toml for model_provider changes and clones current-project Codex sessions to the active provider.
+Defaults to an interval of ${DEFAULT_LOCAL_WATCH_INTERVAL_SECONDS} seconds.`,
+    tui: `Usage:
+  git agent-sync tui
+
+Opens an interactive terminal menu for status, log, pull, push, restore, local Codex provider clone, and local watch operations.`,
     restore: `Usage:
   git agent-sync restore <bundle-id> [--no-adapt] [--no-register]
   git agent-sync restore --index <n> [--no-adapt] [--no-register]
@@ -276,6 +305,40 @@ function statusCommand(gitRoot, options) {
 
 function scanCommand(gitRoot, options) {
   return statusCommand(gitRoot, options);
+}
+
+function localTransferCommand(gitRoot, args, options) {
+  const config = readConfigWithBundle(gitRoot);
+  const result = runLocalTransfer(gitRoot, config, {
+    ...options,
+    targetProvider: args[0] || ""
+  });
+  printLocalTransferResult(result, options);
+}
+
+async function localTransferWatchCommand(gitRoot, options) {
+  const config = readConfigWithBundle(gitRoot);
+  const watchOptions = normalizeWatchOptions(options);
+  let previousProvider = "";
+
+  if (!options.json && !watchOptions.once) {
+    console.log(`agent-sync: watching Codex model_provider every ${watchOptions.intervalSeconds}s. Press Ctrl+C to stop.`);
+  }
+
+  while (true) {
+    const event = checkLocalTransferWatch(gitRoot, config, watchOptions, previousProvider);
+    previousProvider = event.provider;
+    printLocalTransferWatchEvent(event, options);
+    if (watchOptions.once) {
+      return;
+    }
+    await sleep(watchOptions.intervalSeconds * 1000);
+  }
+}
+
+async function tuiCommand(gitRoot) {
+  const config = readConfigWithBundle(gitRoot);
+  await runTui(gitRoot, config);
 }
 
 function logCommand(gitRoot, options) {
@@ -658,6 +721,44 @@ function readConfigWithBundle(gitRoot) {
   const config = readConfig(gitRoot);
   adoptExistingProjectBundle(config);
   return config;
+}
+
+function printLocalTransferResult(result, options: Record<string, any> = {}) {
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  console.log(`agent-sync: clone Codex sessions to provider ${result.provider}`);
+  console.log(`candidates: ${result.candidates}`);
+  console.log(`cloned: ${result.stats.cloned}, skipped: ${result.stats.skipped_exists + result.stats.skipped_target + result.stats.skipped_collision}, errors: ${result.stats.error}`);
+  for (const item of result.results) {
+    if (item.action === "cloned") {
+      console.log(`[${item.action}] ${item.targetPath}`);
+    } else if (item.action === "skipped_collision" || item.action === "error") {
+      console.log(`[skip] ${item.sourceBundleId}: ${item.message}`);
+    }
+  }
+  if (result.dryRun) {
+    console.log("agent-sync: dry run, no local session files were written.");
+  }
+}
+
+function printLocalTransferWatchEvent(event, options: Record<string, any> = {}) {
+  if (options.json) {
+    console.log(JSON.stringify(event, null, 2));
+    return;
+  }
+  if (!event.result) {
+    return;
+  }
+  const label = event.changed ? `provider changed: ${event.previousProvider} -> ${event.provider}` : `initial provider sync: ${event.provider}`;
+  console.log(`agent-sync: ${label} at ${event.checkedAt}`);
+  printLocalTransferResult(event.result, options);
+}
+
+function sleep(ms) {
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 }
 
 function printScan(scan, config) {

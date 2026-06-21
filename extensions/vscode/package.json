@@ -23,7 +23,10 @@
     "onCommand:agentSync.restore",
     "onCommand:agentSync.refreshHistory",
     "onCommand:agentSync.pull",
-    "onCommand:agentSync.push"
+    "onCommand:agentSync.push",
+    "onCommand:agentSync.localClone",
+    "onCommand:agentSync.watchLocalCopy",
+    "onCommand:agentSync.openTui"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -55,6 +58,21 @@
         "command": "agentSync.push",
         "title": "Agent Sync: Push",
         "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "agentSync.localClone",
+        "title": "Agent Sync: Clone Codex Sessions to Current Provider",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "agentSync.watchLocalCopy",
+        "title": "Agent Sync: Watch Codex Provider",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "agentSync.openTui",
+        "title": "Agent Sync: Open TUI",
+        "icon": "$(terminal)"
       }
     ],
     "configuration": {

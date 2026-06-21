@@ -88,6 +88,35 @@ To restore the file without registering it in the Codex UI index:
 git agent-sync restore --current --no-register
 ```
 
+## Local Codex Provider Clone
+
+Use local clone when you switch Codex API providers and want current-project Codex sessions to appear under the active `model_provider` on the same machine:
+
+```bash
+git agent-sync clone-local
+git agent-sync clone-local openrouter
+```
+
+When the target provider is omitted, Agent-Sync reads `model_provider` from `~/.codex/config.toml`. The cloned rollout stays in `~/.codex/sessions`, gets a new stable session id, and records `cloned_from`, `original_provider`, and `clone_timestamp` metadata. Only sessions that match the current Git project through structured metadata are cloned.
+
+To keep Codex sessions available while switching API providers:
+
+```bash
+git agent-sync watch-local
+```
+
+`watch-local` polls `~/.codex/config.toml`; when `model_provider` changes, it clones current-project Codex sessions to the newly active provider. The VS Code History view includes Clone and Watch buttons that run the same local commands for the current workspace.
+
+## Terminal TUI
+
+Open the terminal menu when you want the common workflows in one place:
+
+```bash
+git agent-sync tui
+```
+
+The TUI can run status, latest log, pull, push, restore by index, local clone/copy, and local watch actions. The VS Code History view also has a TUI button that opens the same menu in an integrated terminal.
+
 ## Automatic Push
 
 Install a pre-push hook in each project where you want automatic session sync:

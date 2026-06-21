@@ -88,6 +88,35 @@ git agent-sync restore --current --no-adapt
 git agent-sync restore --current --no-register
 ```
 
+## 本机 Codex Provider Clone
+
+当你切换 Codex API 来源，希望当前项目的 Codex 会话在新的 `model_provider` 下继续可见时，可以做本机 clone：
+
+```bash
+git agent-sync clone-local
+git agent-sync clone-local openrouter
+```
+
+省略目标 provider 时，Agent-Sync 会读取 `~/.codex/config.toml` 里的 `model_provider`。克隆后的 rollout 仍写在 `~/.codex/sessions`，会生成稳定的新 session id，并记录 `cloned_from`、`original_provider`、`clone_timestamp` 等元数据。命令只处理通过结构化项目元数据匹配当前 Git 项目的 Codex 会话。
+
+切换 Codex API provider 时如果希望自动同步：
+
+```bash
+git agent-sync watch-local
+```
+
+`watch-local` 会轮询 `~/.codex/config.toml`；当 `model_provider` 变化时，它会把当前项目的 Codex 会话克隆到新的 provider。VS Code History 视图里也有 Clone 和 Watch 按钮，会对当前 workspace 执行同样的本机命令。
+
+## 终端 TUI
+
+如果希望把常用流程集中在一个终端菜单里，可以运行：
+
+```bash
+git agent-sync tui
+```
+
+TUI 可以执行 status、最新 log、pull、push、按编号 restore、本机 clone/copy 和本机 watch。VS Code History 视图里也有 TUI 按钮，会在集成终端打开同一个菜单。
+
 ## 自动同步
 
 在需要自动同步会话的业务项目里安装 pre-push hook：

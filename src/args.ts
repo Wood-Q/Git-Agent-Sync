@@ -5,20 +5,27 @@ export type CliOptions = Record<string, string | boolean | undefined> & {
   json?: boolean;
   latest?: boolean;
   noAdapt?: boolean;
+  noInitialSync?: boolean;
   noRegister?: boolean;
   oneline?: boolean;
+  once?: boolean;
   agent?: string;
   author?: string;
   branch?: string;
   bundle?: string;
   commit?: string;
   date?: string;
+  dryRun?: boolean;
+  from?: string;
   index?: string;
+  interval?: string;
   maxCount?: string;
   message?: string;
+  mode?: string;
   remote?: string;
   store?: string;
   title?: string;
+  to?: string;
 };
 
 export type BindingSelector =
@@ -80,6 +87,28 @@ export function parseArgs(rawArgs: string[]) {
       options.noAdapt = true;
     } else if (arg === "--no-register") {
       options.noRegister = true;
+    } else if (arg === "--no-initial-sync") {
+      options.noInitialSync = true;
+    } else if (arg === "--dry-run") {
+      options.dryRun = true;
+    } else if (arg === "--once") {
+      options.once = true;
+    } else if (arg.startsWith("--from=")) {
+      options.from = arg.slice("--from=".length);
+    } else if (arg === "--from") {
+      options.from = rawArgs[++i];
+    } else if (arg.startsWith("--to=")) {
+      options.to = arg.slice("--to=".length);
+    } else if (arg === "--to") {
+      options.to = rawArgs[++i];
+    } else if (arg.startsWith("--mode=")) {
+      options.mode = arg.slice("--mode=".length);
+    } else if (arg === "--mode") {
+      options.mode = rawArgs[++i];
+    } else if (arg.startsWith("--interval=")) {
+      options.interval = arg.slice("--interval=".length);
+    } else if (arg === "--interval") {
+      options.interval = rawArgs[++i];
     } else if (arg.startsWith("--m=")) {
       options.message = arg.slice("--m=".length);
     } else if (arg === "--m" || arg === "-m" || arg === "--message") {

@@ -1,5 +1,12 @@
 import * as vscode from "vscode";
-import { AgentSyncBinding, AgentSyncCli, AgentSyncCliError, RestoreResponse } from "./agentSyncCli";
+import {
+  AgentSyncBinding,
+  AgentSyncCli,
+  AgentSyncCliError,
+  LocalTransferResponse,
+  RestoreResponse,
+  buildCliCommandLine
+} from "./agentSyncCli";
 import { HistoryView } from "./historyView";
 
 export function activate(context: vscode.ExtensionContext) {
@@ -38,6 +45,27 @@ export function activate(context: vscode.ExtensionContext) {
     });
   }));
 
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.localClone", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await runLocalProviderClone(cli, output, cwd);
+    });
+  }));
+
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.watchLocalCopy", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      await startLocalWatchTerminal(cwd);
+    });
+  }));
+
+  context.subscriptions.push(vscode.commands.registerCommand("agentSync.openTui", async () => {
+    await withErrorHandling(output, async () => {
+      const cwd = getWorkspaceRoot();
+      startTuiTerminal(cwd);
+    });
+  }));
+
   context.subscriptions.push(vscode.commands.registerCommand("agentSync.restore", async () => {
     await withErrorHandling(output, async () => {
       const cwd = getWorkspaceRoot();
@@ -72,6 +100,44 @@ async function syncSidecarAndRefresh(cli: AgentSyncCli, historyView: HistoryView
     historyView.refresh(bindings);
   });
   vscode.window.showInformationMessage(`Agent Sync: ${direction} complete.`);
+}
+
+async function runLocalProviderClone(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string) {
+  const result = await vscode.window.withProgress({
+    location: vscode.ProgressLocation.Notification,
+    title: "Agent Sync: Clone Codex sessions to current provider",
+    cancellable: false
+  }, () => cli.localTransfer(cwd));
+  const summary = summarizeLocalTransfer(result);
+  vscode.window.showInformationMessage(summary, "Show Output").then((selection) => {
+    if (selection === "Show Output") {
+      output.show();
+    }
+  });
+}
+
+async function startLocalWatchTerminal(cwd: string) {
+  const terminal = vscode.window.createTerminal({
+    name: "Agent Sync Watch Codex Provider",
+    cwd
+  });
+  terminal.show();
+  terminal.sendText(buildCliCommandLine(["watch-local"]));
+}
+
+function startTuiTerminal(cwd: string) {
+  const terminal = vscode.window.createTerminal({
+    name: "Agent Sync TUI",
+    cwd
+  });
+  terminal.show();
+  terminal.sendText(buildCliCommandLine(["tui"]));
+}
+
+function summarizeLocalTransfer(result: LocalTransferResponse): string {
+  const cloned = result.stats.cloned || 0;
+  const skipped = (result.stats.skipped_exists || 0) + (result.stats.skipped_target || 0) + (result.stats.skipped_collision || 0);
+  return `Agent Sync: cloned Codex sessions to ${result.provider}: ${cloned} cloned, ${skipped} skipped.`;
 }
 
 async function restoreFromPick(cli: AgentSyncCli, output: vscode.OutputChannel, cwd: string, bindings: AgentSyncBinding[]) {

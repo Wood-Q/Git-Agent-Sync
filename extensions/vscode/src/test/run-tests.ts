@@ -32,7 +32,7 @@ moduleWithLoad._load = function load(request: string, parent: NodeModule | null,
 };
 
 async function main() {
-  const { AgentSyncCli, AgentSyncCliError, getCliPath, normalizeLogFilter, parseJson } = await import("../agentSyncCli");
+  const { AgentSyncCli, AgentSyncCliError, buildCliCommandLine, getCliPath, normalizeLogFilter, parseJson } = await import("../agentSyncCli");
   const { renderHistoryHtml } = await import("../historyView");
 
   assert.equal(getCliPath(), process.execPath);
@@ -66,6 +66,8 @@ async function main() {
   assert.ok(output.lines.some((line: string) => line.includes("$ ")));
   assert.deepEqual(normalizeLogFilter({ selector: "branch", value: " main " }), { selector: "branch", value: "main" });
   assert.deepEqual(normalizeLogFilter({ selector: "latest" }), { selector: "latest" });
+  assert.match(buildCliCommandLine(["watch-local"]), /watch-local/);
+  assert.match(buildCliCommandLine(["tui"]), /tui/);
 
   const html = renderHistoryHtml({ cspSource: "vscode-resource:" }, [{
     title: "Restore <this>",
@@ -80,8 +82,14 @@ async function main() {
   assert.match(html, /Agent Sync History/);
   assert.match(html, /id="pull"/);
   assert.match(html, /id="push"/);
+  assert.match(html, /id="localClone"/);
+  assert.match(html, /id="watchLocalCopy"/);
+  assert.match(html, /id="openTui"/);
   assert.match(html, /command: 'pull'/);
   assert.match(html, /command: 'push'/);
+  assert.match(html, /command: 'localClone'/);
+  assert.match(html, /command: 'watchLocalCopy'/);
+  assert.match(html, /command: 'openTui'/);
   assert.match(html, /data-filter-column="author"/);
   assert.match(html, /data-filter-column="branch"/);
   assert.match(html, /data-author="Agent Sync Test"/);

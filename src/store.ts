@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, copyFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DEFAULT_STORE_BRANCH, DEFAULT_STORE_GITIGNORE, TOOL_VERSION } from "./constants.js";
+import { aggregateDependencies } from "./dependencies.js";
 import { getProjectRemote, runGit } from "./git.js";
 import { isArchivedCodexSessionPath } from "./codex-archive.js";
 import { isCodexSessionContentForProject } from "./codex-session.js";
@@ -386,6 +387,7 @@ export function writeManifest(config, scan, gitContext = null) {
     projectRemote: getProjectRemote(config.projectRoot),
     gitContext,
     legacyProjectIds: config.legacyProjectIds || [],
+    dependencies: aggregateDependencies(scan.matches),
     matches: scan.matches.map(({ absolutePath, ...item }) => item)
   };
   writeJson(join(config.storePath, "projects", config.projectId, "manifest.json"), manifest);
